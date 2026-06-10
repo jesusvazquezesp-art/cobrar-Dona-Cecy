@@ -99,6 +99,9 @@ button{
 }
 button:disabled{opacity:.55;cursor:not-allowed}
 .btn-verde{background:var(--verde);color:white}
+.btn-agregado{background:#0f766e!important;color:white!important;transform:scale(.98);box-shadow:0 0 0 3px rgba(15,118,110,.22) inset}
+.btn-pulso{animation:pulso .55s ease}
+@keyframes pulso{0%{transform:scale(1)}50%{transform:scale(.94)}100%{transform:scale(1)}}
 .btn-azul{background:var(--azul);color:white}
 .btn-rojo{background:var(--rojo);color:white}
 .btn-naranja{background:var(--naranja);color:white}
@@ -255,7 +258,7 @@ th{background:#fafafa}
     <div class="total">Total: $<span id="totalPedido">0.00</span></div>
 
     <label>Cliente paga con</label>
-    <input type="number" id="pagoCon" placeholder="Ejemplo: 200" oninput="calcularCambio()">
+    <input type="number" id="pagoCon" placeholder="Ejemplo: 200" oninput="calcularCambio();guardarPedidoLocal()">
     <div class="cambio">Cambio: $<span id="cambio">0.00</span></div>
 
     <button id="btnEnviarPedido" class="btn-azul" onclick="enviarPedido()">📨 Realizar pedido</button>
@@ -314,7 +317,12 @@ th{background:#fafafa}
 <section id="reportes" class="seccion">
   <div class="card">
     <h2>📊 Números generales</h2>
+    <button class="btn-morado" onclick="cargarReporteHoy()">Actualizar reportes</button>
     <div id="reporteGeneral"></div>
+  </div>
+  <div class="card">
+    <h2>🧾 Corte por productos</h2>
+    <div id="reporteProductos"></div>
   </div>
   <div class="card">
     <h2>🛒 Recomendación de compra</h2>
@@ -411,8 +419,10 @@ const ADMIN_PIN = "2026";
 
 let db=null;
 let usuarios=[], productos=[], ingredientes=[], recetas=[];
+const LS_PEDIDO_BORRADOR="cecy_pedido_borrador_v1";
 let pedido=[], pedidoActualId=null, pedidoActualEstado=null;
 let productoActualId="", realtimeActivado=false, procesando=false, esAdmin=false, toques=0;
+let autoRefreshId=null;
 
 function iniciarSupabase(){
   if(!SUPABASE_KEY || SUPABASE_KEY.includes("AQUI_PEGA")){
@@ -425,6 +435,7 @@ function iniciarSupabase(){
 
 async function cargarTodo(){
   if(!db && !iniciarSupabase()) return;
+  restaurarPedidoLocal();
   await cargarUsuarios();
   await cargarIngredientes();
   await cargarProductos();
@@ -433,6 +444,8 @@ async function cargarTodo(){
   await cargarReporteHoy();
   await cargarAuditoria();
   activarRealtime();
+  iniciarAutoRefresh();
+  renderPedido();
 }
 
 function verTab(id,btn){
@@ -512,12 +525,12 @@ function renderVentas(){
     let g=Number(p.precio_venta)-c;
     return `<div class="productoVenta">
       <div><b>${p.nombre}</b><br><small>Venta $${Number(p.precio_venta).toFixed(2)} • Costo $${c.toFixed(2)} • Gana $${g.toFixed(2)}</small></div>
-      <button class="btn-verde" onclick="agregarAlPedido('${p.id}')">Agregar</button>
+      <button id="btnProd_${p.id}" class="btn-verde" onclick="agregarAlPedido('${p.id}', this)">Agregar</button>
     </div>`;
   }).join("") || "<div class='warn'>No hay productos activos.</div>";
 }
 
-function agregarAlPedido(productoId){
+function agregarAlPedido(productoId, btn){
   if(pedidoActualId){
     if(!confirm("Tienes un pedido cargado. Si agregas otro producto se crea pedido nuevo. ¿Continuar?")) return;
     pedidoActualId=null; pedidoActualEstado=null;
@@ -527,20 +540,59 @@ function agregarAlPedido(productoId){
   let existe=pedido.find(x=>x.producto_id===productoId);
   if(existe) existe.cantidad++;
   else pedido.push({producto_id:p.id,nombre:p.nombre,precio_unitario:Number(p.precio_venta),cantidad:1});
+
+  guardarPedidoLocal();
   renderPedido();
+
+  if(btn){
+    const texto=btn.textContent;
+    btn.disabled=true;
+    btn.classList.add("btn-agregado","btn-pulso");
+    btn.textContent="Agregado ✓";
+    setTimeout(()=>{
+      btn.disabled=false;
+      btn.classList.remove("btn-agregado","btn-pulso");
+      btn.textContent=texto;
+    },750);
+  }
 }
 
 function cambiarCantidad(i,d){
   if(pedidoActualId){alert("Este pedido ya está guardado. Cancélalo y crea uno nuevo para modificar.");return}
   pedido[i].cantidad+=d;
   if(pedido[i].cantidad<=0) pedido.splice(i,1);
+  guardarPedidoLocal();
   renderPedido();
 }
 
 function cancelarItem(i){
   if(pedidoActualId){alert("Este pedido ya está guardado. Cancélalo y crea uno nuevo para modificar.");return}
   pedido.splice(i,1);
+  guardarPedidoLocal();
   renderPedido();
+}
+
+function guardarPedidoLocal(){
+  const data={pedido,pedidoActualId,pedidoActualEstado,pagoCon:document.getElementById("pagoCon")?.value||""};
+  localStorage.setItem(LS_PEDIDO_BORRADOR, JSON.stringify(data));
+}
+
+function restaurarPedidoLocal(){
+  try{
+    const raw=localStorage.getItem(LS_PEDIDO_BORRADOR);
+    if(!raw) return;
+    const data=JSON.parse(raw);
+    if(Array.isArray(data.pedido) && data.pedido.length){
+      pedido=data.pedido;
+      pedidoActualId=data.pedidoActualId||null;
+      pedidoActualEstado=data.pedidoActualEstado||null;
+      setTimeout(()=>{ if(document.getElementById("pagoCon")) document.getElementById("pagoCon").value=data.pagoCon||""; renderPedido(); },100);
+    }
+  }catch(e){console.log("No se pudo restaurar pedido",e)}
+}
+
+function borrarPedidoLocal(){
+  localStorage.removeItem(LS_PEDIDO_BORRADOR);
 }
 
 function renderPedido(){
@@ -596,6 +648,7 @@ async function enviarPedido(){
   const {error:e2}=await db.from("pedido_detalle").insert(det);
   if(e2){mensaje("Pedido creado, falló detalle: "+e2.message,"alerta");procesando=false;return}
   pedidoActualId=ped.id; pedidoActualEstado="pendiente";
+  guardarPedidoLocal();
   await auditoria("PEDIDO_ENVIADO",`${u.nombre} envió pedido por $${total.toFixed(2)}`,{pedido, total, pedido_id:ped.id});
   mensaje("📨 Pedido enviado. Todavía NO se descontó inventario.","ok");
   aviso(`📨 ${u.nombre} realizó pedido por $${total.toFixed(2)}`);
@@ -680,6 +733,7 @@ async function descontarInventarioVenta(u){
 function limpiarPedido(confirmar=true){
   if(confirmar && pedido.length && !confirm("¿Limpiar pedido actual?")) return;
   pedido=[]; pedidoActualId=null; pedidoActualEstado=null;
+  borrarPedidoLocal();
   document.getElementById("pagoCon").value="";
   renderPedido();
 }
@@ -698,7 +752,7 @@ async function cargarPedidosPendientes(){
     let botones=p.estado==="pendiente"?
       `<div class="acciones"><button class="btn-azul" onclick="marcarPedidoListo('${p.id}')">Pedido listo</button><button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar directo</button></div><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`:
       `<button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar pedido listo</button><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`;
-    html+=`<div class="pedido-card"><b>Pedido $${Number(p.total).toFixed(2)}</b> <span class="pill">${p.estado.toUpperCase()}</span><br><small>${new Date(p.fecha_creacion).toLocaleTimeString()} • ${p.usuarios?.nombre||"Usuario"}</small><br><div style="margin:7px 0">${lista}</div>${botones}</div>`;
+    html+=`<div class="pedido-card"><b>Pedido $${Number(p.total).toFixed(2)}</b> <span class="pill">${p.estado.toUpperCase()}</span><br><small>${formatoJuarez(p.fecha_creacion,{timeStyle:"short"})} • ${p.usuarios?.nombre||"Usuario"}</small><br><div style="margin:7px 0">${lista}</div>${botones}</div>`;
   }
   cont.innerHTML=html;
 }
@@ -734,6 +788,7 @@ async function cargarPedidoParaCobrar(id){
   if(e2) return alert("Error detalle: "+e2.message);
   pedido=(det||[]).map(d=>({producto_id:d.producto_id,nombre:d.productos?.nombre||"Producto",precio_unitario:Number(d.precio_unitario),cantidad:Number(d.cantidad)}));
   pedidoActualId=id; pedidoActualEstado=ped.estado;
+  guardarPedidoLocal();
   verTab('ventas', document.querySelectorAll('.tab')[0]);
   renderPedido();
   mensaje("Pedido cargado para cobrar.","ok");
@@ -918,26 +973,130 @@ function renderProductosAdmin(){
   }).join("");
 }
 
+function formatoJuarez(fecha, opciones={dateStyle:"short", timeStyle:"short"}){
+  try{
+    return new Intl.DateTimeFormat("es-MX",{timeZone:"America/Ciudad_Juarez",...opciones}).format(new Date(fecha));
+  }catch(e){
+    return new Date(fecha).toLocaleString("es-MX");
+  }
+}
+
+function fechaJuarezKey(fecha){
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(fecha));
+}
+
+function semanaJuarezKey(fecha){
+  const d=new Date(fecha);
+  const f=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  const [y,m,day]=f.split("-").map(Number);
+  const local=new Date(Date.UTC(y,m-1,day));
+  const dow=local.getUTCDay()||7;
+  local.setUTCDate(local.getUTCDate()-dow+1);
+  return local.toISOString().slice(0,10);
+}
+
+function mesJuarezKey(fecha){
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit"}).format(new Date(fecha));
+}
+
 async function cargarReporteHoy(){
   if(!db) return;
-  let inicio=new Date(); inicio.setHours(0,0,0,0);
-  const {data:ventas}=await db.from("ventas").select("total").gte("fecha_creacion",inicio.toISOString());
-  const {data:movs}=await db.from("movimientos_inventario").select("tipo").gte("fecha_creacion",inicio.toISOString());
-  let total=(ventas||[]).reduce((s,v)=>s+Number(v.total),0);
-  let num=(ventas||[]).length;
-  let m=(movs||[]).filter(x=>x.tipo==="merma").length;
-  let r=(movs||[]).filter(x=>x.tipo==="regalo").length;
-  let html=`<div class="resumen"><div class="box">Ventas<br><b>${num}</b></div><div class="box">Dinero<br><b>$${total.toFixed(2)}</b></div><div class="box">Mermas/Regalos<br><b>${m+r}</b></div></div>`;
+
+  // Traemos ventas recientes y las agrupamos con horario de Ciudad Juárez.
+  const desde=new Date();
+  desde.setDate(desde.getDate()-40);
+
+  const {data:ventas,error:e1}=await db
+    .from("ventas")
+    .select("id,pedido_id,total,fecha_creacion")
+    .gte("fecha_creacion",desde.toISOString())
+    .order("fecha_creacion",{ascending:false});
+
+  const {data:movs}=await db
+    .from("movimientos_inventario")
+    .select("tipo,fecha_creacion")
+    .gte("fecha_creacion",desde.toISOString());
+
+  if(e1){
+    reporteGeneral.innerHTML="<div class='alerta'>No se pudo cargar reporte: "+e1.message+"</div>";
+    return;
+  }
+
+  const hoy=fechaJuarezKey(new Date());
+  const semana=semanaJuarezKey(new Date());
+  const mes=mesJuarezKey(new Date());
+
+  const ventasHoy=(ventas||[]).filter(v=>fechaJuarezKey(v.fecha_creacion)===hoy);
+  const ventasSemana=(ventas||[]).filter(v=>semanaJuarezKey(v.fecha_creacion)===semana);
+  const ventasMes=(ventas||[]).filter(v=>mesJuarezKey(v.fecha_creacion)===mes);
+
+  const suma=arr=>arr.reduce((s,v)=>s+Number(v.total||0),0);
+  const mHoy=(movs||[]).filter(x=>fechaJuarezKey(x.fecha_creacion)===hoy && (x.tipo==="merma"||x.tipo==="regalo")).length;
+
+  let html=`<div class="resumen">
+    <div class="box">Hoy<br><b>$${suma(ventasHoy).toFixed(2)}</b><br><small>${ventasHoy.length} ventas</small></div>
+    <div class="box">Semana<br><b>$${suma(ventasSemana).toFixed(2)}</b><br><small>${ventasSemana.length} ventas</small></div>
+    <div class="box">Mes<br><b>$${suma(ventasMes).toFixed(2)}</b><br><small>${ventasMes.length} ventas</small></div>
+  </div>
+  <div class="info">Horario usado para reportes: <b>Ciudad Juárez</b>. Corte sugerido: <b>10:00 p.m.</b></div>
+  <div class="warn">Mermas/regalos de hoy: <b>${mHoy}</b></div>`;
+
   resumenHoy.innerHTML=html;
   reporteGeneral.innerHTML=html;
+
+  await cargarReporteProductos(ventasHoy, ventasSemana, ventasMes);
+
   recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=10).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Comprar pronto.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
+}
+
+async function cargarReporteProductos(ventasHoy, ventasSemana, ventasMes){
+  const pedidoIds=[...new Set([...(ventasHoy||[]),...(ventasSemana||[]),...(ventasMes||[])].map(v=>v.pedido_id).filter(Boolean))];
+  const cont=document.getElementById("reporteProductos");
+  if(!cont) return;
+  if(!pedidoIds.length){
+    cont.innerHTML="<div class='warn'>Aún no hay ventas en el periodo.</div>";
+    return;
+  }
+
+  const {data:det,error}=await db
+    .from("pedido_detalle")
+    .select("pedido_id,cantidad,subtotal,productos(nombre)")
+    .in("pedido_id",pedidoIds);
+
+  if(error){
+    cont.innerHTML="<div class='alerta'>No se pudo cargar detalle: "+error.message+"</div>";
+    return;
+  }
+
+  function resumenPorLista(lista){
+    const ids=new Set(lista.map(v=>v.pedido_id));
+    const mapa={};
+    (det||[]).filter(d=>ids.has(d.pedido_id)).forEach(d=>{
+      const n=d.productos?.nombre||"Producto";
+      if(!mapa[n]) mapa[n]={cantidad:0,total:0};
+      mapa[n].cantidad+=Number(d.cantidad||0);
+      mapa[n].total+=Number(d.subtotal||0);
+    });
+    return Object.entries(mapa).sort((a,b)=>b[1].cantidad-a[1].cantidad);
+  }
+
+  function tabla(titulo, lista){
+    const rows=resumenPorLista(lista);
+    if(!rows.length) return `<div class="warn"><b>${titulo}</b><br>Sin ventas.</div>`;
+    return `<div class="info"><b>${titulo}</b></div>
+      <table><tr><th>Producto</th><th>Cant.</th><th>Total</th></tr>
+      ${rows.map(([n,v])=>`<tr><td>${n}</td><td>${v.cantidad}</td><td>$${v.total.toFixed(2)}</td></tr>`).join("")}
+      </table>`;
+  }
+
+  cont.innerHTML=tabla("Venta diaria por producto",ventasHoy)+tabla("Venta semanal por producto",ventasSemana)+tabla("Venta mensual por producto",ventasMes);
 }
 
 async function cargarAuditoria(){
   if(!db) return;
   const {data,error}=await db.from("auditoria").select("accion,detalle,fecha_creacion,usuarios(nombre)").order("fecha_creacion",{ascending:false}).limit(80);
   if(error){historial.innerHTML="<div class='alerta'>Error auditoría: "+error.message+"</div>";return}
-  historial.innerHTML=(data||[]).map(a=>`<div style="border-bottom:1px solid #eee;padding:8px 0"><b>${a.accion}</b><br>${a.detalle||""}<br><small>${new Date(a.fecha_creacion).toLocaleString()} • ${a.usuarios?.nombre||""}</small></div>`).join("")||"Sin auditoría.";
+  historial.innerHTML=(data||[]).map(a=>`<div style="border-bottom:1px solid #eee;padding:8px 0"><b>${a.accion}</b><br>${a.detalle||""}<br><small>${formatoJuarez(a.fecha_creacion)} • ${a.usuarios?.nombre||""}</small></div>`).join("")||"Sin auditoría.";
 }
 
 async function auditoria(accion,detalle,datos={}){
@@ -991,6 +1150,15 @@ function msgMerma(txt,tipo){mensajeMerma.className=tipo; mensajeMerma.innerHTML=
 function estado(txt,tipo){estadoConexion.className=tipo; estadoConexion.innerHTML=txt}
 function aviso(txt){let a=avisos;let f=new Date().toLocaleTimeString();let n=`<div class="ok"><b>${f}</b><br>${txt}</div>`;if(a.textContent.includes("Sin avisos"))a.innerHTML="";a.innerHTML=n+a.innerHTML}
 
+function iniciarAutoRefresh(){
+  if(autoRefreshId) return;
+  autoRefreshId=setInterval(async()=>{
+    if(!db) return;
+    await cargarPedidosPendientes();
+    await cargarReporteHoy();
+  },10000);
+}
+
 function activarRealtime(){
   if(realtimeActivado||!db) return; realtimeActivado=true;
   try{
@@ -999,7 +1167,9 @@ function activarRealtime(){
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pedidos"},()=>{aviso("🔄 Pedido actualizado"); cargarPedidosPendientes();})
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"ventas"},()=>{aviso("💰 Nueva venta registrada"); cargarReporteHoy(); cargarIngredientes().then(render);})
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"movimientos_inventario"},()=>{aviso("📦 Movimiento de inventario"); cargarIngredientes().then(render);})
-      .subscribe();
+      .subscribe((status)=>{
+        if(status==="SUBSCRIBED") aviso("🟢 Avisos en tiempo real conectados");
+      });
   }catch(e){console.log(e)}
 }
 
