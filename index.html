@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy - Control con Admin</title>
+<title>Puesto Doña Cecy - Roles y Compras V5</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -100,6 +100,8 @@ button{
 button:disabled{opacity:.55;cursor:not-allowed}
 .btn-verde{background:var(--verde);color:white}
 .btn-agregado{background:#0f766e!important;color:white!important;transform:scale(.98);box-shadow:0 0 0 3px rgba(15,118,110,.22) inset}
+.btn-servidor{background:#0f766e!important;color:white!important;box-shadow:0 0 0 3px rgba(15,118,110,.25) inset}
+.btn-recargar{background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7;width:auto;padding:7px 9px;font-size:12px}
 .btn-pulso{animation:pulso .55s ease}
 @keyframes pulso{0%{transform:scale(1)}50%{transform:scale(.94)}100%{transform:scale(1)}}
 .btn-azul{background:var(--azul);color:white}
@@ -223,8 +225,8 @@ th{background:#fafafa}
 </head>
 <body>
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy</h1>
-  <p>Punto de venta • Inventario • Pedidos • Administración</p>
+  <h1>🥤 Puesto Doña Cecy V4</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p>
 </header>
 
 <div class="tabs">
@@ -232,6 +234,7 @@ th{background:#fafafa}
   <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
   <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
   <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
+  <button class="tab" onclick="verTab('cortesTab',this)">💾 Cortes</button>
   <button class="tab" onclick="verTab('admin',this)">⚙️ Admin</button>
 </div>
 
@@ -240,7 +243,10 @@ th{background:#fafafa}
 <section id="ventas" class="seccion activa">
   <div class="card">
     <h2>👤 Usuario</h2>
-    <select id="usuarioSelect" onchange="mostrarUsuarioActivo()"></select>
+    <select id="usuarioSelect" onchange="mostrarUsuarioActivo();guardarUsuarioLocal()"></select>
+    <label>PIN de usuario</label>
+    <input type="password" id="pinUsuario" placeholder="PIN">
+    <button class="btn-verde" onclick="iniciarSesionUsuario()">Entrar con PIN</button>
     <div id="usuarioActivo" class="info">Cargando usuario...</div>
     <button class="btn-morado" onclick="cargarTodo()">Actualizar datos</button>
     <div id="estadoConexion" class="warn">Cargando conexión...</div>
@@ -261,8 +267,8 @@ th{background:#fafafa}
     <input type="number" id="pagoCon" placeholder="Ejemplo: 200" oninput="calcularCambio();guardarPedidoLocal()">
     <div class="cambio">Cambio: $<span id="cambio">0.00</span></div>
 
-    <button id="btnEnviarPedido" class="btn-azul" onclick="enviarPedido()">📨 Realizar pedido</button>
-    <button id="btnRegistrarVenta" class="btn-verde" onclick="registrarVenta()">✅ Realizar venta y descontar inventario</button>
+    <button id="btnEnviarPedido" class="btn-azul" onclick="enviarPedido(this)">📨 Realizar pedido</button>
+    <button id="btnRegistrarVenta" class="btn-verde" onclick="registrarVenta(this)">✅ Realizar venta y descontar inventario</button>
     <button class="btn-gris" onclick="limpiarPedido()">🧹 Limpiar pedido</button>
     <div id="mensajePedido"></div>
   </div>
@@ -277,6 +283,7 @@ th{background:#fafafa}
   <div class="card">
     <h2>🟡 Pedidos pendientes / listos</h2>
     <button class="btn-morado" onclick="cargarPedidosPendientes()">Actualizar pedidos</button>
+    <button class="btn-claro" onclick="limpiarPedido(false)">Nuevo pedido en esta pantalla</button>
     <div id="pedidosPendientes">Cargando pedidos...</div>
   </div>
   <div class="card">
@@ -335,6 +342,27 @@ th{background:#fafafa}
   </div>
 </section>
 
+
+<section id="cortesTab" class="seccion">
+  <div class="card">
+    <h2>💾 Cortes y respaldos</h2>
+    <label>Tipo de corte</label>
+    <select id="tipoCorte" onchange="actualizarVistaCorte()">
+      <option value="semanal">Semanal actual: lunes a domingo</option>
+      <option value="mensual">Mensual actual: día 1 al último día</option>
+      <option value="anual">Anual actual</option>
+    </select>
+    <div id="vistaCorte" class="info"></div>
+    <button class="btn-verde" onclick="generarCorte()">Generar corte y guardar en Supabase</button>
+    <button class="btn-azul" onclick="descargarRespaldoActual()">Descargar respaldo JSON actual</button>
+    <button class="btn-morado" onclick="cargarCortes()">Actualizar cortes guardados</button>
+  </div>
+  <div class="card">
+    <h2>📚 Cortes guardados</h2>
+    <div id="listaCortes">Sin cargar.</div>
+  </div>
+</section>
+
 <section id="admin" class="seccion">
   <div class="card">
     <h2>🔐 Administrador</h2>
@@ -352,10 +380,19 @@ th{background:#fafafa}
       <input id="userNombre" placeholder="Ejemplo: Diana Vázquez">
       <label>Email / identificador</label>
       <input id="userEmail" placeholder="Ejemplo: diana@dona-cecy.local">
+      <label>PIN</label>
+      <input id="userPin" placeholder="Ejemplo: 2222">
       <label>Rol</label>
       <select id="userRol">
         <option value="usuario">usuario</option>
         <option value="admin">admin</option>
+      </select>
+      <label>Permisos rápidos</label>
+      <select id="userPlantilla">
+        <option value="pedidos">Mayreli: solo pedidos</option>
+        <option value="ventas">Ventas y pedidos</option>
+        <option value="inventario">Inventario/compras/ventas</option>
+        <option value="admin">Admin total</option>
       </select>
       <button class="btn-azul" onclick="guardarUsuario()">Guardar usuario</button>
       <div id="listaUsuarios"></div>
@@ -369,6 +406,8 @@ th{background:#fafafa}
       <input type="number" id="ingCantidad" placeholder="Ejemplo: 35">
       <label>Costo unitario</label>
       <input type="number" id="ingCosto" placeholder="Ejemplo: 3.50">
+      <label>Mínimo recomendado</label>
+      <input type="number" id="ingMinimo" placeholder="Ejemplo: 10">
       <button class="btn-azul" onclick="agregarIngrediente()">Guardar ingrediente</button>
     </div>
 
@@ -381,6 +420,7 @@ th{background:#fafafa}
       <label>Costo total de compra</label>
       <input type="number" id="compraCosto" placeholder="Ejemplo: 180">
       <button class="btn-verde" onclick="agregarCompra()">Agregar compra</button>
+      <div id="mensajeCompra"></div>
     </div>
 
     <div class="card">
@@ -415,13 +455,15 @@ th{background:#fafafa}
 <script>
 const SUPABASE_URL = "https://vdmlmeiqqxjvczpeyrfo.supabase.co";
 const SUPABASE_KEY = "sb_publishable_okXFGFXrEZhu_bO8u-fLgw_6JRDutZ6";
-const ADMIN_PIN = "2026";
+  const ADMIN_PIN = "2026";
 
 let db=null;
 let usuarios=[], productos=[], ingredientes=[], recetas=[];
 const LS_PEDIDO_BORRADOR="cecy_pedido_borrador_v1";
 let pedido=[], pedidoActualId=null, pedidoActualEstado=null;
 let productoActualId="", realtimeActivado=false, procesando=false, esAdmin=false, toques=0;
+let usuarioLogueado=null;
+const LS_USER="cecy_usuario_v5";
 let autoRefreshId=null;
 
 function iniciarSupabase(){
@@ -440,9 +482,12 @@ async function cargarTodo(){
   await cargarIngredientes();
   await cargarProductos();
   await cargarRecetas();
+  await verificarPedidoActualEnNube();
   await cargarPedidosPendientes();
   await cargarReporteHoy();
   await cargarAuditoria();
+  await cargarCortes();
+  actualizarVistaCorte();
   activarRealtime();
   iniciarAutoRefresh();
   renderPedido();
@@ -462,16 +507,41 @@ function usuarioActual(){
 }
 
 function mostrarUsuarioActivo(){
+  let u=usuarioLogueado || usuarioActual();
+  document.getElementById("usuarioActivo").innerHTML=u?`Usuario seleccionado: <b>${u.nombre}</b> • ${u.rol}${usuarioLogueado?" • ✅ PIN activo":" • 🔒 falta PIN"}`:"Usuario no seleccionado";
+}
+
+function guardarUsuarioLocal(){
+  localStorage.setItem(LS_USER, document.getElementById("usuarioSelect").value);
+}
+
+function permisos(){ return usuarioLogueado?.permisos || {}; }
+function tiene(p){ return !!permisos()[p] || !!permisos().admin; }
+function validarPermiso(p,msg="No tienes permiso para esta acción."){
+  if(!usuarioLogueado){ alert("Primero entra con tu PIN."); return false; }
+  if(!tiene(p)){ alert(msg); return false; }
+  return true;
+}
+function iniciarSesionUsuario(){
   let u=usuarioActual();
-  document.getElementById("usuarioActivo").innerHTML=u?`Operando como: <b>${u.nombre}</b> • ${u.rol}`:"Usuario no seleccionado";
+  let pin=document.getElementById("pinUsuario").value.trim();
+  if(!u) return;
+  if(String(u.pin||"")!==pin){ alert("PIN incorrecto"); return; }
+  usuarioLogueado=u;
+  document.getElementById("pinUsuario").value="";
+  guardarUsuarioLocal();
+  esAdmin=!!u.permisos?.admin;
+  mostrarUsuarioActivo();
+  actualizarAdminVisual();
+  mostrarServidor("✅ Sesión iniciada: "+u.nombre,"ok");
 }
 
 async function cargarUsuarios(){
-  const {data,error}=await db.from("usuarios").select("id,nombre,email,rol,activo").order("nombre");
+  const {data,error}=await db.from("usuarios").select("id,nombre,email,rol,activo,pin,permisos").order("nombre");
   if(error){estado("Error usuarios: "+error.message,"alerta");return}
   usuarios=data||[];
   let sel=document.getElementById("usuarioSelect");
-  let actual=sel.value;
+  let actual=sel.value || localStorage.getItem(LS_USER);
   sel.innerHTML="";
   usuarios.filter(u=>u.activo).forEach(u=>{
     let op=document.createElement("option");
@@ -480,6 +550,7 @@ async function cargarUsuarios(){
     sel.appendChild(op);
   });
   if(actual) sel.value=actual;
+  if(usuarioLogueado){usuarioLogueado=usuarios.find(u=>u.id===usuarioLogueado.id)||null;}
   mostrarUsuarioActivo();
   renderUsuarios();
 }
@@ -635,61 +706,80 @@ function calcularCambio(){
   document.getElementById("cambio").textContent=cambio>0?cambio.toFixed(2):"0.00";
 }
 
-async function enviarPedido(){
+function bloquearBotonServidor(btn, texto="✓ Datos enviados, espere respuesta del servidor..."){
+  if(!btn) return null;
+  const original=btn.textContent;
+  btn.disabled=true;
+  btn.classList.add("btn-servidor","btn-pulso");
+  btn.textContent=texto;
+  return ()=>{
+    btn.disabled=false;
+    btn.classList.remove("btn-servidor","btn-pulso");
+    btn.textContent=original;
+  };
+}
+
+async function enviarPedido(btn){
   if(procesando) return;
+  if(!validarPermiso("pedidos")) return;
   if(pedidoActualId){mensaje("Este pedido ya fue enviado.","alerta");return}
   if(!pedido.length){mensaje("Agrega productos antes de realizar pedido.","alerta");return}
-  let u=usuarioActual(); if(!u){mensaje("Selecciona usuario.","alerta");return}
+  let u=usuarioLogueado; if(!u){mensaje("Entra con PIN.","alerta");return}
   procesando=true;
+  const restaurarBtn=bloquearBotonServidor(btn);
   let total=totalPedido();
   const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"pendiente",total}).select().single();
-  if(e1){mensaje("Error pedido: "+e1.message,"alerta");procesando=false;return}
+  if(e1){mensaje("Error pedido: "+e1.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
   let det=pedido.map(it=>({pedido_id:ped.id,producto_id:it.producto_id,cantidad:it.cantidad,precio_unitario:it.precio_unitario,subtotal:it.precio_unitario*it.cantidad}));
   const {error:e2}=await db.from("pedido_detalle").insert(det);
-  if(e2){mensaje("Pedido creado, falló detalle: "+e2.message,"alerta");procesando=false;return}
-  pedidoActualId=ped.id; pedidoActualEstado="pendiente";
-  guardarPedidoLocal();
-  await auditoria("PEDIDO_ENVIADO",`${u.nombre} envió pedido por $${total.toFixed(2)}`,{pedido, total, pedido_id:ped.id});
-  mensaje("📨 Pedido enviado. Todavía NO se descontó inventario.","ok");
+  if(e2){mensaje("Pedido creado, falló detalle: "+e2.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
+  const copiaPedido = [...pedido];
+  await auditoria("PEDIDO_ENVIADO",`${u.nombre} envió pedido por $${total.toFixed(2)}`,{pedido: copiaPedido, total, pedido_id:ped.id});
+  mensaje("📨 Pedido enviado. Ya puedes capturar otro pedido. No se descontó inventario.","ok");
   aviso(`📨 ${u.nombre} realizó pedido por $${total.toFixed(2)}`);
+  pedido=[]; pedidoActualId=null; pedidoActualEstado=null; borrarPedidoLocal();
+  document.getElementById("pagoCon").value="";
   await cargarPedidosPendientes();
   renderPedido();
   procesando=false;
+  if(restaurarBtn)restaurarBtn();
 }
 
-async function registrarVenta(){
+async function registrarVenta(btn){
   if(procesando) return;
+  if(!validarPermiso("ventas","No tienes permiso para registrar ventas.")) return;
   if(!pedido.length){mensaje("Agrega productos antes de registrar venta.","alerta");return}
-  let u=usuarioActual(); if(!u){mensaje("Selecciona usuario.","alerta");return}
+  let u=usuarioLogueado; if(!u){mensaje("Entra con PIN.","alerta");return}
   let total=totalPedido(), pago=Number(document.getElementById("pagoCon").value||0);
   if(pago<total && !confirm("El pago es menor al total. ¿Registrar de todos modos?")) return;
   procesando=true;
+  const restaurarBtn=bloquearBotonServidor(btn);
 
   let idPedido=pedidoActualId;
   if(idPedido){
     const {data:ped,error:e0}=await db.from("pedidos").select("estado").eq("id",idPedido).single();
-    if(e0){mensaje("Error verificando pedido: "+e0.message,"alerta");procesando=false;return}
-    if(ped.estado==="vendido"){mensaje("Este pedido ya fue vendido.","alerta");procesando=false;return}
-    if(ped.estado==="cancelado"){mensaje("Este pedido está cancelado.","alerta");procesando=false;return}
+    if(e0){mensaje("Error verificando pedido: "+e0.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
+    if(ped.estado==="vendido"){mensaje("Este pedido ya fue vendido.","alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
+    if(ped.estado==="cancelado"){mensaje("Este pedido está cancelado.","alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
   }
 
   let ok=await descontarInventarioVenta(u);
-  if(!ok){procesando=false;return}
+  if(!ok){procesando=false;if(restaurarBtn)restaurarBtn();return}
 
   if(!idPedido){
     const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"vendido",total}).select().single();
-    if(e1){mensaje("Error creando pedido: "+e1.message,"alerta");procesando=false;return}
+    if(e1){mensaje("Error creando pedido: "+e1.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
     idPedido=ped.id;
     let det=pedido.map(it=>({pedido_id:idPedido,producto_id:it.producto_id,cantidad:it.cantidad,precio_unitario:it.precio_unitario,subtotal:it.precio_unitario*it.cantidad}));
     const {error:e2}=await db.from("pedido_detalle").insert(det);
-    if(e2){mensaje("Error detalle: "+e2.message,"alerta");procesando=false;return}
+    if(e2){mensaje("Error detalle: "+e2.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
   }else{
     await db.from("pedidos").update({estado:"vendido"}).eq("id",idPedido).neq("estado","vendido");
   }
 
   let cambio=pago-total;
   const {error:e3}=await db.from("ventas").insert({pedido_id:idPedido,usuario_id:u.id,total,pago_con:pago,cambio:cambio>0?cambio:0});
-  if(e3){mensaje("Error venta: "+e3.message,"alerta");procesando=false;return}
+  if(e3){mensaje("Error venta: "+e3.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
   await auditoria("VENTA_REGISTRADA",`${u.nombre} registró venta por $${total.toFixed(2)}`,{pedido,total,pago,cambio,pedido_id:idPedido});
   mensaje("✅ Venta registrada e inventario descontado.","ok");
   aviso(`✅ ${u.nombre} registró venta por $${total.toFixed(2)}`);
@@ -699,6 +789,7 @@ async function registrarVenta(){
   await cargarPedidosPendientes();
   render();
   procesando=false;
+  if(restaurarBtn)restaurarBtn();
 }
 
 async function descontarInventarioVenta(u){
@@ -730,6 +821,26 @@ async function descontarInventarioVenta(u){
   return true;
 }
 
+async function verificarPedidoActualEnNube(){
+  if(!db || !pedidoActualId) return;
+  const {data:ped,error}=await db.from("pedidos").select("estado").eq("id",pedidoActualId).single();
+  if(error || !ped) return;
+  if(ped.estado==="vendido" || ped.estado==="cancelado"){
+    aviso(`ℹ️ El pedido cargado ya fue ${ped.estado}. Se limpió de esta pantalla.`);
+    pedido=[];
+    pedidoActualId=null;
+    pedidoActualEstado=null;
+    borrarPedidoLocal();
+    const pago=document.getElementById("pagoCon");
+    if(pago) pago.value="";
+    renderPedido();
+  }else if(pedidoActualEstado!==ped.estado){
+    pedidoActualEstado=ped.estado;
+    guardarPedidoLocal();
+    renderPedido();
+  }
+}
+
 function limpiarPedido(confirmar=true){
   if(confirmar && pedido.length && !confirm("¿Limpiar pedido actual?")) return;
   pedido=[]; pedidoActualId=null; pedidoActualEstado=null;
@@ -750,36 +861,41 @@ async function cargarPedidosPendientes(){
     const {data:det}=await db.from("pedido_detalle").select("cantidad,precio_unitario,subtotal,productos(nombre)").eq("pedido_id",p.id);
     let lista=(det||[]).map(d=>`• ${Number(d.cantidad)} x ${d.productos?.nombre||"Producto"} = $${Number(d.subtotal).toFixed(2)}`).join("<br>");
     let botones=p.estado==="pendiente"?
-      `<div class="acciones"><button class="btn-azul" onclick="marcarPedidoListo('${p.id}')">Pedido listo</button><button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar directo</button></div><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`:
-      `<button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar pedido listo</button><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`;
+      `<div class="acciones"><button class="btn-azul" onclick="marcarPedidoListo('${p.id}', this)">Pedido listo</button><button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar directo</button></div><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}', this)">Cancelar pedido</button>`:
+      `<button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar pedido listo</button><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}', this)">Cancelar pedido</button>`;
     html+=`<div class="pedido-card"><b>Pedido $${Number(p.total).toFixed(2)}</b> <span class="pill">${p.estado.toUpperCase()}</span><br><small>${formatoJuarez(p.fecha_creacion,{timeStyle:"short"})} • ${p.usuarios?.nombre||"Usuario"}</small><br><div style="margin:7px 0">${lista}</div>${botones}</div>`;
   }
   cont.innerHTML=html;
 }
 
-async function marcarPedidoListo(id){
+async function marcarPedidoListo(id, btn){
   let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
+  const restaurarBtn=bloquearBotonServidor(btn, "✓ Datos enviados, espere respuesta...");
   const {data:ped}=await db.from("pedidos").select("estado").eq("id",id).single();
-  if(!ped || ped.estado!=="pendiente"){alert("Este pedido ya no está pendiente."); await cargarPedidosPendientes(); return}
+  if(!ped || ped.estado!=="pendiente"){alert("Este pedido ya no está pendiente."); await cargarPedidosPendientes(); if(restaurarBtn)restaurarBtn(); return}
   await db.from("pedidos").update({estado:"listo"}).eq("id",id).eq("estado","pendiente");
   await auditoria("PEDIDO_LISTO",`${u.nombre} marcó pedido como listo`,{pedido_id:id});
   aviso(`🔵 ${u.nombre} marcó pedido listo`);
   await cargarPedidosPendientes();
+  if(restaurarBtn)restaurarBtn();
 }
 
-async function cancelarPedidoNube(id){
+async function cancelarPedidoNube(id, btn){
   let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
   if(!confirm("¿Cancelar este pedido?")) return;
+  const restaurarBtn=bloquearBotonServidor(btn, "✓ Datos enviados, espere respuesta...");
   const {data:ped}=await db.from("pedidos").select("estado").eq("id",id).single();
-  if(ped?.estado==="vendido") return alert("Este pedido ya fue vendido.");
+  if(ped?.estado==="vendido"){ if(restaurarBtn)restaurarBtn(); return alert("Este pedido ya fue vendido.");}
   await db.from("pedidos").update({estado:"cancelado"}).eq("id",id).neq("estado","vendido");
   await auditoria("PEDIDO_CANCELADO",`${u.nombre} canceló un pedido`,{pedido_id:id});
   aviso(`🔴 ${u.nombre} canceló pedido`);
   if(pedidoActualId===id) limpiarPedido(false);
   await cargarPedidosPendientes();
+  if(restaurarBtn)restaurarBtn();
 }
 
 async function cargarPedidoParaCobrar(id){
+  if(!validarPermiso("ventas","No tienes permiso para cobrar ventas.")) return;
   const {data:ped,error:e1}=await db.from("pedidos").select("id,estado,total").eq("id",id).single();
   if(e1) return alert("Error: "+e1.message);
   if(ped.estado==="vendido") return alert("Ya fue vendido.");
@@ -796,11 +912,28 @@ async function cargarPedidoParaCobrar(id){
 
 function renderInventario(){
   let cont=document.getElementById("tablaInventario");
-  cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Costo</th><th>Estado</th></tr>'+
+  cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Mín.</th><th>Estado</th></tr>'+
     ingredientes.map(i=>{
-      let estado=Number(i.cantidad)<=10?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
-      return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>$${Number(i.costo_unitario).toFixed(2)}</td><td>${estado}</td></tr>`;
+      let min=Number(i.minimo||10);
+      let estado=Number(i.cantidad)<=min?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
+      return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>${min.toFixed(0)}</td><td>${estado}<br><button class="btn-recargar" onclick="prepararCompra('${i.id}')">Recargar</button></td></tr>`;
     }).join("")+'</table>';
+}
+
+function prepararCompra(ingredienteId){
+  if(!validarAdmin()) return;
+  verTab('admin',document.querySelectorAll('.tab')[4]);
+  setTimeout(()=>{
+    compraProducto.value=ingredienteId;
+    compraCantidad.value='';
+    compraCosto.value='';
+    const ing=ingredientes.find(i=>i.id===ingredienteId);
+    if(document.getElementById('mensajeCompra')){
+      mensajeCompra.className='info';
+      mensajeCompra.innerHTML=`Recargando: <b>${ing?.nombre||'producto'}</b>. Escribe cantidad comprada y costo total.`;
+    }
+    compraCantidad.focus();
+  },80);
 }
 
 function renderSelects(){
@@ -819,7 +952,8 @@ function renderSelects(){
 }
 
 async function registrarMerma(){
-  let u=usuarioActual(); if(!u) return msgMerma("Selecciona usuario.","alerta");
+  if(!validarPermiso("inventario")) return;
+  let u=usuarioLogueado; if(!u) return msgMerma("Selecciona usuario.","alerta");
   let ingId=mermaProducto.value, tipo=mermaTipo.value, cant=Number(mermaCantidad.value||0), motivo=mermaMotivo.value.trim();
   if(!ingId||cant<=0) return msgMerma("Selecciona producto y cantidad válida.","alerta");
   if(motivo.length<4) return msgMerma("El motivo es obligatorio.","alerta");
@@ -838,9 +972,9 @@ async function registrarMerma(){
 
 async function agregarIngrediente(){
   if(!validarAdmin()) return;
-  let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0);
+  let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0), min=Number(ingMinimo.value||10);
   if(!n||c<0||cu<0) return alert("Completa los datos.");
-  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,activo:true});
+  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,minimo:min,activo:true});
   if(error) return alert(error.message.includes("duplicate")?"Ese ingrediente ya existe.":error.message);
   await auditoria("INGREDIENTE_NUEVO",`Se agregó ingrediente ${n}`,{nombre:n,cantidad:c,costo_unitario:cu});
   ingNombre.value=""; ingCantidad.value=""; ingCosto.value="";
@@ -848,8 +982,8 @@ async function agregarIngrediente(){
 }
 
 async function agregarCompra(){
-  if(!validarAdmin()) return;
-  let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
+  if(!validarPermiso("compras","Necesitas permiso de compras.")) return;
+  let u=usuarioLogueado; if(!u) return alert("Entra con PIN");
   let ingId=compraProducto.value, cant=Number(compraCantidad.value||0), costo=Number(compraCosto.value||0);
   if(!ingId||cant<=0||costo<=0) return alert("Completa compra.");
   await cargarIngredientes();
@@ -857,9 +991,11 @@ async function agregarCompra(){
   let nueva=Number(ing.cantidad)+cant, costoUnit=costo/cant;
   const {error}=await db.from("ingredientes").update({cantidad:nueva,costo_unitario:costoUnit}).eq("id",ingId);
   if(error) return alert(error.message);
+  await db.from("compras").insert({usuario_id:u.id,ingrediente_id:ingId,cantidad:cant,costo_total:costo,costo_unitario:costoUnit});
   await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:ingId,tipo:"compra",cantidad:cant,motivo:"Compra registrada",referencia:"compra"});
   await auditoria("COMPRA",`${u.nombre} agregó compra de ${cant} ${ing.nombre}`,{ingrediente:ing.nombre,cantidad:cant,costo});
   compraCantidad.value=""; compraCosto.value="";
+  if(document.getElementById('mensajeCompra')){mensajeCompra.className='ok';mensajeCompra.innerHTML=`✅ Compra agregada a ${ing.nombre}. Inventario actualizado.`;}
   await cargarIngredientes(); render();
 }
 
@@ -936,13 +1072,18 @@ async function eliminarProducto(){
 
 async function guardarUsuario(){
   if(!validarAdmin()) return;
-  let nombre=userNombre.value.trim(), email=userEmail.value.trim(), rol=userRol.value;
+  let nombre=userNombre.value.trim(), email=userEmail.value.trim(), rol=userRol.value, pin=userPin.value.trim()||"1234", plantilla=userPlantilla.value;
   if(!nombre) return alert("Nombre obligatorio.");
   if(!email) email=nombre.toLowerCase().replace(/\s+/g,".")+"@dona-cecy.local";
-  const {error}=await db.from("usuarios").insert({nombre,email,rol,activo:true});
+  let permisos={};
+  if(plantilla==="pedidos") permisos={admin:false,ventas:false,pedidos:true,inventario:false,compras:false,reportes:false};
+  if(plantilla==="ventas") permisos={admin:false,ventas:true,pedidos:true,inventario:false,compras:false,reportes:false};
+  if(plantilla==="inventario") permisos={admin:false,ventas:true,pedidos:true,inventario:true,compras:true,reportes:true};
+  if(plantilla==="admin") permisos={admin:true,ventas:true,pedidos:true,inventario:true,compras:true,reportes:true};
+  const {error}=await db.from("usuarios").insert({nombre,email,rol,pin,permisos,activo:true});
   if(error) return alert(error.message.includes("duplicate")?"Ese usuario ya existe.":error.message);
-  await auditoria("USUARIO_NUEVO",`Se agregó usuario ${nombre}`,{nombre,email,rol});
-  userNombre.value=""; userEmail.value="";
+  await auditoria("USUARIO_NUEVO",`Se agregó usuario ${nombre}`,{nombre,email,rol,permisos});
+  userNombre.value=""; userEmail.value=""; userPin.value="";
   await cargarUsuarios();
 }
 
@@ -973,21 +1114,37 @@ function renderProductosAdmin(){
   }).join("");
 }
 
+const TZ_JUAREZ = "America/Ciudad_Juarez";
+const TZ_JUAREZ_FALLBACK = "America/Denver";
+
+function fechaSupabase(fecha){
+  if(typeof fecha === "string" && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(fecha)){
+    return new Date(fecha + "Z");
+  }
+  return new Date(fecha);
+}
+
 function formatoJuarez(fecha, opciones={dateStyle:"short", timeStyle:"short"}){
+  const f=fechaSupabase(fecha);
   try{
-    return new Intl.DateTimeFormat("es-MX",{timeZone:"America/Ciudad_Juarez",...opciones}).format(new Date(fecha));
+    return new Intl.DateTimeFormat("es-MX",{timeZone:TZ_JUAREZ,...opciones}).format(f);
   }catch(e){
-    return new Date(fecha).toLocaleString("es-MX");
+    try{return new Intl.DateTimeFormat("es-MX",{timeZone:TZ_JUAREZ_FALLBACK,...opciones}).format(f);}catch(_){return f.toLocaleString("es-MX");}
   }
 }
 
 function fechaJuarezKey(fecha){
-  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(fecha));
+  try{
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:TZ_JUAREZ,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(fechaSupabase(fecha));
+    const obj=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+    return `${obj.year}-${obj.month}-${obj.day}`;
+  }catch(e){
+    return fechaSupabase(fecha).toISOString().slice(0,10);
+  }
 }
 
 function semanaJuarezKey(fecha){
-  const d=new Date(fecha);
-  const f=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  const f=fechaJuarezKey(fecha);
   const [y,m,day]=f.split("-").map(Number);
   const local=new Date(Date.UTC(y,m-1,day));
   const dow=local.getUTCDay()||7;
@@ -996,7 +1153,7 @@ function semanaJuarezKey(fecha){
 }
 
 function mesJuarezKey(fecha){
-  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Ciudad_Juarez",year:"numeric",month:"2-digit"}).format(new Date(fecha));
+  return fechaJuarezKey(fecha).slice(0,7);
 }
 
 async function cargarReporteHoy(){
@@ -1046,7 +1203,7 @@ async function cargarReporteHoy(){
 
   await cargarReporteProductos(ventasHoy, ventasSemana, ventasMes);
 
-  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=10).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Comprar pronto.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
+  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=Number(i.minimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.minimo||10).toFixed(0)}.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
 }
 
 async function cargarReporteProductos(ventasHoy, ventasSemana, ventasMes){
@@ -1118,7 +1275,7 @@ function bloquearAdmin(){
 }
 
 function validarAdmin(){
-  if(!esAdmin){
+  if(!(esAdmin || usuarioLogueado?.permisos?.admin)){
     alert("Necesitas desbloquear Administrador.");
     return false;
   }
@@ -1129,10 +1286,11 @@ function actualizarAdminVisual(){
   let p=document.getElementById("adminPanel");
   let e=document.getElementById("adminEstado");
   if(!p||!e) return;
-  p.style.pointerEvents=esAdmin?"auto":"none";
-  p.style.opacity=esAdmin?"1":".45";
-  e.className=esAdmin?"ok":"warn";
-  e.innerHTML=esAdmin?"🔓 Admin desbloqueado":"🔒 Admin bloqueado. Toca el título 5 veces o escribe el PIN.";
+  let activo=esAdmin || !!usuarioLogueado?.permisos?.admin;
+  p.style.pointerEvents=activo?"auto":"none";
+  p.style.opacity=activo?"1":".45";
+  e.className=activo?"ok":"warn";
+  e.innerHTML=activo?"🔓 Admin desbloqueado":"🔒 Admin bloqueado. Toca el título 5 veces o escribe el PIN.";
 }
 
 function toqueTitulo(){
@@ -1148,12 +1306,150 @@ function toqueTitulo(){
 function mensaje(txt,tipo){mensajePedido.className=tipo; mensajePedido.innerHTML=txt}
 function msgMerma(txt,tipo){mensajeMerma.className=tipo; mensajeMerma.innerHTML=txt}
 function estado(txt,tipo){estadoConexion.className=tipo; estadoConexion.innerHTML=txt}
-function aviso(txt){let a=avisos;let f=new Date().toLocaleTimeString();let n=`<div class="ok"><b>${f}</b><br>${txt}</div>`;if(a.textContent.includes("Sin avisos"))a.innerHTML="";a.innerHTML=n+a.innerHTML}
+function aviso(txt){let a=avisos;let f=formatoJuarez(new Date(),{timeStyle:"medium"});let n=`<div class="ok"><b>${f}</b><br>${txt}</div>`;if(a.textContent.includes("Sin avisos"))a.innerHTML="";a.innerHTML=n+a.innerHTML}
+
+
+function fechaLocalJuarez(){
+  return new Date(new Date().toLocaleString("en-US",{timeZone:TZ}));
+}
+
+function fmtDateCorte(d){
+  return d.toLocaleDateString("es-MX",{timeZone:TZ,day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+function rangoCorte(tipo){
+  let ini=fechaLocalJuarez();
+  let fin=fechaLocalJuarez();
+  if(tipo==="semanal" || tipo==="semana"){
+    let day=ini.getDay();
+    let diff=(day===0?6:day-1);
+    ini.setDate(ini.getDate()-diff);
+    ini.setHours(0,0,0,0);
+    fin=new Date(ini);
+    fin.setDate(ini.getDate()+6);
+    fin.setHours(23,59,59,999);
+  }else if(tipo==="mensual" || tipo==="mes"){
+    ini.setDate(1);
+    ini.setHours(0,0,0,0);
+    fin=new Date(ini);
+    fin.setMonth(fin.getMonth()+1);
+    fin.setDate(0);
+    fin.setHours(23,59,59,999);
+  }else if(tipo==="anual" || tipo==="anio"){
+    ini.setMonth(0,1);
+    ini.setHours(0,0,0,0);
+    fin=new Date(ini);
+    fin.setFullYear(fin.getFullYear()+1);
+    fin.setDate(0);
+    fin.setHours(23,59,59,999);
+  }else{
+    ini.setHours(0,0,0,0);
+    fin.setHours(23,59,59,999);
+  }
+  return {
+    inicio:ini,
+    fin:fin,
+    inicioISO:ini.toISOString(),
+    finISO:fin.toISOString(),
+    inicioDate:ini.toISOString().slice(0,10),
+    finDate:fin.toISOString().slice(0,10)
+  };
+}
+
+function actualizarVistaCorte(){
+  const el=document.getElementById("vistaCorte");
+  if(!el) return;
+  const tipo=document.getElementById("tipoCorte")?.value||"semanal";
+  const r=rangoCorte(tipo);
+  el.innerHTML=`Se generará corte <b>${tipo}</b><br>Del ${fmtDateCorte(r.inicio)} al ${fmtDateCorte(r.fin)}.<br><small>Horario usado: Ciudad Juárez</small>`;
+}
+
+async function calcularResumenCorte(tipo){
+  const r=rangoCorte(tipo);
+  const {data:ventas}=await db.from("ventas").select("id,total,fecha_creacion,pedido_id").gte("fecha_creacion",r.inicioISO).lte("fecha_creacion",r.finISO);
+  const {data:compras}=await db.from("compras").select("costo_total,fecha_creacion").gte("fecha_creacion",r.inicioISO).lte("fecha_creacion",r.finISO);
+  const {data:movs}=await db.from("movimientos_inventario").select("tipo,cantidad,fecha_creacion,ingredientes(nombre)").gte("fecha_creacion",r.inicioISO).lte("fecha_creacion",r.finISO);
+  const ids=(ventas||[]).map(v=>v.pedido_id).filter(Boolean);
+  let detalle=[];
+  if(ids.length){
+    const {data}=await db.from("pedido_detalle").select("cantidad,subtotal,producto_id,productos(nombre)").in("pedido_id",ids);
+    detalle=data||[];
+  }
+  const productos_vendidos={};
+  detalle.forEach(d=>{
+    const n=d.productos?.nombre||"Producto";
+    if(!productos_vendidos[n]) productos_vendidos[n]={cantidad:0,total:0};
+    productos_vendidos[n].cantidad+=Number(d.cantidad||0);
+    productos_vendidos[n].total+=Number(d.subtotal||0);
+  });
+  const total_ventas=(ventas||[]).reduce((s,v)=>s+Number(v.total||0),0);
+  const total_compras=(compras||[]).reduce((s,c)=>s+Number(c.costo_total||0),0);
+  const mermas={}, regalos={};
+  (movs||[]).forEach(m=>{
+    const n=m.ingredientes?.nombre||"Ingrediente";
+    if(m.tipo==="merma") mermas[n]=(mermas[n]||0)+Math.abs(Number(m.cantidad||0));
+    if(m.tipo==="regalo") regalos[n]=(regalos[n]||0)+Math.abs(Number(m.cantidad||0));
+  });
+  return {rango:r, ventas:ventas||[], compras:compras||[], movimientos:movs||[], detalle, productos_vendidos, total_ventas, total_compras, ganancia_estimada:total_ventas-total_compras, mermas, regalos};
+}
+
+async function generarCorte(){
+  if(!validarPermiso("reportes","Necesitas permiso de reportes para generar cortes.")) return;
+  const tipo=document.getElementById("tipoCorte")?.value||"semanal";
+  mostrarServer("⏳ Generando corte...","wait");
+  const rep=await calcularResumenCorte(tipo);
+  const payload={
+    tipo,
+    fecha_inicio:rep.rango.inicioDate,
+    fecha_fin:rep.rango.finDate,
+    total_ventas:rep.total_ventas,
+    total_compras:rep.total_compras,
+    ganancia_estimada:rep.ganancia_estimada,
+    productos_vendidos:rep.productos_vendidos,
+    mermas:rep.mermas,
+    regalos:rep.regalos,
+    datos:{ventas:rep.ventas,compras:rep.compras,movimientos:rep.movimientos,detalle:rep.detalle}
+  };
+  const {error}=await db.from("cortes").insert(payload);
+  if(error){
+    mostrarServer("❌ Error al guardar corte","error");
+    alert(error.message);
+    return;
+  }
+  await auditoria("CORTE_GENERADO",`${usuarioLogueado?.nombre||"Usuario"} generó corte ${tipo} del ${fmtDateCorte(rep.rango.inicio)} al ${fmtDateCorte(rep.rango.fin)}`,payload);
+  mostrarServer("✅ Corte guardado en Supabase","ok");
+  await cargarCortes();
+}
+
+async function cargarCortes(){
+  if(!db) return;
+  const cont=document.getElementById("listaCortes");
+  if(!cont) return;
+  const {data,error}=await db.from("cortes").select("*").order("fecha_creacion",{ascending:false}).limit(30);
+  if(error){cont.innerHTML=`<div class="alerta">Error cortes: ${error.message}</div>`;return;}
+  cont.innerHTML=(data||[]).map(c=>`<div class="info"><b>${String(c.tipo).toUpperCase()}</b><br>${c.fecha_inicio} al ${c.fecha_fin}<br>Ventas: $${Number(c.total_ventas||0).toFixed(2)}<br>Compras: $${Number(c.total_compras||0).toFixed(2)}<br>Ganancia estimada: $${Number(c.ganancia_estimada||0).toFixed(2)}<br><small>Guardado: ${formatoJuarez(c.fecha_creacion,{dateStyle:"short",timeStyle:"medium"})}</small><br><button class="btn-small btn-azul" onclick='descargarTexto(${JSON.stringify(JSON.stringify(c,null,2))},"corte_${c.tipo}_${c.fecha_inicio}_${c.fecha_fin}.json")'>Descargar</button></div>`).join("")||"<div class='warn'>Aún no hay cortes guardados.</div>";
+}
+
+async function descargarRespaldoActual(){
+  const tipo=document.getElementById("tipoCorte")?.value||"semanal";
+  const rep=await calcularResumenCorte(tipo);
+  const respaldo={tipo,rango:rep.rango,resumen:rep,productos,ingredientes,recetas,fecha_respaldo:new Date().toISOString(),zona_horaria:TZ};
+  descargarTexto(JSON.stringify(respaldo,null,2),`respaldo_dona_cecy_${tipo}_${rep.rango.inicioDate}_${rep.rango.finDate}.json`);
+}
+
+function descargarTexto(txt,nombre){
+  const blob=new Blob([txt],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=nombre;
+  a.click();
+}
 
 function iniciarAutoRefresh(){
   if(autoRefreshId) return;
   autoRefreshId=setInterval(async()=>{
     if(!db) return;
+    await verificarPedidoActualEnNube();
     await cargarPedidosPendientes();
     await cargarReporteHoy();
   },10000);
@@ -1164,8 +1460,8 @@ function activarRealtime(){
   try{
     db.channel("cecy-final-admin")
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"pedidos"},()=>{aviso("🔔 Nuevo pedido en la nube"); cargarPedidosPendientes();})
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pedidos"},()=>{aviso("🔄 Pedido actualizado"); cargarPedidosPendientes();})
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"ventas"},()=>{aviso("💰 Nueva venta registrada"); cargarReporteHoy(); cargarIngredientes().then(render);})
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pedidos"},()=>{aviso("🔄 Pedido actualizado"); verificarPedidoActualEnNube(); cargarPedidosPendientes();})
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"ventas"},()=>{aviso("💰 Nueva venta registrada"); verificarPedidoActualEnNube(); cargarReporteHoy(); cargarIngredientes().then(render);})
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"movimientos_inventario"},()=>{aviso("📦 Movimiento de inventario"); cargarIngredientes().then(render);})
       .subscribe((status)=>{
         if(status==="SUBSCRIBED") aviso("🟢 Avisos en tiempo real conectados");
@@ -1175,5 +1471,701 @@ function activarRealtime(){
 
 cargarTodo();
 </script>
+
+<script>
+/* PARCHE V6.1 - Cortes con mensajes claros y errores visibles */
+function estadoCorteUI(txt, tipo="info"){
+  let box = document.getElementById("estadoCorte");
+  if(!box){
+    const vista = document.getElementById("vistaCorte");
+    box = document.createElement("div");
+    box.id = "estadoCorte";
+    box.className = tipo;
+    box.style.marginTop = "8px";
+    if(vista && vista.parentNode){
+      vista.parentNode.insertBefore(box, vista.nextSibling);
+    }
+  }
+  box.className = tipo;
+  box.innerHTML = txt;
+}
+
+async function generarCorte(){
+  try{
+    estadoCorteUI("⏳ Generando corte, espere respuesta del servidor...", "warn");
+    mostrarServer && mostrarServer("⏳ Generando corte...", "wait");
+
+    if(!db){
+      if(typeof iniciarSupabase === "function"){
+        if(!iniciarSupabase()){
+          estadoCorteUI("❌ No hay conexión a Supabase. Revisa la Publishable Key.", "alerta");
+          return;
+        }
+      }
+    }
+
+    if(!usuarioLogueado){
+      estadoCorteUI("⚠️ Primero entra con PIN de usuario. Recomendado: Jesús PIN 2026.", "alerta");
+      return;
+    }
+
+    if(typeof tiene === "function" && !tiene("reportes")){
+      estadoCorteUI("⚠️ Este usuario no tiene permiso de reportes/cortes.", "alerta");
+      return;
+    }
+
+    const tipo = document.getElementById("tipoCorte")?.value || "semanal";
+    let rep;
+
+    if(typeof calcularResumenCorte === "function"){
+      rep = await calcularResumenCorte(tipo);
+    }else{
+      estadoCorteUI("❌ No encontré la función calcularResumenCorte. Usa esta V6.1 completa.", "alerta");
+      return;
+    }
+
+    const payload = {
+      tipo: tipo,
+      fecha_inicio: rep.rango.inicioDate,
+      fecha_fin: rep.rango.finDate,
+      total_ventas: Number(rep.total_ventas || 0),
+      total_compras: Number(rep.total_compras || 0),
+      ganancia_estimada: Number(rep.ganancia_estimada || 0),
+      productos_vendidos: rep.productos_vendidos || {},
+      mermas: rep.mermas || {},
+      regalos: rep.regalos || {},
+      datos: {
+        ventas: rep.ventas || [],
+        compras: rep.compras || [],
+        movimientos: rep.movimientos || [],
+        detalle: rep.detalle || []
+      }
+    };
+
+    const { data, error } = await db.from("cortes").insert(payload).select().single();
+
+    if(error){
+      estadoCorteUI("❌ Supabase respondió error:<br><b>" + error.message + "</b>", "alerta");
+      alert("Error al guardar corte: " + error.message);
+      return;
+    }
+
+    if(typeof auditoria === "function"){
+      await auditoria(
+        "CORTE_GENERADO",
+        `${usuarioLogueado?.nombre || "Usuario"} generó corte ${tipo} del ${payload.fecha_inicio} al ${payload.fecha_fin}`,
+        payload
+      );
+    }
+
+    estadoCorteUI(
+      `✅ Corte guardado correctamente.<br>
+       Tipo: <b>${tipo}</b><br>
+       Ventas: <b>$${Number(payload.total_ventas).toFixed(2)}</b><br>
+       Compras: <b>$${Number(payload.total_compras).toFixed(2)}</b><br>
+       Ganancia estimada: <b>$${Number(payload.ganancia_estimada).toFixed(2)}</b>`,
+      "ok"
+    );
+
+    mostrarServer && mostrarServer("✅ Corte guardado en Supabase", "ok");
+
+    if(typeof cargarCortes === "function"){
+      await cargarCortes();
+    }
+
+  }catch(err){
+    console.error("Error generarCorte:", err);
+    estadoCorteUI("❌ Error inesperado:<br><b>" + (err.message || err) + "</b>", "alerta");
+    alert("Error inesperado al generar corte: " + (err.message || err));
+  }
+}
+
+async function cargarCortes(){
+  try{
+    const cont = document.getElementById("listaCortes");
+    if(!cont) return;
+    cont.innerHTML = "<div class='warn'>⏳ Consultando cortes guardados...</div>";
+
+    if(!db){
+      if(typeof iniciarSupabase === "function") iniciarSupabase();
+    }
+
+    const { data, error } = await db
+      .from("cortes")
+      .select("*")
+      .order("fecha_creacion", { ascending:false })
+      .limit(30);
+
+    if(error){
+      cont.innerHTML = `<div class="alerta">❌ Error cortes:<br><b>${error.message}</b></div>`;
+      return;
+    }
+
+    cont.innerHTML = (data || []).map(c => `
+      <div class="info">
+        <b>${String(c.tipo).toUpperCase()}</b><br>
+        ${c.fecha_inicio} al ${c.fecha_fin}<br>
+        Ventas: $${Number(c.total_ventas || 0).toFixed(2)}<br>
+        Compras: $${Number(c.total_compras || 0).toFixed(2)}<br>
+        Ganancia estimada: $${Number(c.ganancia_estimada || 0).toFixed(2)}<br>
+        <small>Guardado: ${new Date(c.fecha_creacion).toLocaleString("es-MX",{timeZone:"America/Ciudad_Juarez"})}</small><br>
+        <button class="btn-small btn-azul" onclick='descargarTexto(${JSON.stringify(JSON.stringify(c,null,2))},"corte_${c.tipo}_${c.fecha_inicio}_${c.fecha_fin}.json")'>Descargar</button>
+      </div>
+    `).join("") || "<div class='warn'>Aún no hay cortes guardados.</div>";
+
+  }catch(err){
+    console.error("Error cargarCortes:", err);
+    const cont = document.getElementById("listaCortes");
+    if(cont) cont.innerHTML = "<div class='alerta'>❌ Error inesperado cargando cortes:<br><b>"+(err.message||err)+"</b></div>";
+  }
+}
+
+async function descargarRespaldoActual(){
+  try{
+    estadoCorteUI("⏳ Preparando respaldo descargable...", "warn");
+    const tipo = document.getElementById("tipoCorte")?.value || "semanal";
+    const rep = await calcularResumenCorte(tipo);
+    const respaldo = {
+      tipo,
+      rango: rep.rango,
+      resumen: rep,
+      productos,
+      ingredientes,
+      recetas,
+      fecha_respaldo: new Date().toISOString(),
+      zona_horaria: "America/Ciudad_Juarez"
+    };
+    descargarTexto(
+      JSON.stringify(respaldo,null,2),
+      `respaldo_dona_cecy_${tipo}_${rep.rango.inicioDate}_${rep.rango.finDate}.json`
+    );
+    estadoCorteUI("✅ Respaldo descargado.", "ok");
+  }catch(err){
+    estadoCorteUI("❌ No se pudo descargar respaldo:<br><b>"+(err.message||err)+"</b>", "alerta");
+  }
+}
+
+setTimeout(() => {
+  try{
+    if(typeof actualizarVistaCorte === "function") actualizarVistaCorte();
+    if(typeof cargarCortes === "function") cargarCortes();
+  }catch(e){ console.log(e); }
+}, 1000);
+</script>
+
+
+<script>
+/* PARCHE V6.2 - Funciones faltantes para cortes */
+(function(){
+  window.mostrarServer = window.mostrarServer || function(txt, tipo){
+    let box = document.getElementById("estadoServer");
+    if(!box){
+      box = document.createElement("div");
+      box.id = "estadoServer";
+      box.style.position = "fixed";
+      box.style.left = "10px";
+      box.style.right = "10px";
+      box.style.bottom = "10px";
+      box.style.zIndex = "9999";
+      box.style.textAlign = "center";
+      box.style.padding = "12px";
+      box.style.borderRadius = "14px";
+      box.style.fontWeight = "bold";
+      box.style.boxShadow = "0 2px 10px rgba(0,0,0,.25)";
+      document.body.appendChild(box);
+    }
+
+    let bg = "#fff8e1";
+    let color = "#e65100";
+
+    if(tipo === "ok"){
+      bg = "#e8f5e9";
+      color = "#1b5e20";
+    }
+
+    if(tipo === "error"){
+      bg = "#ffebee";
+      color = "#b71c1c";
+    }
+
+    box.style.background = bg;
+    box.style.color = color;
+    box.innerHTML = txt;
+    box.style.display = "block";
+
+    setTimeout(function(){
+      box.style.display = "none";
+    }, tipo === "wait" ? 1600 : 3000);
+  };
+
+  window.descargarTexto = window.descargarTexto || function(texto, nombreArchivo){
+    const blob = new Blob([texto], {type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nombreArchivo || "respaldo_dona_cecy.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  window.estadoCorteUI = window.estadoCorteUI || function(txt, tipo){
+    let box = document.getElementById("estadoCorte");
+    if(!box){
+      const vista = document.getElementById("vistaCorte") || document.querySelector("#cortesTab .card");
+      box = document.createElement("div");
+      box.id = "estadoCorte";
+      box.style.marginTop = "8px";
+      if(vista && vista.parentNode){
+        vista.parentNode.insertBefore(box, vista.nextSibling);
+      }else{
+        document.body.appendChild(box);
+      }
+    }
+    box.className = tipo || "info";
+    box.innerHTML = txt;
+  };
+})();
+</script>
+
+
+<script>
+/* V6.3 CORTE / RESPALDO ROBUSTO */
+(function(){
+  window.TZ = window.TZ || "America/Ciudad_Juarez";
+
+  window.mostrarServer = function(txt, tipo){
+    let box = document.getElementById("estadoServer");
+    if(!box){
+      box = document.createElement("div");
+      box.id = "estadoServer";
+      box.style.position = "fixed";
+      box.style.left = "10px";
+      box.style.right = "10px";
+      box.style.bottom = "10px";
+      box.style.zIndex = "9999";
+      box.style.textAlign = "center";
+      box.style.padding = "12px";
+      box.style.borderRadius = "14px";
+      box.style.fontWeight = "bold";
+      box.style.boxShadow = "0 2px 10px rgba(0,0,0,.25)";
+      document.body.appendChild(box);
+    }
+    let bg = "#fff8e1", color = "#e65100";
+    if(tipo === "ok"){ bg = "#e8f5e9"; color = "#1b5e20"; }
+    if(tipo === "error"){ bg = "#ffebee"; color = "#b71c1c"; }
+    box.style.background = bg;
+    box.style.color = color;
+    box.innerHTML = txt;
+    box.style.display = "block";
+    setTimeout(()=>{ box.style.display = "none"; }, tipo === "wait" ? 1800 : 3200);
+  };
+
+  window.estadoCorteUI = function(txt, tipo){
+    let box = document.getElementById("estadoCorte");
+    if(!box){
+      const card = document.querySelector("#cortesTab .card") || document.body;
+      box = document.createElement("div");
+      box.id = "estadoCorte";
+      box.style.marginTop = "8px";
+      card.appendChild(box);
+    }
+    box.className = tipo || "info";
+    box.innerHTML = txt;
+  };
+
+  window.descargarTexto = function(texto, nombreArchivo){
+    const blob = new Blob([texto], {type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nombreArchivo || "respaldo_dona_cecy.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  window.fechaLocalJuarez = function(){
+    return new Date(new Date().toLocaleString("en-US", {timeZone: window.TZ}));
+  };
+
+  window.fechaBonitaJuarez = function(fecha){
+    try{
+      return new Date(fecha).toLocaleString("es-MX", {
+        timeZone: window.TZ,
+        day:"2-digit", month:"2-digit", year:"numeric",
+        hour:"2-digit", minute:"2-digit"
+      });
+    }catch(e){
+      return new Date(fecha).toLocaleString("es-MX");
+    }
+  };
+
+  window.rangoCorteRobusto = function(tipo){
+    let ini = window.fechaLocalJuarez();
+    let fin = window.fechaLocalJuarez();
+
+    if(tipo === "semanal"){
+      const day = ini.getDay();
+      const diff = (day === 0 ? 6 : day - 1);
+      ini.setDate(ini.getDate() - diff);
+      ini.setHours(0,0,0,0);
+      fin = new Date(ini);
+      fin.setDate(ini.getDate() + 6);
+      fin.setHours(23,59,59,999);
+    }else if(tipo === "mensual"){
+      ini.setDate(1);
+      ini.setHours(0,0,0,0);
+      fin = new Date(ini);
+      fin.setMonth(fin.getMonth() + 1);
+      fin.setDate(0);
+      fin.setHours(23,59,59,999);
+    }else if(tipo === "anual"){
+      ini.setMonth(0,1);
+      ini.setHours(0,0,0,0);
+      fin = new Date(ini);
+      fin.setFullYear(fin.getFullYear() + 1);
+      fin.setDate(0);
+      fin.setHours(23,59,59,999);
+    }else{
+      ini.setHours(0,0,0,0);
+      fin.setHours(23,59,59,999);
+    }
+
+    return {
+      inicio: ini,
+      fin: fin,
+      inicioISO: ini.toISOString(),
+      finISO: fin.toISOString(),
+      inicioDate: ini.toISOString().slice(0,10),
+      finDate: fin.toISOString().slice(0,10),
+      texto: `${window.fechaBonitaJuarez(ini)} al ${window.fechaBonitaJuarez(fin)}`
+    };
+  };
+
+  window.actualizarVistaCorte = function(){
+    const tipo = document.getElementById("tipoCorte")?.value || "semanal";
+    const r = window.rangoCorteRobusto(tipo);
+    const vista = document.getElementById("vistaCorte");
+    if(vista){
+      vista.innerHTML = `Se generará corte <b>${tipo}</b><br>Del ${r.texto}.`;
+    }
+  };
+
+  window.calcularResumenCorteRobusto = async function(tipo){
+    if(!window.db && typeof iniciarSupabase === "function"){
+      iniciarSupabase();
+    }
+
+    const r = window.rangoCorteRobusto(tipo);
+
+    const {data: ventas, error: eVentas} = await db
+      .from("ventas")
+      .select("id,total,fecha_creacion,pedido_id")
+      .gte("fecha_creacion", r.inicioISO)
+      .lte("fecha_creacion", r.finISO);
+
+    if(eVentas) throw new Error("ventas: " + eVentas.message);
+
+    const {data: compras, error: eCompras} = await db
+      .from("compras")
+      .select("costo_total,fecha_creacion")
+      .gte("fecha_creacion", r.inicioISO)
+      .lte("fecha_creacion", r.finISO);
+
+    if(eCompras) throw new Error("compras: " + eCompras.message);
+
+    const {data: movs, error: eMovs} = await db
+      .from("movimientos_inventario")
+      .select("tipo,cantidad,fecha_creacion,ingredientes(nombre)")
+      .gte("fecha_creacion", r.inicioISO)
+      .lte("fecha_creacion", r.finISO);
+
+    if(eMovs) throw new Error("movimientos: " + eMovs.message);
+
+    const ids = (ventas || []).map(v => v.pedido_id).filter(Boolean);
+    let detalle = [];
+
+    if(ids.length){
+      const {data: det, error: eDet} = await db
+        .from("pedido_detalle")
+        .select("cantidad,subtotal,producto_id,productos(nombre)")
+        .in("pedido_id", ids);
+
+      if(eDet) throw new Error("detalle: " + eDet.message);
+      detalle = det || [];
+    }
+
+    const productos_vendidos = {};
+    detalle.forEach(d => {
+      const n = d.productos?.nombre || "Producto";
+      if(!productos_vendidos[n]) productos_vendidos[n] = {cant:0,total:0};
+      productos_vendidos[n].cant += Number(d.cantidad || 0);
+      productos_vendidos[n].total += Number(d.subtotal || 0);
+    });
+
+    const mermas = {};
+    const regalos = {};
+
+    (movs || []).forEach(m => {
+      const n = m.ingredientes?.nombre || "Ingrediente";
+      if(m.tipo === "merma") mermas[n] = (mermas[n] || 0) + Math.abs(Number(m.cantidad || 0));
+      if(m.tipo === "regalo") regalos[n] = (regalos[n] || 0) + Math.abs(Number(m.cantidad || 0));
+    });
+
+    const total_ventas = (ventas || []).reduce((s,v)=>s+Number(v.total||0),0);
+    const total_compras = (compras || []).reduce((s,c)=>s+Number(c.costo_total||0),0);
+
+    return {
+      rango: r,
+      ventas: ventas || [],
+      compras: compras || [],
+      movimientos: movs || [],
+      detalle,
+      productos_vendidos,
+      mermas,
+      regalos,
+      total_ventas,
+      total_compras,
+      ganancia_estimada: total_ventas - total_compras
+    };
+  };
+
+  window.generarCorte = async function(){
+    try{
+      window.estadoCorteUI("⏳ Generando corte, espere respuesta del servidor...", "warn");
+      window.mostrarServer("⏳ Generando corte...", "wait");
+
+      if(!window.db && typeof iniciarSupabase === "function"){
+        if(!iniciarSupabase()){
+          window.estadoCorteUI("❌ No hay conexión a Supabase. Revisa la Publishable Key.", "alerta");
+          return;
+        }
+      }
+
+      if(!window.usuarioLogueado){
+        window.estadoCorteUI("⚠️ Primero entra con PIN de usuario. Recomendado: Jesús PIN 2026.", "alerta");
+        return;
+      }
+
+      if(typeof tiene === "function" && !tiene("reportes")){
+        window.estadoCorteUI("⚠️ Este usuario no tiene permiso de reportes/cortes.", "alerta");
+        return;
+      }
+
+      const tipo = document.getElementById("tipoCorte")?.value || "semanal";
+      const rep = await window.calcularResumenCorteRobusto(tipo);
+
+      const payload = {
+        tipo,
+        fecha_inicio: rep.rango.inicioDate,
+        fecha_fin: rep.rango.finDate,
+        total_ventas: Number(rep.total_ventas || 0),
+        total_compras: Number(rep.total_compras || 0),
+        ganancia_estimada: Number(rep.ganancia_estimada || 0),
+        productos_vendidos: rep.productos_vendidos || {},
+        mermas: rep.mermas || {},
+        regalos: rep.regalos || {},
+        datos: {
+          ventas: rep.ventas || [],
+          compras: rep.compras || [],
+          movimientos: rep.movimientos || [],
+          detalle: rep.detalle || []
+        }
+      };
+
+      const {error} = await db.from("cortes").insert(payload);
+
+      if(error){
+        window.estadoCorteUI("❌ Supabase respondió error:<br><b>" + error.message + "</b>", "alerta");
+        alert("Error al guardar corte: " + error.message);
+        return;
+      }
+
+      if(typeof auditoria === "function"){
+        await auditoria(
+          "CORTE_GENERADO",
+          `${usuarioLogueado?.nombre || "Usuario"} generó corte ${tipo} del ${payload.fecha_inicio} al ${payload.fecha_fin}`,
+          payload
+        );
+      }
+
+      window.estadoCorteUI(
+        `✅ Corte guardado correctamente.<br>
+         Tipo: <b>${tipo}</b><br>
+         Ventas: <b>$${Number(payload.total_ventas).toFixed(2)}</b><br>
+         Compras: <b>$${Number(payload.total_compras).toFixed(2)}</b><br>
+         Ganancia estimada: <b>$${Number(payload.ganancia_estimada).toFixed(2)}</b>`,
+        "ok"
+      );
+
+      window.mostrarServer("✅ Corte guardado en Supabase", "ok");
+      await window.cargarCortes();
+
+    }catch(err){
+      console.error("Error generarCorte V6.3:", err);
+      window.estadoCorteUI("❌ Error inesperado:<br><b>" + (err.message || err) + "</b>", "alerta");
+      alert("Error inesperado al generar corte: " + (err.message || err));
+    }
+  };
+
+  window.cargarCortes = async function(){
+    try{
+      const cont = document.getElementById("listaCortes");
+      if(!cont) return;
+
+      if(!window.db && typeof iniciarSupabase === "function") iniciarSupabase();
+
+      cont.innerHTML = "<div class='warn'>⏳ Consultando cortes guardados...</div>";
+
+      const {data, error} = await db
+        .from("cortes")
+        .select("*")
+        .order("fecha_creacion", {ascending:false})
+        .limit(30);
+
+      if(error){
+        cont.innerHTML = `<div class="alerta">❌ Error cortes:<br><b>${error.message}</b></div>`;
+        return;
+      }
+
+      cont.innerHTML = (data || []).map(c => {
+        const texto = JSON.stringify(c, null, 2).replace(/'/g, "&#39;");
+        return `
+          <div class="info">
+            <b>${String(c.tipo).toUpperCase()}</b><br>
+            ${c.fecha_inicio} al ${c.fecha_fin}<br>
+            Ventas: $${Number(c.total_ventas || 0).toFixed(2)}<br>
+            Compras: $${Number(c.total_compras || 0).toFixed(2)}<br>
+            Ganancia estimada: $${Number(c.ganancia_estimada || 0).toFixed(2)}<br>
+            <small>Guardado: ${window.fechaBonitaJuarez(c.fecha_creacion)}</small><br>
+            <button class="btn-small btn-azul" onclick="descargarTexto('${texto}', 'corte_${c.tipo}_${c.fecha_inicio}_${c.fecha_fin}.json')">Descargar</button>
+          </div>`;
+      }).join("") || "<div class='warn'>Aún no hay cortes guardados.</div>";
+
+    }catch(err){
+      const cont = document.getElementById("listaCortes");
+      if(cont) cont.innerHTML = "<div class='alerta'>❌ Error inesperado cargando cortes:<br><b>"+(err.message||err)+"</b></div>";
+    }
+  };
+
+  window.descargarRespaldoActual = async function(){
+    try{
+      window.estadoCorteUI("⏳ Preparando respaldo descargable...", "warn");
+      const tipo = document.getElementById("tipoCorte")?.value || "semanal";
+      const rep = await window.calcularResumenCorteRobusto(tipo);
+      const respaldo = {
+        tipo,
+        rango: rep.rango,
+        resumen: rep,
+        productos: window.productos || [],
+        ingredientes: window.ingredientes || [],
+        recetas: window.recetas || [],
+        fecha_respaldo: new Date().toISOString(),
+        zona_horaria: window.TZ
+      };
+      window.descargarTexto(
+        JSON.stringify(respaldo, null, 2),
+        `respaldo_dona_cecy_${tipo}_${rep.rango.inicioDate}_${rep.rango.finDate}.json`
+      );
+      window.estadoCorteUI("✅ Respaldo descargado.", "ok");
+    }catch(err){
+      window.estadoCorteUI("❌ No se pudo descargar respaldo:<br><b>"+(err.message||err)+"</b>", "alerta");
+    }
+  };
+
+  setTimeout(function(){
+    try{
+      window.actualizarVistaCorte();
+      window.cargarCortes();
+    }catch(e){ console.log(e); }
+  }, 800);
+})();
+</script>
+
 </body>
 </html>
+<!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
+<script>
+(function(){
+  window.TZ = window.TZ || "America/Ciudad_Juarez";
+  function el(id){ return document.getElementById(id); }
+  function ensureStyles(){
+    if(document.getElementById('v7styles')) return;
+    const st=document.createElement('style'); st.id='v7styles'; st.textContent=`
+      .estadoServerV7{position:fixed;left:10px;right:10px;bottom:10px;z-index:99999;text-align:center;padding:12px;border-radius:14px;font-weight:bold;box-shadow:0 2px 10px rgba(0,0,0,.25);display:none}
+      .serverOk{background:#e8f5e9;color:#1b5e20}.serverWait{background:#fff8e1;color:#e65100}.serverErr{background:#ffebee;color:#b71c1c}
+      .onlineCecy{margin:10px 12px;text-align:center;font-weight:bold;border-radius:12px;padding:10px}
+    `; document.head.appendChild(st);
+  }
+  function ensureBanner(){
+    ensureStyles();
+    let b=el('bannerOnline');
+    if(!b){
+      b=document.createElement('div'); b.id='bannerOnline'; b.className='onlineCecy warn'; b.innerHTML='⏳ Revisando conexión con servidor...';
+      const tabs=document.querySelector('.tabs'); if(tabs&&tabs.parentNode) tabs.parentNode.insertBefore(b,tabs); else document.body.prepend(b);
+    }
+    return b;
+  }
+  window.mostrarServer=function(txt,tipo){
+    ensureStyles(); let box=el('estadoServer')||el('estadoServerV7');
+    if(!box){ box=document.createElement('div'); box.id='estadoServerV7'; box.className='estadoServerV7'; document.body.appendChild(box); }
+    box.className='estadoServerV7 '+(tipo==='ok'?'serverOk':tipo==='error'?'serverErr':'serverWait');
+    box.innerHTML=txt; box.style.display='block'; setTimeout(()=>box.style.display='none', tipo==='wait'?2300:3600);
+  };
+  window.descargarTexto=function(txt,nombre){const blob=new Blob([txt],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=nombre||'respaldo_dona_cecy.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);};
+  window.probarConexionCecy=async function(){
+    const b=ensureBanner();
+    try{ if(!window.db&&typeof iniciarSupabase==='function') iniciarSupabase(); if(!window.db) throw new Error('Supabase no inicializado');
+      b.className='onlineCecy warn'; b.innerHTML='⏳ Conectando con servidor...';
+      const {error}=await db.from('usuarios').select('id').limit(1); if(error) throw error;
+      b.className='onlineCecy ok'; b.innerHTML='🟢 ESTAMOS EN LÍNEA — conexión correcta, datos cargados';
+      if(typeof estado==='function') estado('🟢 ESTAMOS EN LÍNEA — conexión correcta, datos cargados','ok'); return true;
+    }catch(e){ b.className='onlineCecy alerta'; b.innerHTML='🔴 Sin conexión al servidor: '+(e.message||e); return false; }
+  };
+  function estadoBackup(txt,tipo){ let box=el('estadoRespaldo'); if(!box){ const card=document.querySelector('#cortesTab .card')||document.body; box=document.createElement('div'); box.id='estadoRespaldo'; box.className='info'; card.appendChild(box); } box.className=tipo||'info'; box.innerHTML=txt; }
+  function addBackupUI(){
+    const card=document.querySelector('#cortesTab .card'); if(!card || el('btnBackupCompleto')) return;
+    const wrap=document.createElement('div'); wrap.innerHTML=`
+      <hr>
+      <h3>🛡️ Respaldo completo V7</h3>
+      <button id="btnBackupCompleto" class="btn-morado" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo completo</button>
+      <label>♻️ Restaurar respaldo completo</label>
+      <input type="file" id="archivoRespaldo" accept=".json,application/json">
+      <button class="btn-rojo" onclick="restaurarRespaldoCompleto()">Restaurar respaldo completo</button>
+      <div id="estadoRespaldo" class="info">Solo Administrador. Para restaurar se pedirá escribir RESTAURAR.</div>`;
+    card.appendChild(wrap);
+  }
+  const tablas=['usuarios','ingredientes','productos','recetas','pedidos','pedido_detalle','ventas','compras','movimientos_inventario','auditoria','cortes'];
+  async function leerTabla(tabla){let out=[],from=0,step=1000;while(true){const {data,error}=await db.from(tabla).select('*').range(from,from+step-1);if(error)throw new Error(tabla+': '+error.message);out=out.concat(data||[]);if(!data||data.length<step)break;from+=step;}return out;}
+  window.descargarRespaldoCompleto=async function(){
+    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede descargar respaldo completo.'))return; if(!window.db&&typeof iniciarSupabase==='function')iniciarSupabase();
+      estadoBackup('⏳ Generando respaldo completo, esperando respuesta del servidor...','warn'); mostrarServer('⏳ Esperando respuesta del servidor...','wait');
+      const respaldo={tipo:'respaldo_completo',version:'V7',fecha_respaldo:new Date().toISOString(),zona_horaria:window.TZ,tablas:{}};
+      for(const t of tablas){estadoBackup('⏳ Leyendo tabla <b>'+t+'</b>...','warn'); respaldo.tablas[t]=await leerTabla(t);}
+      const fecha=new Date().toLocaleDateString('es-MX',{timeZone:window.TZ}).replaceAll('/','-'); descargarTexto(JSON.stringify(respaldo,null,2),'respaldo_completo_dona_cecy_'+fecha+'.json');
+      estadoBackup('✅ Respaldo completo descargado correctamente.','ok'); mostrarServer('✅ Respaldo completo listo','ok');
+      if(typeof auditoria==='function') await auditoria('RESPALDO_COMPLETO_DESCARGADO',(window.usuarioLogueado?.nombre||'Usuario')+' descargó respaldo completo',{fecha:new Date().toISOString()});
+    }catch(e){console.error(e);estadoBackup('❌ Error generando respaldo:<br><b>'+(e.message||e)+'</b>','alerta');mostrarServer('❌ Error en respaldo','error');}
+  };
+  function leerArchivoJSON(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{try{res(JSON.parse(r.result));}catch(e){rej(new Error('El archivo no es JSON válido.'));}};r.onerror=()=>rej(new Error('No se pudo leer el archivo.'));r.readAsText(file);});}
+  async function upsertTabla(tabla,filas){if(!filas||!filas.length)return {tabla,insertadas:0,error:null};const chunk=200;let n=0;for(let i=0;i<filas.length;i+=chunk){const pedazo=filas.slice(i,i+chunk);const {error}=await db.from(tabla).upsert(pedazo,{onConflict:'id'});if(error)return {tabla,insertadas:n,error:error.message};n+=pedazo.length;}return {tabla,insertadas:n,error:null};}
+  window.restaurarRespaldoCompleto=async function(){
+    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede restaurar respaldo completo.'))return; if(!window.db&&typeof iniciarSupabase==='function')iniciarSupabase();
+      const inp=el('archivoRespaldo'); if(!inp||!inp.files||!inp.files[0]){estadoBackup('⚠️ Selecciona primero un archivo JSON de respaldo completo.','alerta');return;}
+      if(prompt('⚠️ Restaurar puede modificar información actual.\n\nEscribe RESTAURAR para continuar:')!=='RESTAURAR'){estadoBackup('Operación cancelada. No se restauró nada.','warn');return;}
+      estadoBackup('⏳ Leyendo respaldo...','warn'); mostrarServer('⏳ Esperando respuesta del servidor...','wait'); const respaldo=await leerArchivoJSON(inp.files[0]);
+      if(!respaldo||respaldo.tipo!=='respaldo_completo'||!respaldo.tablas){estadoBackup('❌ Este archivo no parece ser un respaldo completo V7.','alerta');return;}
+      let resultados=[]; for(const t of tablas){const filas=respaldo.tablas[t]||[];estadoBackup('⏳ Restaurando <b>'+t+'</b> ('+filas.length+')...','warn');const rr=await upsertTabla(t,filas);resultados.push(rr);if(rr.error){estadoBackup('❌ Error restaurando <b>'+t+'</b>: '+rr.error,'alerta');mostrarServer('❌ Error al restaurar','error');return;}}
+      estadoBackup('✅ Restauración completada.<br>'+resultados.map(r=>'• '+r.tabla+': '+r.insertadas).join('<br>'),'ok'); mostrarServer('✅ Respaldo restaurado','ok');
+      if(typeof auditoria==='function') await auditoria('RESPALDO_RESTAURADO',(window.usuarioLogueado?.nombre||'Usuario')+' restauró respaldo completo',{resultados}); if(typeof cargarTodo==='function') await cargarTodo();
+    }catch(e){console.error(e);estadoBackup('❌ Error restaurando respaldo:<br><b>'+(e.message||e)+'</b>','alerta');mostrarServer('❌ Error en restauración','error');}
+  };
+  window.respaldoAutomaticoOnceDia=async function(){try{const ahora=new Date(new Date().toLocaleString('en-US',{timeZone:window.TZ}));const hoy=ahora.toISOString().slice(0,10);const key='cecy_respaldo_auto_'+hoy;if(ahora.getHours()>=23&&!localStorage.getItem(key)&&window.usuarioLogueado&&(window.usuarioLogueado.permisos?.admin||window.usuarioLogueado.permisos?.reportes)){if(typeof calcularResumenCorteRobusto==='function'){const rep=await calcularResumenCorteRobusto('dia');await db.from('cortes').insert({tipo:'diario_auto',fecha_inicio:rep.rango.inicioDate,fecha_fin:rep.rango.finDate,total_ventas:Number(rep.total_ventas||0),total_compras:Number(rep.total_compras||0),ganancia_estimada:Number(rep.ganancia_estimada||0),productos_vendidos:rep.productos_vendidos||{},mermas:rep.mermas||{},regalos:rep.regalos||{},datos:{ventas:rep.ventas||[],compras:rep.compras||[],movimientos:rep.movimientos||[],detalle:rep.detalle||[]}});localStorage.setItem(key,'1');estadoBackup('✅ Corte automático diario guardado.','ok');}}}catch(e){console.log('Respaldo automático pendiente:',e);}};
+  const oldCTS=window.cargarTodoSeguro; window.cargarTodoSeguro=async function(){mostrarServer('⏳ Esperando respuesta del servidor...','wait'); if(typeof oldCTS==='function') await oldCTS(); else if(typeof cargarTodo==='function') await cargarTodo(); await probarConexionCecy();};
+  setTimeout(()=>{addBackupUI();probarConexionCecy();respaldoAutomaticoOnceDia();},1200);
+  setInterval(()=>respaldoAutomaticoOnceDia(),60000);
+})();
+</script>
