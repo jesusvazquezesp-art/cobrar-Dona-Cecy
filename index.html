@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Puesto Doña Cecy - Control con Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --morado:#ae56ac;
+  --morado2:#8e3c8d;
+  --crema:#fff3e0;
+  --texto:#3e2723;
+  --verde:#43a047;
+  --azul:#1e88e5;
+  --rojo:#e53935;
+  --naranja:#fb8c00;
+  --gris:#666;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--crema);
+  color:var(--texto);
+}
+header{
+  background:linear-gradient(135deg,var(--morado),var(--morado2));
+  color:white;
+  text-align:center;
+  padding:18px 12px;
+  position:sticky;
+  top:0;
+  z-index:10;
+  box-shadow:0 3px 10px rgba(0,0,0,.2)
+}
+header h1{margin:0;font-size:23px}
+header p{margin:5px 0 0;font-size:13px}
+.contenedor{
+  padding:12px;
+  max-width:820px;
+  margin:auto;
+  padding-bottom:90px
+}
+.card{
+  background:white;
+  border-radius:18px;
+  padding:14px;
+  margin-bottom:14px;
+  box-shadow:0 3px 10px rgba(0,0,0,.15)
+}
+h2{margin:0 0 12px;font-size:20px}
+h3{margin:12px 0 8px;font-size:17px}
+.muted{font-size:13px;color:#666}
+.pill{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:20px;
+  background:#f3e5f5;
+  font-size:12px;
+  margin:2px
+}
+.tabs{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:6px;
+  background:white;
+  padding:8px;
+  position:sticky;
+  top:76px;
+  z-index:9;
+  box-shadow:0 2px 8px rgba(0,0,0,.12)
+}
+.tab{
+  border:none;
+  border-radius:12px;
+  padding:10px 5px;
+  font-size:12px;
+  background:#eee;
+  color:#333;
+  width:100%;
+}
+.tab.activa{
+  background:var(--morado);
+  color:white;
+  font-weight:bold
+}
+.seccion{display:none}
+.seccion.activa{display:block}
+button{
+  border:none;
+  border-radius:12px;
+  padding:11px;
+  margin:4px 0;
+  font-size:15px;
+  width:100%;
+  cursor:pointer;
+  font-weight:bold
+}
+button:disabled{opacity:.55;cursor:not-allowed}
+.btn-verde{background:var(--verde);color:white}
+.btn-azul{background:var(--azul);color:white}
+.btn-rojo{background:var(--rojo);color:white}
+.btn-naranja{background:var(--naranja);color:white}
+.btn-gris{background:#555;color:white}
+.btn-morado{background:var(--morado);color:white}
+.btn-claro{background:#f5f5f5;color:#333;border:1px solid #ddd}
+.btn-small{width:auto;padding:7px 10px;font-size:12px;margin:2px}
+input,select{
+  width:100%;
+  padding:10px;
+  margin:5px 0 10px;
+  border-radius:10px;
+  border:1px solid #ccc;
+  font-size:15px;
+  background:white
+}
+label{font-weight:bold;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:8px;border-bottom:1px solid #eee;text-align:left}
+th{background:#fafafa}
+.alerta{background:#ffebee;color:#b71c1c;padding:10px;border-radius:10px;margin-top:8px}
+.ok{background:#e8f5e9;color:#1b5e20;padding:10px;border-radius:10px;margin-top:8px}
+.info{background:#e3f2fd;color:#0d47a1;padding:10px;border-radius:10px;margin-top:8px}
+.warn{background:#fff8e1;color:#e65100;padding:10px;border-radius:10px;margin-top:8px}
+.productoVenta{
+  display:grid;
+  grid-template-columns:1fr 96px;
+  gap:8px;
+  align-items:center;
+  border:1px solid #eee;
+  border-radius:14px;
+  padding:10px;
+  margin:8px 0
+}
+.productoVenta b{font-size:16px}
+.productoVenta small{color:#666}
+.acciones{display:flex;gap:5px;flex-wrap:wrap}
+.acciones button{flex:1;min-width:80px}
+.ingrediente-row{
+  display:grid;
+  grid-template-columns:1fr 90px 42px;
+  gap:6px;
+  align-items:center;
+  margin-bottom:6px
+}
+.resumen{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px
+}
+.box{
+  text-align:center;
+  background:#fafafa;
+  border-radius:14px;
+  padding:10px;
+  border:1px solid #eee
+}
+.box b{font-size:18px;color:var(--morado)}
+.itemPedido{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  align-items:center;
+  border-bottom:1px solid #eee;
+  padding:9px 0
+}
+.controlesPedido{
+  display:flex;
+  align-items:center;
+  gap:4px
+}
+.btn-mini{
+  width:36px;
+  height:34px;
+  padding:0;
+  margin:0;
+  color:white;
+  border-radius:9px
+}
+.mas{background:var(--verde)}
+.menos{background:var(--naranja)}
+.cancelar{background:var(--rojo)}
+.total{
+  font-size:26px;
+  font-weight:bold;
+  text-align:right;
+  margin-top:10px
+}
+.cambio{
+  background:#e8f5e9;
+  color:#1b5e20;
+  padding:10px;
+  border-radius:12px;
+  font-size:22px;
+  text-align:center;
+  font-weight:bold
+}
+.pedido-card{
+  border:1px solid #eee;
+  border-radius:14px;
+  padding:10px;
+  margin:8px 0;
+  background:#fafafa
+}
+.oculto{display:none}
+.admin-bloqueado{
+  filter:grayscale(.2);
+  opacity:.85
+}
+@media(max-width:520px){
+  .tabs{top:74px;grid-template-columns:repeat(5,1fr)}
+  .tab{font-size:11px;padding:9px 2px}
+  .resumen{grid-template-columns:1fr}
+  .productoVenta{grid-template-columns:1fr}
+  .acciones button{min-width:100%}
+  .ingrediente-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header onclick="toqueTitulo()">
+  <h1>🥤 Puesto Doña Cecy</h1>
+  <p>Punto de venta • Inventario • Pedidos • Administración</p>
+</header>
+
+<div class="tabs">
+  <button class="tab activa" onclick="verTab('ventas',this)">🛒 Ventas</button>
+  <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
+  <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
+  <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
+  <button class="tab" onclick="verTab('admin',this)">⚙️ Admin</button>
+</div>
+
+<div class="contenedor">
+
+<section id="ventas" class="seccion activa">
+  <div class="card">
+    <h2>👤 Usuario</h2>
+    <select id="usuarioSelect" onchange="mostrarUsuarioActivo()"></select>
+    <div id="usuarioActivo" class="info">Cargando usuario...</div>
+    <button class="btn-morado" onclick="cargarTodo()">Actualizar datos</button>
+    <div id="estadoConexion" class="warn">Cargando conexión...</div>
+  </div>
+
+  <div class="card">
+    <h2>🛒 Menú de venta</h2>
+    <div id="listaVentas"></div>
+  </div>
+
+  <div class="card">
+    <h2>🧾 Pedido actual</h2>
+    <div id="pedidoCargado" class="info oculto"></div>
+    <div id="pedidoLista"></div>
+    <div class="total">Total: $<span id="totalPedido">0.00</span></div>
+
+    <label>Cliente paga con</label>
+    <input type="number" id="pagoCon" placeholder="Ejemplo: 200" oninput="calcularCambio()">
+    <div class="cambio">Cambio: $<span id="cambio">0.00</span></div>
+
+    <button id="btnEnviarPedido" class="btn-azul" onclick="enviarPedido()">📨 Realizar pedido</button>
+    <button id="btnRegistrarVenta" class="btn-verde" onclick="registrarVenta()">✅ Realizar venta y descontar inventario</button>
+    <button class="btn-gris" onclick="limpiarPedido()">🧹 Limpiar pedido</button>
+    <div id="mensajePedido"></div>
+  </div>
+
+  <div class="card">
+    <h2>📌 Resumen de hoy</h2>
+    <div id="resumenHoy"></div>
+  </div>
+</section>
+
+<section id="pedidos" class="seccion">
+  <div class="card">
+    <h2>🟡 Pedidos pendientes / listos</h2>
+    <button class="btn-morado" onclick="cargarPedidosPendientes()">Actualizar pedidos</button>
+    <div id="pedidosPendientes">Cargando pedidos...</div>
+  </div>
+  <div class="card">
+    <h2>🔔 Avisos recientes</h2>
+    <div id="avisos">Sin avisos todavía.</div>
+  </div>
+</section>
+
+<section id="inventario" class="seccion">
+  <div class="card">
+    <h2>📦 Inventario actual</h2>
+    <div id="tablaInventario"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚠️ Merma / regalo / ajuste</h2>
+    <label>Ingrediente</label>
+    <select id="mermaProducto"></select>
+
+    <label>Tipo</label>
+    <select id="mermaTipo">
+      <option value="merma">Merma / se dañó</option>
+      <option value="regalo">Regalo</option>
+      <option value="ajuste">Ajuste manual</option>
+    </select>
+
+    <label>Cantidad a descontar</label>
+    <input type="number" id="mermaCantidad" placeholder="Ejemplo: 5">
+
+    <label>Motivo obligatorio</label>
+    <input id="mermaMotivo" placeholder="Ejemplo: Cecy regaló un Arizona a Mayreli">
+
+    <button class="btn-naranja" onclick="registrarMerma()">Descontar y guardar motivo</button>
+    <div id="mensajeMerma"></div>
+  </div>
+</section>
+
+<section id="reportes" class="seccion">
+  <div class="card">
+    <h2>📊 Números generales</h2>
+    <div id="reporteGeneral"></div>
+  </div>
+  <div class="card">
+    <h2>🛒 Recomendación de compra</h2>
+    <div id="recomendacionCompra"></div>
+  </div>
+  <div class="card">
+    <h2>📋 Historial / Auditoría</h2>
+    <button class="btn-morado" onclick="cargarAuditoria()">Actualizar auditoría</button>
+    <div id="historial">Cargando...</div>
+  </div>
+</section>
+
+<section id="admin" class="seccion">
+  <div class="card">
+    <h2>🔐 Administrador</h2>
+    <div id="adminEstado" class="warn">Admin bloqueado. Toca el título 5 veces o escribe el PIN.</div>
+    <label>PIN admin</label>
+    <input type="password" id="adminPin" placeholder="PIN">
+    <button class="btn-morado" onclick="desbloquearAdmin()">Desbloquear admin</button>
+    <button class="btn-gris" onclick="bloquearAdmin()">Bloquear admin</button>
+  </div>
+
+  <div id="adminPanel" class="admin-bloqueado">
+    <div class="card">
+      <h2>👥 Usuarios</h2>
+      <label>Nombre</label>
+      <input id="userNombre" placeholder="Ejemplo: Diana Vázquez">
+      <label>Email / identificador</label>
+      <input id="userEmail" placeholder="Ejemplo: diana@dona-cecy.local">
+      <label>Rol</label>
+      <select id="userRol">
+        <option value="usuario">usuario</option>
+        <option value="admin">admin</option>
+      </select>
+      <button class="btn-azul" onclick="guardarUsuario()">Guardar usuario</button>
+      <div id="listaUsuarios"></div>
+    </div>
+
+    <div class="card">
+      <h2>➕ Agregar ingrediente nuevo</h2>
+      <label>Nombre del ingrediente</label>
+      <input id="ingNombre" placeholder="Ejemplo: Pepino porción">
+      <label>Cantidad inicial</label>
+      <input type="number" id="ingCantidad" placeholder="Ejemplo: 35">
+      <label>Costo unitario</label>
+      <input type="number" id="ingCosto" placeholder="Ejemplo: 3.50">
+      <button class="btn-azul" onclick="agregarIngrediente()">Guardar ingrediente</button>
+    </div>
+
+    <div class="card">
+      <h2>🧾 Agregar compra</h2>
+      <label>Ingrediente</label>
+      <select id="compraProducto"></select>
+      <label>Cantidad comprada</label>
+      <input type="number" id="compraCantidad" placeholder="Ejemplo: 100">
+      <label>Costo total de compra</label>
+      <input type="number" id="compraCosto" placeholder="Ejemplo: 180">
+      <button class="btn-verde" onclick="agregarCompra()">Agregar compra</button>
+    </div>
+
+    <div class="card">
+      <h2>🍹 Crear / editar producto terminado</h2>
+      <label>Seleccionar producto para editar</label>
+      <select id="productoEditar" onchange="cargarProductoEditar()"></select>
+      <button class="btn-claro" onclick="nuevoProducto()">➕ Nuevo producto</button>
+
+      <label>Nombre del producto terminado</label>
+      <input id="prodNombre" placeholder="Ejemplo: Arizona mango preparada">
+
+      <label>Precio de venta</label>
+      <input type="number" id="prodPrecio" placeholder="Ejemplo: 45">
+
+      <h3>Receta</h3>
+      <div id="recetaForm"></div>
+
+      <button class="btn-azul" onclick="agregarLineaReceta()">➕ Agregar ingrediente a receta</button>
+      <button class="btn-verde" onclick="guardarProducto()">Guardar producto</button>
+      <button class="btn-rojo" onclick="eliminarProducto()">Eliminar producto</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 Productos actuales</h2>
+      <div id="listaProductos"></div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const SUPABASE_URL = "https://vdmlmeiqqxjvczpeyrfo.supabase.co";
+const SUPABASE_KEY = "sb_publishable_okXFGFXrEZhu_bO8u-fLgw_6JRDutZ6";
+const ADMIN_PIN = "2026";
+
+let db=null;
+let usuarios=[], productos=[], ingredientes=[], recetas=[];
+let pedido=[], pedidoActualId=null, pedidoActualEstado=null;
+let productoActualId="", realtimeActivado=false, procesando=false, esAdmin=false, toques=0;
+
+function iniciarSupabase(){
+  if(!SUPABASE_KEY || SUPABASE_KEY.includes("AQUI_PEGA")){
+    estado("Falta pegar la Publishable Key en el HTML.","alerta");
+    return false;
+  }
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+  return true;
+}
+
+async function cargarTodo(){
+  if(!db && !iniciarSupabase()) return;
+  await cargarUsuarios();
+  await cargarIngredientes();
+  await cargarProductos();
+  await cargarRecetas();
+  await cargarPedidosPendientes();
+  await cargarReporteHoy();
+  await cargarAuditoria();
+  activarRealtime();
+}
+
+function verTab(id,btn){
+  document.querySelectorAll('.seccion').forEach(s=>s.classList.remove('activa'));
+  document.getElementById(id).classList.add('activa');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activa'));
+  btn.classList.add('activa');
+  render();
+}
+
+function usuarioActual(){
+  let id=document.getElementById("usuarioSelect").value;
+  return usuarios.find(u=>u.id===id);
+}
+
+function mostrarUsuarioActivo(){
+  let u=usuarioActual();
+  document.getElementById("usuarioActivo").innerHTML=u?`Operando como: <b>${u.nombre}</b> • ${u.rol}`:"Usuario no seleccionado";
+}
+
+async function cargarUsuarios(){
+  const {data,error}=await db.from("usuarios").select("id,nombre,email,rol,activo").order("nombre");
+  if(error){estado("Error usuarios: "+error.message,"alerta");return}
+  usuarios=data||[];
+  let sel=document.getElementById("usuarioSelect");
+  let actual=sel.value;
+  sel.innerHTML="";
+  usuarios.filter(u=>u.activo).forEach(u=>{
+    let op=document.createElement("option");
+    op.value=u.id;
+    op.textContent=`${u.nombre} (${u.rol})`;
+    sel.appendChild(op);
+  });
+  if(actual) sel.value=actual;
+  mostrarUsuarioActivo();
+  renderUsuarios();
+}
+
+async function cargarIngredientes(){
+  const {data,error}=await db.from("ingredientes").select("*").eq("activo",true).order("nombre");
+  if(error){estado("Error ingredientes: "+error.message,"alerta");return}
+  ingredientes=data||[];
+}
+
+async function cargarProductos(){
+  const {data,error}=await db.from("productos").select("*").eq("activo",true).order("nombre");
+  if(error){estado("Error productos: "+error.message,"alerta");return}
+  productos=data||[];
+  estado("Conexión correcta. Datos cargados.", "ok");
+}
+
+async function cargarRecetas(){
+  const {data,error}=await db.from("recetas").select("id,producto_id,ingrediente_id,cantidad, ingredientes(nombre,costo_unitario)").order("fecha_creacion");
+  if(error){estado("Error recetas: "+error.message,"alerta");return}
+  recetas=data||[];
+  render();
+}
+
+function costoProducto(productoId){
+  let rs=recetas.filter(r=>r.producto_id===productoId);
+  return rs.reduce((sum,r)=>sum + Number(r.cantidad||0)*Number(r.ingredientes?.costo_unitario||0),0);
+}
+
+function render(){
+  renderVentas();
+  renderPedido();
+  renderInventario();
+  renderSelects();
+  renderProductosAdmin();
+  actualizarAdminVisual();
+}
+
+function renderVentas(){
+  let cont=document.getElementById("listaVentas");
+  cont.innerHTML=productos.map(p=>{
+    let c=costoProducto(p.id);
+    let g=Number(p.precio_venta)-c;
+    return `<div class="productoVenta">
+      <div><b>${p.nombre}</b><br><small>Venta $${Number(p.precio_venta).toFixed(2)} • Costo $${c.toFixed(2)} • Gana $${g.toFixed(2)}</small></div>
+      <button class="btn-verde" onclick="agregarAlPedido('${p.id}')">Agregar</button>
+    </div>`;
+  }).join("") || "<div class='warn'>No hay productos activos.</div>";
+}
+
+function agregarAlPedido(productoId){
+  if(pedidoActualId){
+    if(!confirm("Tienes un pedido cargado. Si agregas otro producto se crea pedido nuevo. ¿Continuar?")) return;
+    pedidoActualId=null; pedidoActualEstado=null;
+  }
+  let p=productos.find(x=>x.id===productoId);
+  if(!p) return;
+  let existe=pedido.find(x=>x.producto_id===productoId);
+  if(existe) existe.cantidad++;
+  else pedido.push({producto_id:p.id,nombre:p.nombre,precio_unitario:Number(p.precio_venta),cantidad:1});
+  renderPedido();
+}
+
+function cambiarCantidad(i,d){
+  if(pedidoActualId){alert("Este pedido ya está guardado. Cancélalo y crea uno nuevo para modificar.");return}
+  pedido[i].cantidad+=d;
+  if(pedido[i].cantidad<=0) pedido.splice(i,1);
+  renderPedido();
+}
+
+function cancelarItem(i){
+  if(pedidoActualId){alert("Este pedido ya está guardado. Cancélalo y crea uno nuevo para modificar.");return}
+  pedido.splice(i,1);
+  renderPedido();
+}
+
+function renderPedido(){
+  let lista=document.getElementById("pedidoLista");
+  let cargado=document.getElementById("pedidoCargado");
+  let btnEnviar=document.getElementById("btnEnviarPedido");
+  if(!lista) return;
+
+  if(pedidoActualId){
+    cargado.classList.remove("oculto");
+    cargado.innerHTML=`Pedido cargado de la nube. Estado: <b>${pedidoActualEstado}</b>`;
+    btnEnviar.disabled=true;
+  }else{
+    cargado.classList.add("oculto");
+    btnEnviar.disabled=false;
+  }
+
+  lista.innerHTML=pedido.length?pedido.map((it,i)=>`
+    <div class="itemPedido">
+      <div><b>${it.nombre}</b><br><small>$${it.precio_unitario.toFixed(2)} c/u • Subtotal $${(it.precio_unitario*it.cantidad).toFixed(2)}</small></div>
+      <div class="controlesPedido">
+        <button class="btn-mini menos" onclick="cambiarCantidad(${i},-1)">−</button>
+        <b>${it.cantidad}</b>
+        <button class="btn-mini mas" onclick="cambiarCantidad(${i},1)">+</button>
+        <button class="btn-mini cancelar" onclick="cancelarItem(${i})">X</button>
+      </div>
+    </div>`).join(""):"<div class='warn'>Aún no hay productos en el pedido.</div>";
+
+  document.getElementById("totalPedido").textContent=totalPedido().toFixed(2);
+  calcularCambio();
+}
+
+function totalPedido(){
+  return pedido.reduce((s,it)=>s+it.precio_unitario*it.cantidad,0);
+}
+
+function calcularCambio(){
+  let pago=Number(document.getElementById("pagoCon").value||0);
+  let cambio=pago-totalPedido();
+  document.getElementById("cambio").textContent=cambio>0?cambio.toFixed(2):"0.00";
+}
+
+async function enviarPedido(){
+  if(procesando) return;
+  if(pedidoActualId){mensaje("Este pedido ya fue enviado.","alerta");return}
+  if(!pedido.length){mensaje("Agrega productos antes de realizar pedido.","alerta");return}
+  let u=usuarioActual(); if(!u){mensaje("Selecciona usuario.","alerta");return}
+  procesando=true;
+  let total=totalPedido();
+  const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"pendiente",total}).select().single();
+  if(e1){mensaje("Error pedido: "+e1.message,"alerta");procesando=false;return}
+  let det=pedido.map(it=>({pedido_id:ped.id,producto_id:it.producto_id,cantidad:it.cantidad,precio_unitario:it.precio_unitario,subtotal:it.precio_unitario*it.cantidad}));
+  const {error:e2}=await db.from("pedido_detalle").insert(det);
+  if(e2){mensaje("Pedido creado, falló detalle: "+e2.message,"alerta");procesando=false;return}
+  pedidoActualId=ped.id; pedidoActualEstado="pendiente";
+  await auditoria("PEDIDO_ENVIADO",`${u.nombre} envió pedido por $${total.toFixed(2)}`,{pedido, total, pedido_id:ped.id});
+  mensaje("📨 Pedido enviado. Todavía NO se descontó inventario.","ok");
+  aviso(`📨 ${u.nombre} realizó pedido por $${total.toFixed(2)}`);
+  await cargarPedidosPendientes();
+  renderPedido();
+  procesando=false;
+}
+
+async function registrarVenta(){
+  if(procesando) return;
+  if(!pedido.length){mensaje("Agrega productos antes de registrar venta.","alerta");return}
+  let u=usuarioActual(); if(!u){mensaje("Selecciona usuario.","alerta");return}
+  let total=totalPedido(), pago=Number(document.getElementById("pagoCon").value||0);
+  if(pago<total && !confirm("El pago es menor al total. ¿Registrar de todos modos?")) return;
+  procesando=true;
+
+  let idPedido=pedidoActualId;
+  if(idPedido){
+    const {data:ped,error:e0}=await db.from("pedidos").select("estado").eq("id",idPedido).single();
+    if(e0){mensaje("Error verificando pedido: "+e0.message,"alerta");procesando=false;return}
+    if(ped.estado==="vendido"){mensaje("Este pedido ya fue vendido.","alerta");procesando=false;return}
+    if(ped.estado==="cancelado"){mensaje("Este pedido está cancelado.","alerta");procesando=false;return}
+  }
+
+  let ok=await descontarInventarioVenta(u);
+  if(!ok){procesando=false;return}
+
+  if(!idPedido){
+    const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"vendido",total}).select().single();
+    if(e1){mensaje("Error creando pedido: "+e1.message,"alerta");procesando=false;return}
+    idPedido=ped.id;
+    let det=pedido.map(it=>({pedido_id:idPedido,producto_id:it.producto_id,cantidad:it.cantidad,precio_unitario:it.precio_unitario,subtotal:it.precio_unitario*it.cantidad}));
+    const {error:e2}=await db.from("pedido_detalle").insert(det);
+    if(e2){mensaje("Error detalle: "+e2.message,"alerta");procesando=false;return}
+  }else{
+    await db.from("pedidos").update({estado:"vendido"}).eq("id",idPedido).neq("estado","vendido");
+  }
+
+  let cambio=pago-total;
+  const {error:e3}=await db.from("ventas").insert({pedido_id:idPedido,usuario_id:u.id,total,pago_con:pago,cambio:cambio>0?cambio:0});
+  if(e3){mensaje("Error venta: "+e3.message,"alerta");procesando=false;return}
+  await auditoria("VENTA_REGISTRADA",`${u.nombre} registró venta por $${total.toFixed(2)}`,{pedido,total,pago,cambio,pedido_id:idPedido});
+  mensaje("✅ Venta registrada e inventario descontado.","ok");
+  aviso(`✅ ${u.nombre} registró venta por $${total.toFixed(2)}`);
+  limpiarPedido(false);
+  await cargarIngredientes();
+  await cargarReporteHoy();
+  await cargarPedidosPendientes();
+  render();
+  procesando=false;
+}
+
+async function descontarInventarioVenta(u){
+  let consumo={};
+  for(let p of pedido){
+    let rs=recetas.filter(r=>r.producto_id===p.producto_id);
+    if(rs.length===0){mensaje(`${p.nombre} no tiene receta. No se puede vender todavía.`,"alerta");return false}
+    rs.forEach(r=>consumo[r.ingrediente_id]=(consumo[r.ingrediente_id]||0)+Number(r.cantidad)*p.cantidad);
+  }
+
+  await cargarIngredientes();
+
+  for(let ingId in consumo){
+    let ing=ingredientes.find(i=>i.id===ingId);
+    if(!ing){mensaje("No encontré un ingrediente de receta.","alerta");return false}
+    if(Number(ing.cantidad)<consumo[ingId]){
+      mensaje(`Inventario insuficiente: ${ing.nombre}. Quedan ${ing.cantidad}, se necesitan ${consumo[ingId]}.`,"alerta");
+      return false;
+    }
+  }
+
+  for(let ingId in consumo){
+    let ing=ingredientes.find(i=>i.id===ingId);
+    let nueva=Number(ing.cantidad)-consumo[ingId];
+    const {error}=await db.from("ingredientes").update({cantidad:nueva}).eq("id",ingId);
+    if(error){mensaje("Error descontando "+ing.nombre+": "+error.message,"alerta");return false}
+    await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:ingId,tipo:"venta",cantidad:-consumo[ingId],motivo:"Venta registrada",referencia:pedidoActualId||"venta_directa"});
+  }
+  return true;
+}
+
+function limpiarPedido(confirmar=true){
+  if(confirmar && pedido.length && !confirm("¿Limpiar pedido actual?")) return;
+  pedido=[]; pedidoActualId=null; pedidoActualEstado=null;
+  document.getElementById("pagoCon").value="";
+  renderPedido();
+}
+
+async function cargarPedidosPendientes(){
+  if(!db) return;
+  const {data,error}=await db.from("pedidos").select("id,usuario_id,estado,total,fecha_creacion,usuarios(nombre)").in("estado",["pendiente","listo"]).order("fecha_creacion",{ascending:false}).limit(20);
+  let cont=document.getElementById("pedidosPendientes");
+  if(error){cont.innerHTML="<div class='alerta'>Error pedidos: "+error.message+"</div>";return}
+  if(!data?.length){cont.innerHTML="<div class='warn'>No hay pedidos pendientes.</div>";return}
+
+  let html="";
+  for(let p of data){
+    const {data:det}=await db.from("pedido_detalle").select("cantidad,precio_unitario,subtotal,productos(nombre)").eq("pedido_id",p.id);
+    let lista=(det||[]).map(d=>`• ${Number(d.cantidad)} x ${d.productos?.nombre||"Producto"} = $${Number(d.subtotal).toFixed(2)}`).join("<br>");
+    let botones=p.estado==="pendiente"?
+      `<div class="acciones"><button class="btn-azul" onclick="marcarPedidoListo('${p.id}')">Pedido listo</button><button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar directo</button></div><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`:
+      `<button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar pedido listo</button><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}')">Cancelar pedido</button>`;
+    html+=`<div class="pedido-card"><b>Pedido $${Number(p.total).toFixed(2)}</b> <span class="pill">${p.estado.toUpperCase()}</span><br><small>${new Date(p.fecha_creacion).toLocaleTimeString()} • ${p.usuarios?.nombre||"Usuario"}</small><br><div style="margin:7px 0">${lista}</div>${botones}</div>`;
+  }
+  cont.innerHTML=html;
+}
+
+async function marcarPedidoListo(id){
+  let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
+  const {data:ped}=await db.from("pedidos").select("estado").eq("id",id).single();
+  if(!ped || ped.estado!=="pendiente"){alert("Este pedido ya no está pendiente."); await cargarPedidosPendientes(); return}
+  await db.from("pedidos").update({estado:"listo"}).eq("id",id).eq("estado","pendiente");
+  await auditoria("PEDIDO_LISTO",`${u.nombre} marcó pedido como listo`,{pedido_id:id});
+  aviso(`🔵 ${u.nombre} marcó pedido listo`);
+  await cargarPedidosPendientes();
+}
+
+async function cancelarPedidoNube(id){
+  let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
+  if(!confirm("¿Cancelar este pedido?")) return;
+  const {data:ped}=await db.from("pedidos").select("estado").eq("id",id).single();
+  if(ped?.estado==="vendido") return alert("Este pedido ya fue vendido.");
+  await db.from("pedidos").update({estado:"cancelado"}).eq("id",id).neq("estado","vendido");
+  await auditoria("PEDIDO_CANCELADO",`${u.nombre} canceló un pedido`,{pedido_id:id});
+  aviso(`🔴 ${u.nombre} canceló pedido`);
+  if(pedidoActualId===id) limpiarPedido(false);
+  await cargarPedidosPendientes();
+}
+
+async function cargarPedidoParaCobrar(id){
+  const {data:ped,error:e1}=await db.from("pedidos").select("id,estado,total").eq("id",id).single();
+  if(e1) return alert("Error: "+e1.message);
+  if(ped.estado==="vendido") return alert("Ya fue vendido.");
+  if(ped.estado==="cancelado") return alert("Está cancelado.");
+  const {data:det,error:e2}=await db.from("pedido_detalle").select("producto_id,cantidad,precio_unitario,productos(nombre)").eq("pedido_id",id);
+  if(e2) return alert("Error detalle: "+e2.message);
+  pedido=(det||[]).map(d=>({producto_id:d.producto_id,nombre:d.productos?.nombre||"Producto",precio_unitario:Number(d.precio_unitario),cantidad:Number(d.cantidad)}));
+  pedidoActualId=id; pedidoActualEstado=ped.estado;
+  verTab('ventas', document.querySelectorAll('.tab')[0]);
+  renderPedido();
+  mensaje("Pedido cargado para cobrar.","ok");
+}
+
+function renderInventario(){
+  let cont=document.getElementById("tablaInventario");
+  cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Costo</th><th>Estado</th></tr>'+
+    ingredientes.map(i=>{
+      let estado=Number(i.cantidad)<=10?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
+      return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>$${Number(i.costo_unitario).toFixed(2)}</td><td>${estado}</td></tr>`;
+    }).join("")+'</table>';
+}
+
+function renderSelects(){
+  let ingOpts=ingredientes.map(i=>`<option value="${i.id}">${i.nombre}</option>`).join("");
+  ["compraProducto","mermaProducto"].forEach(id=>{
+    let s=document.getElementById(id); if(!s) return;
+    let v=s.value; s.innerHTML=ingOpts; if(v) s.value=v;
+  });
+
+  let prodSel=document.getElementById("productoEditar");
+  if(prodSel){
+    let v=prodSel.value;
+    prodSel.innerHTML='<option value="">-- Nuevo producto --</option>'+productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+    if(v) prodSel.value=v;
+  }
+}
+
+async function registrarMerma(){
+  let u=usuarioActual(); if(!u) return msgMerma("Selecciona usuario.","alerta");
+  let ingId=mermaProducto.value, tipo=mermaTipo.value, cant=Number(mermaCantidad.value||0), motivo=mermaMotivo.value.trim();
+  if(!ingId||cant<=0) return msgMerma("Selecciona producto y cantidad válida.","alerta");
+  if(motivo.length<4) return msgMerma("El motivo es obligatorio.","alerta");
+  await cargarIngredientes();
+  let ing=ingredientes.find(i=>i.id===ingId);
+  if(!ing) return msgMerma("No encontré ingrediente.","alerta");
+  let nueva=Math.max(0,Number(ing.cantidad)-cant);
+  const {error}=await db.from("ingredientes").update({cantidad:nueva}).eq("id",ingId);
+  if(error) return msgMerma("Error: "+error.message,"alerta");
+  await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:ingId,tipo,cantidad:-cant,motivo,referencia:"ajuste_manual"});
+  await auditoria(tipo.toUpperCase(),`${u.nombre} descontó ${cant} de ${ing.nombre}. Motivo: ${motivo}`,{ingrediente:ing.nombre,cantidad:-cant,tipo,motivo});
+  msgMerma(`✅ ${u.nombre} descontó ${cant} de ${ing.nombre}.`,"ok");
+  mermaCantidad.value=""; mermaMotivo.value="";
+  await cargarIngredientes(); await cargarReporteHoy(); render();
+}
+
+async function agregarIngrediente(){
+  if(!validarAdmin()) return;
+  let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0);
+  if(!n||c<0||cu<0) return alert("Completa los datos.");
+  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,activo:true});
+  if(error) return alert(error.message.includes("duplicate")?"Ese ingrediente ya existe.":error.message);
+  await auditoria("INGREDIENTE_NUEVO",`Se agregó ingrediente ${n}`,{nombre:n,cantidad:c,costo_unitario:cu});
+  ingNombre.value=""; ingCantidad.value=""; ingCosto.value="";
+  await cargarIngredientes(); render();
+}
+
+async function agregarCompra(){
+  if(!validarAdmin()) return;
+  let u=usuarioActual(); if(!u) return alert("Selecciona usuario");
+  let ingId=compraProducto.value, cant=Number(compraCantidad.value||0), costo=Number(compraCosto.value||0);
+  if(!ingId||cant<=0||costo<=0) return alert("Completa compra.");
+  await cargarIngredientes();
+  let ing=ingredientes.find(i=>i.id===ingId);
+  let nueva=Number(ing.cantidad)+cant, costoUnit=costo/cant;
+  const {error}=await db.from("ingredientes").update({cantidad:nueva,costo_unitario:costoUnit}).eq("id",ingId);
+  if(error) return alert(error.message);
+  await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:ingId,tipo:"compra",cantidad:cant,motivo:"Compra registrada",referencia:"compra"});
+  await auditoria("COMPRA",`${u.nombre} agregó compra de ${cant} ${ing.nombre}`,{ingrediente:ing.nombre,cantidad:cant,costo});
+  compraCantidad.value=""; compraCosto.value="";
+  await cargarIngredientes(); render();
+}
+
+function nuevoProducto(){
+  if(!validarAdmin()) return;
+  productoActualId="";
+  prodNombre.value=""; prodPrecio.value="";
+  recetaForm.innerHTML="";
+  agregarLineaReceta();
+  productoEditar.value="";
+}
+
+function agregarLineaReceta(ingId="",cant=1){
+  if(!validarAdmin()) return;
+  let div=document.createElement("div");
+  div.className="ingrediente-row";
+  let opts=ingredientes.map(i=>`<option value="${i.id}" ${i.id===ingId?'selected':''}>${i.nombre}</option>`).join("");
+  div.innerHTML=`<select class="rIng">${opts}</select><input class="rCant" type="number" value="${cant}" step="0.1"><button class="btn-rojo btn-small" onclick="this.parentElement.remove()">X</button>`;
+  recetaForm.appendChild(div);
+}
+
+function cargarProductoEditar(){
+  if(!validarAdmin()) return;
+  let id=productoEditar.value;
+  if(!id) return nuevoProducto();
+  let p=productos.find(x=>x.id===id);
+  productoActualId=id;
+  prodNombre.value=p.nombre;
+  prodPrecio.value=p.precio_venta;
+  recetaForm.innerHTML="";
+  recetas.filter(r=>r.producto_id===id).forEach(r=>agregarLineaReceta(r.ingrediente_id,Number(r.cantidad)));
+}
+
+async function guardarProducto(){
+  if(!validarAdmin()) return;
+  let nombre=prodNombre.value.trim(), precio=Number(prodPrecio.value||0);
+  if(!nombre||precio<=0) return alert("Nombre y precio son obligatorios.");
+  let filas=[...document.querySelectorAll("#recetaForm .ingrediente-row")].map(r=>({
+    ingrediente_id:r.querySelector(".rIng").value,
+    cantidad:Number(r.querySelector(".rCant").value||0)
+  })).filter(r=>r.ingrediente_id&&r.cantidad>0);
+  if(!filas.length) return alert("Agrega ingredientes a la receta.");
+
+  let prodId=productoActualId;
+  if(prodId){
+    const {error}=await db.from("productos").update({nombre,precio_venta:precio}).eq("id",prodId);
+    if(error) return alert(error.message.includes("duplicate")?"Ese producto ya existe.":error.message);
+    await db.from("recetas").delete().eq("producto_id",prodId);
+  }else{
+    const {data,error}=await db.from("productos").insert({nombre,precio_venta:precio,activo:true}).select().single();
+    if(error) return alert(error.message.includes("duplicate")?"Ese producto ya existe.":error.message);
+    prodId=data.id;
+  }
+  const recs=filas.map(f=>({producto_id:prodId,ingrediente_id:f.ingrediente_id,cantidad:f.cantidad}));
+  const {error:e2}=await db.from("recetas").insert(recs);
+  if(e2) return alert("Producto guardado, pero falló receta: "+e2.message);
+
+  await auditoria("PRODUCTO_GUARDADO",`Se guardó producto ${nombre}`,{producto:nombre,precio,receta:filas});
+  await cargarProductos(); await cargarRecetas(); render();
+  alert("Producto guardado.");
+}
+
+async function eliminarProducto(){
+  if(!validarAdmin()) return;
+  let id=productoActualId||productoEditar.value;
+  if(!id) return alert("Selecciona producto.");
+  let p=productos.find(x=>x.id===id);
+  if(!confirm("¿Dar de baja "+p.nombre+"?")) return;
+  await db.from("productos").update({activo:false}).eq("id",id);
+  await auditoria("PRODUCTO_BAJA",`Se dio de baja producto ${p.nombre}`,{producto:p.nombre});
+  productoActualId=""; prodNombre.value=""; prodPrecio.value=""; recetaForm.innerHTML="";
+  await cargarProductos(); render();
+}
+
+async function guardarUsuario(){
+  if(!validarAdmin()) return;
+  let nombre=userNombre.value.trim(), email=userEmail.value.trim(), rol=userRol.value;
+  if(!nombre) return alert("Nombre obligatorio.");
+  if(!email) email=nombre.toLowerCase().replace(/\s+/g,".")+"@dona-cecy.local";
+  const {error}=await db.from("usuarios").insert({nombre,email,rol,activo:true});
+  if(error) return alert(error.message.includes("duplicate")?"Ese usuario ya existe.":error.message);
+  await auditoria("USUARIO_NUEVO",`Se agregó usuario ${nombre}`,{nombre,email,rol});
+  userNombre.value=""; userEmail.value="";
+  await cargarUsuarios();
+}
+
+async function bajaUsuario(id){
+  if(!validarAdmin()) return;
+  let u=usuarios.find(x=>x.id===id);
+  if(!confirm("¿Dar de baja a "+u.nombre+"?")) return;
+  await db.from("usuarios").update({activo:false}).eq("id",id);
+  await auditoria("USUARIO_BAJA",`Se dio de baja usuario ${u.nombre}`,{usuario:u.nombre});
+  await cargarUsuarios();
+}
+
+function renderUsuarios(){
+  let cont=document.getElementById("listaUsuarios");
+  if(!cont) return;
+  cont.innerHTML=usuarios.map(u=>`<div class="${u.activo?'info':'warn'}"><b>${u.nombre}</b><br>${u.email||""}<br>Rol: ${u.rol} • ${u.activo?'Activo':'Inactivo'}<br>${u.activo?`<button class="btn-small btn-rojo" onclick="bajaUsuario('${u.id}')">Dar de baja</button>`:""}</div>`).join("");
+}
+
+function renderProductosAdmin(){
+  let cont=document.getElementById("listaProductos");
+  if(!cont) return;
+  cont.innerHTML=productos.map(p=>{
+    let rs=recetas.filter(r=>r.producto_id===p.id).map(r=>{
+      let ing=ingredientes.find(i=>i.id===r.ingrediente_id);
+      return `<span class="pill">${Number(r.cantidad)} ${ing?.nombre||"Ingrediente"}</span>`;
+    }).join(" ");
+    return `<div class="info"><b>${p.nombre}</b><br>Precio: $${Number(p.precio_venta).toFixed(2)}<br>${rs}<br><button class="btn-small btn-azul" onclick="verTab('admin',document.querySelectorAll('.tab')[4]);productoEditar.value='${p.id}';cargarProductoEditar()">Editar</button></div>`;
+  }).join("");
+}
+
+async function cargarReporteHoy(){
+  if(!db) return;
+  let inicio=new Date(); inicio.setHours(0,0,0,0);
+  const {data:ventas}=await db.from("ventas").select("total").gte("fecha_creacion",inicio.toISOString());
+  const {data:movs}=await db.from("movimientos_inventario").select("tipo").gte("fecha_creacion",inicio.toISOString());
+  let total=(ventas||[]).reduce((s,v)=>s+Number(v.total),0);
+  let num=(ventas||[]).length;
+  let m=(movs||[]).filter(x=>x.tipo==="merma").length;
+  let r=(movs||[]).filter(x=>x.tipo==="regalo").length;
+  let html=`<div class="resumen"><div class="box">Ventas<br><b>${num}</b></div><div class="box">Dinero<br><b>$${total.toFixed(2)}</b></div><div class="box">Mermas/Regalos<br><b>${m+r}</b></div></div>`;
+  resumenHoy.innerHTML=html;
+  reporteGeneral.innerHTML=html;
+  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=10).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Comprar pronto.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
+}
+
+async function cargarAuditoria(){
+  if(!db) return;
+  const {data,error}=await db.from("auditoria").select("accion,detalle,fecha_creacion,usuarios(nombre)").order("fecha_creacion",{ascending:false}).limit(80);
+  if(error){historial.innerHTML="<div class='alerta'>Error auditoría: "+error.message+"</div>";return}
+  historial.innerHTML=(data||[]).map(a=>`<div style="border-bottom:1px solid #eee;padding:8px 0"><b>${a.accion}</b><br>${a.detalle||""}<br><small>${new Date(a.fecha_creacion).toLocaleString()} • ${a.usuarios?.nombre||""}</small></div>`).join("")||"Sin auditoría.";
+}
+
+async function auditoria(accion,detalle,datos={}){
+  let u=usuarioActual();
+  await db.from("auditoria").insert({usuario_id:u?.id||null,accion,detalle,datos});
+}
+
+function desbloquearAdmin(){
+  if(adminPin.value===ADMIN_PIN){
+    esAdmin=true;
+    adminPin.value="";
+    actualizarAdminVisual();
+  }else alert("PIN incorrecto.");
+}
+
+function bloquearAdmin(){
+  esAdmin=false;
+  actualizarAdminVisual();
+}
+
+function validarAdmin(){
+  if(!esAdmin){
+    alert("Necesitas desbloquear Administrador.");
+    return false;
+  }
+  return true;
+}
+
+function actualizarAdminVisual(){
+  let p=document.getElementById("adminPanel");
+  let e=document.getElementById("adminEstado");
+  if(!p||!e) return;
+  p.style.pointerEvents=esAdmin?"auto":"none";
+  p.style.opacity=esAdmin?"1":".45";
+  e.className=esAdmin?"ok":"warn";
+  e.innerHTML=esAdmin?"🔓 Admin desbloqueado":"🔒 Admin bloqueado. Toca el título 5 veces o escribe el PIN.";
+}
+
+function toqueTitulo(){
+  toques++;
+  setTimeout(()=>{toques=0},1200);
+  if(toques>=5){
+    toques=0;
+    esAdmin=!esAdmin;
+    actualizarAdminVisual();
+  }
+}
+
+function mensaje(txt,tipo){mensajePedido.className=tipo; mensajePedido.innerHTML=txt}
+function msgMerma(txt,tipo){mensajeMerma.className=tipo; mensajeMerma.innerHTML=txt}
+function estado(txt,tipo){estadoConexion.className=tipo; estadoConexion.innerHTML=txt}
+function aviso(txt){let a=avisos;let f=new Date().toLocaleTimeString();let n=`<div class="ok"><b>${f}</b><br>${txt}</div>`;if(a.textContent.includes("Sin avisos"))a.innerHTML="";a.innerHTML=n+a.innerHTML}
+
+function activarRealtime(){
+  if(realtimeActivado||!db) return; realtimeActivado=true;
+  try{
+    db.channel("cecy-final-admin")
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"pedidos"},()=>{aviso("🔔 Nuevo pedido en la nube"); cargarPedidosPendientes();})
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pedidos"},()=>{aviso("🔄 Pedido actualizado"); cargarPedidosPendientes();})
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"ventas"},()=>{aviso("💰 Nueva venta registrada"); cargarReporteHoy(); cargarIngredientes().then(render);})
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"movimientos_inventario"},()=>{aviso("📦 Movimiento de inventario"); cargarIngredientes().then(render);})
+      .subscribe();
+  }catch(e){console.log(e)}
+}
+
+cargarTodo();
+</script>
+</body>
+</html>
