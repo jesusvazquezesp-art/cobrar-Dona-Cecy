@@ -138,6 +138,32 @@ function iniciarPedidosWebAuto(){
 
 
 window.addEventListener("load",()=>{ try{iniciarPedidosWebAuto();}catch(e){} });
+
+async function diagnosticarSupabase(){
+  const el=document.getElementById("diagnosticoSupabase");
+  if(!el) return;
+  if(!db && !iniciarSupabase()){
+    el.className="alerta";
+    el.innerHTML="No se pudo iniciar Supabase.";
+    return;
+  }
+  try{
+    const ti=await db.from("ingredientes").select("*", {count:"exact"}).limit(5);
+    const tp=await db.from("productos").select("*", {count:"exact"}).limit(5);
+    const tr=await db.from("recetas").select("*", {count:"exact"}).limit(5);
+    el.className="info";
+    el.innerHTML=`
+      <b>Ingredientes:</b> ${ti.count ?? (ti.data||[]).length} ${ti.error? "❌ "+ti.error.message:"✅"}<br>
+      <b>Productos:</b> ${tp.count ?? (tp.data||[]).length} ${tp.error? "❌ "+tp.error.message:"✅"}<br>
+      <b>Recetas:</b> ${tr.count ?? (tr.data||[]).length} ${tr.error? "❌ "+tr.error.message:"✅"}<br>
+      <small>Si aquí aparecen cantidades pero no se ve en pantalla, era filtro activo/caché. Presiona Actualizar datos.</small>
+    `;
+  }catch(e){
+    el.className="alerta";
+    el.innerHTML="Error diagnóstico: "+(e.message||e);
+  }
+}
+
 </script>
 <style>
 :root{
@@ -468,8 +494,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V7.13.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.13 Prueba real · Sin catálogo de emergencia</p>
+  <h1>🥤 Puesto Doña Cecy V7.15.15.2</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.15 Prueba real · Lectura real de inventario</p>
 </header>
 
 <div class="tabs">
@@ -628,6 +654,13 @@ th{background:#fafafa}
   </div>
 
   <div id="adminPanel" class="admin-bloqueado">
+
+    <div class="card">
+      <h2>🔎 Diagnóstico Supabase</h2>
+      <button class="btn-azul" onclick="diagnosticarSupabase()">Revisar lectura de tablas</button>
+      <div id="diagnosticoSupabase" class="info">Sin revisar.</div>
+    </div>
+
 
     <div class="card">
       <h2>🧹 Limpieza de prueba real</h2>
@@ -1095,23 +1128,54 @@ async function cargarUsuarios(){
 }
 
 async function cargarIngredientes(){
-  const {data,error}=await db.from("ingredientes").select("*").eq("activo",true).order("nombre");
-  if(error){estado("🔴 Error ingredientes: "+(error.message||error),"alerta");return}
-  ingredientes=data||[]; guardarDatosOffline();
+  try{
+    const {data,error}=await db.from("ingredientes").select("*").order("nombre");
+    if(error){estado("🔴 Error ingredientes: "+(error.message||error),"alerta");return}
+    ingredientes=(data||[]).filter(i=>i.activo !== false);
+    guardarDatosOffline();
+    renderInventario();
+    renderSelects();
+  }catch(e){
+    estado("🔴 Error ingredientes: "+(e.message||e),"alerta");
+  }
 }
 
 async function cargarProductos(){
-  const {data,error}=await db.from("productos").select("*").eq("activo",true).order("nombre");
-  if(error){estado("🔴 Error productos: "+(error.message||error),"alerta");return}
-  productos=data||[]; guardarDatosOffline();
-  // Estado final se muestra al terminar cargarTodo completo.
+  try{
+    const {data,error}=await db.from("productos").select("*").order("nombre");
+    if(error){estado("🔴 Error productos: "+(error.message||error),"alerta");return}
+    productos=(data||[]).filter(p=>p.activo !== false);
+    guardarDatosOffline();
+    estado("🟢 ESTAMOS EN LÍNEA", "ok");
+    renderVentas();
+    renderProductosAdmin();
+    renderSelects();
+  }catch(e){
+    estado("🔴 Error productos: "+(e.message||e),"alerta");
+  }
 }
 
 async function cargarRecetas(){
-  const {data,error}=await db.from("recetas").select("id,producto_id,ingrediente_id,cantidad, ingredientes(nombre,costo_unitario)").order("fecha_creacion");
-  if(error){estado("🔴 Error recetas: "+(error.message||error),"alerta");return}
-  recetas=data||[]; guardarDatosOffline();
-  render();
+  try{
+    let {data,error}=await db.from("recetas").select("id,producto_id,ingrediente_id,cantidad, ingredientes(nombre,costo_unitario)").order("fecha_creacion");
+    if(error){
+      const r2=await db.from("recetas").select("*");
+      data=r2.data||[];
+      error=r2.error;
+    }
+    if(error){estado("🔴 Error recetas: "+(error.message||error),"alerta");return}
+    recetas=(data||[]).map(r=>{
+      if(!r.ingredientes){
+        const ing=ingredientes.find(i=>i.id===r.ingrediente_id);
+        if(ing) r.ingredientes={nombre:ing.nombre,costo_unitario:ing.costo_unitario};
+      }
+      return r;
+    });
+    guardarDatosOffline();
+    render();
+  }catch(e){
+    estado("🔴 Error recetas: "+(e.message||e),"alerta");
+  }
 }
 
 function costoProducto(productoId){
