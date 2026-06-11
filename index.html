@@ -61,7 +61,7 @@ function detallePedidoWebHTML(detalle){
 }
 
 async function cargarPedidosWeb(){
-  if(!db && !iniciarSupabase()) return;
+  if(!db && !iniciarSupabase()){ const cont=document.getElementById("listaPedidosUnificados"); if(cont) cont.innerHTML="<div class='alerta'>No se pudo conectar a Supabase.</div>"; return; }
   const cont=document.getElementById("pedidosWebLista");
   if(!cont) return;
 
@@ -164,6 +164,362 @@ async function diagnosticarSupabase(){
   }
 }
 
+
+
+async function cargarPedidosUnificados(){
+  if(!db && !iniciarSupabase()) return;
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return;
+
+  cont.innerHTML="<div class='warn'>⏳ Leyendo pedidos desde Supabase...</div>";
+
+  let internos=[], web=[], errores=[];
+
+  // 1) Leer pedidos internos sin relaciones para evitar que falle por foreign keys.
+  try{
+    const r1=await db.from("pedidos")
+      .select("id,usuario_id,estado,total,fecha_creacion")
+      .order("fecha_creacion",{ascending:false})
+      .limit(50);
+
+    if(r1.error) errores.push("Pedidos internos: "+r1.error.message);
+    else internos=r1.data||[];
+  }catch(e){
+    errores.push("Pedidos internos: "+(e.message||e));
+  }
+
+  // 2) Leer pedidos web sin filtro de estado para que aparezcan aunque traigan estado diferente.
+  try{
+    const r2=await db.from("pedidos_web")
+      .select("*")
+      .order("fecha",{ascending:false})
+      .limit(50);
+
+    if(r2.error) errores.push("Pedidos web: "+r2.error.message);
+    else web=r2.data||[];
+  }catch(e){
+    errores.push("Pedidos web: "+(e.message||e));
+  }
+
+  // 3) Enriquecer internos con usuario y detalle, pero sin bloquear si falla.
+  for(const p of internos){
+    p.usuario_nombre="Usuario";
+    p.detalle_html="Sin detalle";
+    try{
+      if(p.usuario_id){
+        const ru=await db.from("usuarios").select("nombre").eq("id",p.usuario_id).maybeSingle();
+        if(ru.data?.nombre) p.usuario_nombre=ru.data.nombre;
+      }
+    }catch(e){}
+
+    try{
+      const rd=await db.from("pedido_detalle")
+        .select("cantidad,subtotal,producto_id")
+        .eq("pedido_id",p.id);
+
+      if(rd.error){
+        p.detalle_html="No se pudo leer detalle: "+rd.error.message;
+      }else{
+        const det=rd.data||[];
+        for(const d of det){
+          d.producto_nombre="Producto";
+          try{
+            const rp=await db.from("productos").select("nombre").eq("id",d.producto_id).maybeSingle();
+            if(rp.data?.nombre) d.producto_nombre=rp.data.nombre;
+          }catch(e){}
+        }
+        p.detalle_html=det.length
+          ? det.map(d=>`• ${d.cantidad} x ${d.producto_nombre} = $${Number(d.subtotal||0).toFixed(0)}`).join("<br>")
+          : "Sin detalle";
+      }
+    }catch(e){
+      p.detalle_html="Error leyendo detalle: "+(e.message||e);
+    }
+  }
+
+  const items=[
+    ...internos.map(p=>({origen:"app",fecha:p.fecha_creacion,data:p})),
+    ...web.map(p=>({origen:"web",fecha:p.fecha||p.fecha_creacion||new Date().toISOString(),data:p}))
+  ].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+  const resumen=`<div class="info">
+    <b>Diagnóstico:</b><br>
+    Pedidos internos leídos: <b>${internos.length}</b><br>
+    Pedidos web leídos: <b>${web.length}</b>
+    ${errores.length?`<br><span style="color:#b71c1c">Errores: ${errores.join(" | ")}</span>`:""}
+  </div>`;
+
+  if(!items.length){
+    cont.innerHTML=resumen+"<div class='warn'>No hay pedidos para mostrar.</div>";
+    return;
+  }
+
+  cont.innerHTML=resumen+items.map(it=>{
+    if(it.origen==="app"){
+      const p=it.data;
+      return `<div class="pedido-unificado app">
+        <span class="origen">📱 APP INTERNA</span> <span class="pill">${String(p.estado||"sin estado").toUpperCase()}</span><br>
+        <b>Pedido interno</b><br>
+        <small>${formatoJuarez(p.fecha_creacion)} · ${p.usuario_nombre||"Usuario"}</small>
+        <div class="pedido-web-detalle">${p.detalle_html||"Sin detalle"}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+        <button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar / cargar</button>
+      </div>`;
+    }else{
+      const p=it.data;
+      const det=(typeof detallePedidoWebHTML==="function") ? detallePedidoWebHTML(p.detalle) : JSON.stringify(p.detalle||[]);
+      return `<div class="pedido-unificado web">
+        <span class="origen">🌐 PÁGINA WEB</span> <span class="pill">${String(p.estado||"sin estado").toUpperCase()}</span><br>
+        <b>${p.folio||"Sin folio"}</b><br>
+        <small>${formatoJuarez(p.fecha||p.fecha_creacion||new Date())} · ${p.nombre||""} · ${p.telefono||""}</small>
+        <div class="pedido-web-detalle">${det}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+        <small>Pago: ${p.metodo_pago||""}</small><br>
+        <small>Hora recoger: ${p.hora_recoger||"Por confirmar"}</small>
+      </div>`;
+    }
+  }).join("");
+}
+
+function iniciarPedidosUnificadosAuto(){
+  setInterval(()=>{try{cargarPedidosUnificados()}catch(e){}},10000);
+  setTimeout(()=>{try{cargarPedidosUnificados()}catch(e){}},1800);
+}
+
+window.addEventListener('load',()=>{try{iniciarPedidosUnificadosAuto()}catch(e){}});
+
+async function diagnosticarPedidosTablas(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return;
+  if(!db && !iniciarSupabase()) return;
+  try{
+    const a=await db.from("pedidos").select("*",{count:"exact"}).limit(3);
+    const b=await db.from("pedido_detalle").select("*",{count:"exact"}).limit(3);
+    const c=await db.from("pedidos_web").select("*",{count:"exact"}).limit(3);
+    cont.innerHTML=`<div class="info">
+      <b>🔎 Diagnóstico de tablas</b><br>
+      pedidos: <b>${a.count ?? (a.data||[]).length}</b> ${a.error?"❌ "+a.error.message:"✅"}<br>
+      pedido_detalle: <b>${b.count ?? (b.data||[]).length}</b> ${b.error?"❌ "+b.error.message:"✅"}<br>
+      pedidos_web: <b>${c.count ?? (c.data||[]).length}</b> ${c.error?"❌ "+c.error.message:"✅"}<br>
+      <small>Si aquí salen 2 pedidos, presiona Actualizar todos los pedidos.</small>
+    </div>`;
+  }catch(e){
+    cont.innerHTML=`<div class="alerta">Error diagnóstico: ${e.message||e}</div>`;
+  }
+}
+
+
+/* ===== Refuerzo botones pedidos V7.19 ===== */
+window.cargarPedidosUnificados = cargarPedidosUnificados;
+window.diagnosticarPedidosTablas = diagnosticarPedidosTablas;
+
+function conectarBotonesPedidosUnificados(){
+  const b1=document.getElementById("btnCargarPedidosUnificados");
+  const b2=document.getElementById("btnDiagnosticoPedidos");
+  if(b1) b1.addEventListener("click",()=>cargarPedidosUnificados());
+  if(b2) b2.addEventListener("click",()=>diagnosticarPedidosTablas());
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(cont && cont.textContent.trim()==="Sin cargar."){
+    cont.innerHTML="<div class='warn'>Listo para cargar. Presiona Actualizar todos los pedidos.</div>";
+  }
+}
+window.addEventListener("load",()=>{
+  try{
+    conectarBotonesPedidosUnificados();
+    setTimeout(()=>cargarPedidosUnificados(),2500);
+  }catch(e){
+    const cont=document.getElementById("listaPedidosUnificados");
+    if(cont) cont.innerHTML="<div class='alerta'>Error iniciando pedidos: "+(e.message||e)+"</div>";
+  }
+});
+
+
+/* ===== V7.20 Lector directo de pedidos ===== */
+
+function leerPedidosLocalesTodos(){
+  try{
+    const raw=localStorage.getItem("cecy_pedidos_pendientes_v78");
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){ return []; }
+}
+
+function leerVentasLocalesTodos(){
+  try{
+    const raw=localStorage.getItem("cecy_ventas_pendientes_v73");
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){ return []; }
+}
+
+function pintarPedidoLocalDirecto(p){
+  const detalle=(p.pedido||[]).map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${(Number(x.precio_unitario||0)*Number(x.cantidad||0)).toFixed(0)}`).join("<br>");
+  return `<div class="pedido-unificado app" style="border-color:#fb8c00;background:#fff8e1">
+    <span class="origen">📱 LOCAL CELULAR</span> <span class="pill">PENDIENTE</span><br>
+    <b>Pedido local</b><br>
+    <small>${p.fecha_local?formatoJuarez(p.fecha_local):""} · ${p.usuario_nombre||"Usuario"}</small>
+    <div class="pedido-web-detalle">${detalle||"Sin detalle"}</div>
+    <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+    <small>Este pedido está guardado en este celular y se sincronizará cuando haya conexión.</small>
+  </div>`;
+}
+
+function pintarVentaLocalDirecto(v){
+  const detalle=(v.pedido||[]).map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${(Number(x.precio_unitario||0)*Number(x.cantidad||0)).toFixed(0)}`).join("<br>");
+  return `<div class="pedido-unificado app" style="border-color:#e53935;background:#ffebee">
+    <span class="origen">💰 VENTA LOCAL</span> <span class="pill">PENDIENTE</span><br>
+    <b>Venta local pendiente</b><br>
+    <small>${v.fecha_local?formatoJuarez(v.fecha_local):""} · ${v.usuario_nombre||"Usuario"}</small>
+    <div class="pedido-web-detalle">${detalle||"Sin detalle"}</div>
+    <b>Total: $${Number(v.total||0).toFixed(0)}</b><br>
+    <small>Esta venta está guardada en este celular y se sincronizará cuando haya conexión.</small>
+  </div>`;
+}
+
+async function asegurarConexionPedidos(){
+  try{
+    if(!db){
+      db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+    }
+    return true;
+  }catch(e){
+    const cont=document.getElementById("listaPedidosUnificados");
+    if(cont) cont.innerHTML="<div class='alerta'>No se pudo iniciar Supabase: "+(e.message||e)+"</div>";
+    return false;
+  }
+}
+
+function pintarPedidoWebDirecto(p){
+  let detalle="";
+  try{
+    const arr=Array.isArray(p.detalle)?p.detalle:JSON.parse(p.detalle||"[]");
+    detalle=arr.map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${Number(x.subtotal||0).toFixed(0)}`).join("<br>");
+  }catch(e){
+    detalle=String(p.detalle||"Sin detalle");
+  }
+  return `<div class="pedido-unificado web">
+    <span class="origen">🌐 PÁGINA WEB</span> <span class="pill">${String(p.estado||"sin estado").toUpperCase()}</span><br>
+    <b>${p.folio||"Sin folio"}</b><br>
+    <small>${p.fecha?formatoJuarez(p.fecha):""} · ${p.nombre||""} · ${p.telefono||""}</small>
+    <div class="pedido-web-detalle">${detalle||"Sin detalle"}</div>
+    <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+    <small>Pago: ${p.metodo_pago||""} · Hora: ${p.hora_recoger||"Por confirmar"}</small>
+  </div>`;
+}
+
+function pintarPedidoInternoDirecto(p, dets){
+  const detalle=(dets||[]).filter(d=>d.pedido_id===p.id).map(d=>`• ${d.cantidad||0} x ${d.producto_nombre||"Producto"} = $${Number(d.subtotal||0).toFixed(0)}`).join("<br>");
+  return `<div class="pedido-unificado app">
+    <span class="origen">📱 APP INTERNA</span> <span class="pill">${String(p.estado||"sin estado").toUpperCase()}</span><br>
+    <b>Pedido interno</b><br>
+    <small>${p.fecha_creacion?formatoJuarez(p.fecha_creacion):""}</small>
+    <div class="pedido-web-detalle">${detalle||"Sin detalle"}</div>
+    <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+  </div>`;
+}
+
+async function leerPedidosDirecto(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return alert("No encontré listaPedidosUnificados");
+  cont.innerHTML="<div class='warn'>⏳ Leyendo pedidos directamente...</div>";
+
+  if(!await asegurarConexionPedidos()) return;
+
+  let html="";
+  let errores=[];
+  let web=[], internos=[], dets=[];
+  const localesPedidos=leerPedidosLocalesTodos();
+  const localesVentas=leerVentasLocalesTodos();
+
+  try{
+    const r=await db.from("pedidos_web").select("*").order("fecha",{ascending:false}).limit(50);
+    if(r.error) errores.push("pedidos_web: "+r.error.message);
+    else web=r.data||[];
+  }catch(e){ errores.push("pedidos_web: "+(e.message||e)); }
+
+  try{
+    const r=await db.from("pedidos").select("*").order("fecha_creacion",{ascending:false}).limit(50);
+    if(r.error) errores.push("pedidos: "+r.error.message);
+    else internos=r.data||[];
+  }catch(e){ errores.push("pedidos: "+(e.message||e)); }
+
+  try{
+    const r=await db.from("pedido_detalle").select("*").limit(500);
+    if(r.error) errores.push("pedido_detalle: "+r.error.message);
+    else dets=r.data||[];
+  }catch(e){ errores.push("pedido_detalle: "+(e.message||e)); }
+
+  // Enriquecer nombres de productos sin bloquear.
+  try{
+    const rp=await db.from("productos").select("id,nombre").limit(500);
+    const prods=rp.data||[];
+    dets=dets.map(d=>{
+      const pr=prods.find(p=>p.id===d.producto_id);
+      return {...d, producto_nombre:pr?.nombre||"Producto"};
+    });
+  }catch(e){}
+
+  const items=[
+    ...localesPedidos.map(p=>({tipo:"local_pedido", fecha:p.fecha_local||"", data:p})),
+    ...localesVentas.map(p=>({tipo:"local_venta", fecha:p.fecha_local||"", data:p})),
+    ...web.map(p=>({tipo:"web", fecha:p.fecha||"", data:p})),
+    ...internos.map(p=>({tipo:"app", fecha:p.fecha_creacion||"", data:p}))
+  ].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+  html+=`<div class="info"><b>Diagnóstico rápido</b><br>
+    pedidos_web: <b>${web.length}</b><br>
+    pedidos internos: <b>${internos.length}</b><br>
+    pedidos locales: <b>${localesPedidos.length}</b><br>
+    ventas locales: <b>${localesVentas.length}</b><br>
+    pedido_detalle: <b>${dets.length}</b>
+    ${errores.length?`<br><span style="color:#b71c1c">Errores: ${errores.join(" | ")}</span>`:""}
+  </div>`;
+
+  if(!items.length){
+    cont.innerHTML=html+"<div class='warn'>No hay pedidos para mostrar.</div>";
+    return;
+  }
+
+  html+=items.map(it=>{
+    if(it.tipo==="web") return pintarPedidoWebDirecto(it.data);
+    if(it.tipo==="local_pedido") return pintarPedidoLocalDirecto(it.data);
+    if(it.tipo==="local_venta") return pintarVentaLocalDirecto(it.data);
+    return pintarPedidoInternoDirecto(it.data,dets);
+  }).join("");
+  cont.innerHTML=html;
+}
+
+async function diagnosticoPedidosDirecto(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return;
+  if(!await asegurarConexionPedidos()) return;
+
+  const tablas=["pedidos_web","pedidos","pedido_detalle","productos"];
+  let html="<div class='info'><b>🔎 Diagnóstico directo Supabase</b><br>";
+  for(const t of tablas){
+    try{
+      const r=await db.from(t).select("*",{count:"exact"}).limit(2);
+      html+=`${t}: <b>${r.count ?? (r.data||[]).length}</b> ${r.error?"❌ "+r.error.message:"✅"}<br>`;
+    }catch(e){
+      html+=`${t}: ❌ ${e.message||e}<br>`;
+    }
+  }
+  html+="</div>";
+  cont.innerHTML=html;
+}
+
+window.leerPedidosDirecto=leerPedidosDirecto;
+window.diagnosticoPedidosDirecto=diagnosticoPedidosDirecto;
+
+window.addEventListener("load",()=>{
+  setTimeout(()=>{
+    const cont=document.getElementById("listaPedidosUnificados");
+    if(cont && cont.textContent.trim()==="Sin cargar."){
+      cont.innerHTML="<div class='warn'>Presiona Actualizar todos los pedidos para leer directo de Supabase.</div>";
+    }
+  },800);
+});
+
 </script>
 <style>
 :root{
@@ -222,7 +578,7 @@ h3{margin:12px 0 8px;font-size:17px}
 }
 .tabs{
   display:grid;
-  grid-template-columns:repeat(7,1fr);
+  grid-template-columns:repeat(8,1fr);
   gap:6px;
   background:white;
   padding:8px;
@@ -402,6 +758,93 @@ th{background:#fafafa}
   border-radius:10px;
 }
 
+
+/* ===== Pedidos Unificados V7.17 ===== */
+.pedido-unificado{
+  border:2px solid #ddd;
+  border-radius:16px;
+  padding:12px;
+  margin:10px 0;
+  background:white;
+}
+.pedido-unificado.web{border-color:#1e88e5;background:#e3f2fd}
+.pedido-unificado.app{border-color:#ae56ac;background:#f3e5f5}
+.pedido-unificado .origen{
+  display:inline-block;
+  padding:4px 9px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:bold;
+  background:white;
+}
+
+
+/* ===== Pedidos extra en pestaña funcional V7.22 ===== */
+.pedido-extra{
+  border:2px solid #ddd;
+  border-radius:16px;
+  padding:12px;
+  margin:10px 0;
+}
+.pedido-extra.web{background:#e3f2fd;border-color:#1e88e5}
+.pedido-extra.local{background:#fff8e1;border-color:#fb8c00}
+.pedido-extra.venta{background:#ffebee;border-color:#e53935}
+
+
+/* ===== V7.24 Estados pedidos ===== */
+.resumen-estados{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:8px;
+  margin:10px 0;
+}
+.estado-box{
+  border-radius:14px;
+  padding:10px;
+  text-align:center;
+  font-weight:bold;
+  border:1px solid rgba(0,0,0,.08);
+}
+.estado-pendiente{background:#fff8e1;color:#e65100}
+.estado-aceptado{background:#e3f2fd;color:#0d47a1}
+.estado-preparando{background:#f3e5f5;color:#6a1b9a}
+.estado-listo{background:#e8f5e9;color:#1b5e20}
+.estado-entregado{background:#eeeeee;color:#333}
+.estado-cancelado{background:#ffebee;color:#b71c1c}
+.btn-estado{
+  width:auto!important;
+  display:inline-block!important;
+  padding:8px 10px!important;
+  margin:3px!important;
+  font-size:12px!important;
+}
+.pedido-extra.pendiente{border-color:#fb8c00!important;background:#fff8e1!important}
+.pedido-extra.aceptado{border-color:#1e88e5!important;background:#e3f2fd!important}
+.pedido-extra.preparando{border-color:#ae56ac!important;background:#f3e5f5!important}
+.pedido-extra.listo{border-color:#43a047!important;background:#e8f5e9!important}
+.pedido-extra.entregado{border-color:#777!important;background:#eee!important}
+.pedido-extra.cancelado{border-color:#e53935!important;background:#ffebee!important}
+@media(max-width:520px){
+  .resumen-estados{grid-template-columns:1fr 1fr}
+  .btn-estado{font-size:11px!important;padding:8px!important}
+}
+
+
+/* ===== V7.25 Auto pedidos ===== */
+.auto-pedidos-bar{
+  background:#e8f5e9;
+  color:#1b5e20;
+  border-radius:14px;
+  padding:10px;
+  margin:10px 0;
+  font-weight:bold;
+  text-align:center;
+}
+.auto-pedidos-bar.warn{
+  background:#fff8e1;
+  color:#e65100;
+}
+
 </style>
 
 <style>
@@ -494,13 +937,14 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V7.16.15.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.16 · Lectura directa Supabase</p>
+  <h1>🥤 Puesto Doña Cecy V7.25.15.2</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.25 · Pedidos auto</p>
 </header>
 
 <div class="tabs">
   <button class="tab activa" onclick="verTab('ventas',this)">🛒 Ventas</button>
   <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
+  <button class="tab" onclick="verTab('pedidosUnificadosTab',this)">📋 Todos</button>
   <button class="tab" onclick="verTab('pedidosWebTab',this)">🌐 Web</button>
   <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
   <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
@@ -556,6 +1000,7 @@ th{background:#fafafa}
     <button class="btn-morado" onclick="cargarPedidosPendientes()">Actualizar pedidos</button>
     <button class="btn-claro" onclick="limpiarPedido(false)">Nuevo pedido en esta pantalla</button>
     <div id="pedidosPendientes">Cargando pedidos...</div>
+    <div id="pedidosExtraUnificados"></div>
   </div>
   <div class="card">
     <h2>🔔 Avisos recientes</h2>
@@ -569,6 +1014,18 @@ th{background:#fafafa}
     <h2>🌐 Pedidos desde página web</h2>
     <button class="btn-morado" onclick="cargarPedidosWeb()">Actualizar pedidos web</button>
     <div id="pedidosWebLista">Sin cargar.</div>
+  </div>
+</section>
+
+
+<section id="pedidosUnificadosTab" class="seccion">
+  <div class="card">
+    <h2>📋 Todos los pedidos</h2>
+    <div class="info">Aquí aparecen pedidos de la app interna, página web y pedidos/ventas locales guardados en este celular.</div>
+    <button class="btn-morado" onclick="cargarTodosFijoV723()">Actualizar todos los pedidos</button>
+    <button class="btn-azul" onclick="diagnosticoFijoV723()">🔎 Diagnóstico pedidos</button>
+    <div id="estadoAutoPedidosV725" class="auto-pedidos-bar warn">⏳ Auto actualización lista</div>
+    <div id="listaPedidosUnificados">Sin cargar.</div>
   </div>
 </section>
 
@@ -1028,6 +1485,7 @@ function verTab(id,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activa'));
   btn.classList.add('activa');
   render();
+  if(id==='pedidosUnificadosTab') setTimeout(()=>cargarPedidosUnificados(),200);
 }
 
 
@@ -3348,4 +3806,527 @@ setTimeout(() => {
     }, 500);
   });
 })();
+
+
+/* ===== V7.22 Mezcla pedidos en pestaña Pedidos ===== */
+function leerLocalJSONV722(clave){
+  try{
+    const raw=localStorage.getItem(clave);
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){ return []; }
+}
+
+function htmlDetalleLocalV722(lista){
+  return (lista||[]).map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${(Number(x.precio_unitario||x.precio||0)*Number(x.cantidad||0)).toFixed(0)}`).join("<br>") || "Sin detalle";
+}
+
+function htmlDetalleWebV722(detalle){
+  try{
+    const arr=Array.isArray(detalle)?detalle:JSON.parse(detalle||"[]");
+    return arr.map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${Number(x.subtotal||0).toFixed(0)}`).join("<br>") || "Sin detalle";
+  }catch(e){ return String(detalle||"Sin detalle"); }
+}
+
+async function cargarPedidosExtraUnificados(){
+  const cont=document.getElementById("pedidosExtraUnificados");
+  if(!cont) return;
+
+  let html="<hr><h3>📋 Otros pedidos detectados</h3>";
+  let total=0;
+
+  const pedidosLocales=leerLocalJSONV722("cecy_pedidos_pendientes_v78");
+  const ventasLocales=leerLocalJSONV722("cecy_ventas_pendientes_v73");
+
+  if(pedidosLocales.length){
+    total+=pedidosLocales.length;
+    html+=`<div class="info"><b>📱 Pedidos locales en este celular: ${pedidosLocales.length}</b></div>`;
+    html+=pedidosLocales.map(p=>`<div class="pedido-extra local">
+      <b>Pedido local</b> <span class="pill">PENDIENTE</span><br>
+      <small>${p.fecha_local?formatoJuarez(p.fecha_local):""} · ${p.usuario_nombre||"Usuario"}</small>
+      <div>${htmlDetalleLocalV722(p.pedido)}</div>
+      <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+    </div>`).join("");
+  }
+
+  if(ventasLocales.length){
+    total+=ventasLocales.length;
+    html+=`<div class="info"><b>💰 Ventas locales pendientes: ${ventasLocales.length}</b></div>`;
+    html+=ventasLocales.map(v=>`<div class="pedido-extra venta">
+      <b>Venta local pendiente</b><br>
+      <small>${v.fecha_local?formatoJuarez(v.fecha_local):""} · ${v.usuario_nombre||"Usuario"}</small>
+      <div>${htmlDetalleLocalV722(v.pedido)}</div>
+      <b>Total: $${Number(v.total||0).toFixed(0)}</b>
+    </div>`).join("");
+  }
+
+  // Pedidos web desde Supabase
+  try{
+    if(!db) db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+    const r=await db.from("pedidos_web").select("*").order("fecha",{ascending:false}).limit(20);
+    if(r.error){
+      html+=`<div class="alerta">Error pedidos_web: ${r.error.message}</div>`;
+    }else if((r.data||[]).length){
+      total+=(r.data||[]).length;
+      html+=`<div class="info"><b>🌐 Pedidos web: ${(r.data||[]).length}</b></div>`;
+      html+=(r.data||[]).map(p=>`<div class="pedido-extra web">
+        <b>${p.folio||"Sin folio"}</b> <span class="pill">${String(p.estado||"sin estado").toUpperCase()}</span><br>
+        <small>${p.fecha?formatoJuarez(p.fecha):""} · ${p.nombre||""} · ${p.telefono||""}</small>
+        <div>${htmlDetalleWebV722(p.detalle)}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+        <small>Pago: ${p.metodo_pago||""}</small>
+      </div>`).join("");
+    }
+  }catch(e){
+    html+=`<div class="alerta">No se pudo leer pedidos_web: ${e.message||e}</div>`;
+  }
+
+  if(!total){
+    html+=`<div class="warn">No hay pedidos extra locales o web.</div>`;
+  }
+
+  cont.innerHTML=html;
+}
+
+// Envolver la función que ya funciona
+if(typeof cargarPedidosPendientes === "function" && !window.__pedidosPendientesV722){
+  window.__pedidosPendientesV722 = cargarPedidosPendientes;
+  cargarPedidosPendientes = async function(){
+    await window.__pedidosPendientesV722();
+    await cargarPedidosExtraUnificados();
+  };
+}
+
+window.addEventListener("load",()=>{
+  setTimeout(()=>{try{cargarPedidosExtraUnificados()}catch(e){}},2500);
+});
+
+
+
+/* ===== V7.23 Todos Fijo ===== */
+function jsonLocalV723(clave){
+  try{
+    const raw=localStorage.getItem(clave);
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){return [];}
+}
+
+function htmlItemsPedidoV723(items){
+  return (items||[]).map(x=>{
+    const nombre=x.nombre || x.producto_nombre || "Producto";
+    const cantidad=Number(x.cantidad||0);
+    const precio=Number(x.precio_unitario||x.precio||0);
+    const subtotal=Number(x.subtotal || (precio*cantidad) || 0);
+    return `• ${cantidad} x ${nombre} = $${subtotal.toFixed(0)}`;
+  }).join("<br>") || "Sin detalle";
+}
+
+function htmlPedidoWebV723(p){
+  let det=[];
+  try{ det=Array.isArray(p.detalle)?p.detalle:JSON.parse(p.detalle||"[]"); }catch(e){ det=[]; }
+  return `<div class="pedido-extra web">
+    <b>🌐 ${p.folio||"Pedido web"}</b> <span class="pill">${String(p.estado||"").toUpperCase()}</span><br>
+    <small>${p.fecha?formatoJuarez(p.fecha):""} · ${p.nombre||""} · ${p.telefono||""}</small>
+    <div>${htmlItemsPedidoV723(det)}</div>
+    <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+    <small>Pago: ${p.metodo_pago||""}</small>
+  </div>`;
+}
+
+function htmlPedidoLocalV723(p){
+  return `<div class="pedido-extra local">
+    <b>📱 Pedido local</b> <span class="pill">LOCAL</span><br>
+    <small>${p.fecha_local?formatoJuarez(p.fecha_local):""} · ${p.usuario_nombre||"Usuario"}</small>
+    <div>${htmlItemsPedidoV723(p.pedido||[])}</div>
+    <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+  </div>`;
+}
+
+function htmlVentaLocalV723(v){
+  return `<div class="pedido-extra venta">
+    <b>💰 Venta local pendiente</b><br>
+    <small>${v.fecha_local?formatoJuarez(v.fecha_local):""} · ${v.usuario_nombre||"Usuario"}</small>
+    <div>${htmlItemsPedidoV723(v.pedido||[])}</div>
+    <b>Total: $${Number(v.total||0).toFixed(0)}</b>
+  </div>`;
+}
+
+async function cargarTodosFijoV723(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont){
+    alert("No encontré listaPedidosUnificados");
+    return;
+  }
+
+  cont.innerHTML="<div class='warn'>⏳ Cargando pedidos...</div>";
+
+  let html="";
+  let total=0;
+  let errores=[];
+
+  const pedidosLocales=jsonLocalV723("cecy_pedidos_pendientes_v78");
+  const ventasLocales=jsonLocalV723("cecy_ventas_pendientes_v73");
+
+  if(pedidosLocales.length){
+    total+=pedidosLocales.length;
+    html+=`<div class="info"><b>📱 Pedidos locales: ${pedidosLocales.length}</b></div>`;
+    html+=pedidosLocales.map(htmlPedidoLocalV723).join("");
+  }
+
+  if(ventasLocales.length){
+    total+=ventasLocales.length;
+    html+=`<div class="info"><b>💰 Ventas locales pendientes: ${ventasLocales.length}</b></div>`;
+    html+=ventasLocales.map(htmlVentaLocalV723).join("");
+  }
+
+  try{
+    if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+
+    const web=await db.from("pedidos_web").select("*").order("fecha",{ascending:false}).limit(50);
+    if(web.error) errores.push("pedidos_web: "+web.error.message);
+    else if((web.data||[]).length){
+      total+=(web.data||[]).length;
+      html+=`<div class="info"><b>🌐 Pedidos web: ${(web.data||[]).length}</b></div>`;
+      html+=(web.data||[]).map(htmlPedidoWebV723).join("");
+    }
+
+    const ped=await db.from("pedidos").select("*").order("fecha_creacion",{ascending:false}).limit(50);
+    if(ped.error) errores.push("pedidos: "+ped.error.message);
+    else if((ped.data||[]).length){
+      total+=(ped.data||[]).length;
+      html+=`<div class="info"><b>📦 Pedidos internos Supabase: ${(ped.data||[]).length}</b></div>`;
+      html+=(ped.data||[]).map(p=>`<div class="pedido-extra local">
+        <b>📦 Pedido interno</b> <span class="pill">${String(p.estado||"").toUpperCase()}</span><br>
+        <small>${p.fecha_creacion?formatoJuarez(p.fecha_creacion):""}</small><br>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+      </div>`).join("");
+    }
+  }catch(e){
+    errores.push(e.message||String(e));
+  }
+
+  if(errores.length){
+    html+=`<div class="alerta"><b>Errores:</b><br>${errores.join("<br>")}</div>`;
+  }
+
+  if(!total && !errores.length){
+    html+="<div class='warn'>No hay pedidos para mostrar.</div>";
+  }
+
+  cont.innerHTML=html;
+}
+
+async function diagnosticoFijoV723(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return;
+  let html="<div class='info'><b>🔎 Diagnóstico V7.23</b><br>";
+  html+=`local pedidos: <b>${jsonLocalV723("cecy_pedidos_pendientes_v78").length}</b><br>`;
+  html+=`local ventas: <b>${jsonLocalV723("cecy_ventas_pendientes_v73").length}</b><br>`;
+  try{
+    if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+    for(const t of ["pedidos_web","pedidos","pedido_detalle"]){
+      const r=await db.from(t).select("*",{count:"exact"}).limit(1);
+      html+=`${t}: <b>${r.count ?? 0}</b> ${r.error?"❌ "+r.error.message:"✅"}<br>`;
+    }
+  }catch(e){
+    html+=`Supabase: ❌ ${e.message||e}<br>`;
+  }
+  html+="</div>";
+  cont.innerHTML=html;
+}
+
+window.cargarTodosFijoV723=cargarTodosFijoV723;
+window.diagnosticoFijoV723=diagnosticoFijoV723;
+
+document.addEventListener("click",function(e){
+  const txt=(e.target && e.target.textContent || "").trim();
+  if(txt.includes("Actualizar todos los pedidos")){
+    e.preventDefault();
+    cargarTodosFijoV723();
+  }
+  if(txt.includes("Diagnóstico pedidos")){
+    e.preventDefault();
+    diagnosticoFijoV723();
+  }
+},true);
+
+window.addEventListener("load",()=>{
+  setTimeout(()=>{
+    const cont=document.getElementById("listaPedidosUnificados");
+    if(cont && cont.textContent.trim()==="Sin cargar."){
+      cont.innerHTML="<div class='warn'>Presiona Actualizar todos los pedidos.</div>";
+    }
+  },1000);
+});
+
+
+
+/* ===== V7.24 Estados y WhatsApp ===== */
+function estadoClaseV724(estado){
+  const e=String(estado||"pendiente").toLowerCase();
+  if(e.includes("acept")) return "aceptado";
+  if(e.includes("prepar")) return "preparando";
+  if(e.includes("list")) return "listo";
+  if(e.includes("entreg")) return "entregado";
+  if(e.includes("cancel")) return "cancelado";
+  return "pendiente";
+}
+
+function nombreEstadoV724(estado){
+  const e=estadoClaseV724(estado);
+  const map={
+    pendiente:"🟡 PENDIENTE",
+    aceptado:"🔵 ACEPTADO",
+    preparando:"🟣 PREPARANDO",
+    listo:"🟢 LISTO",
+    entregado:"⚪ ENTREGADO",
+    cancelado:"🔴 CANCELADO"
+  };
+  return map[e]||"🟡 PENDIENTE";
+}
+
+function telWhatsV724(tel){
+  let t=String(tel||"").replace(/\D/g,"");
+  if(t.length===10) t="52"+t;
+  return t;
+}
+
+function botonesWebV724(p){
+  return `<div class="acciones">
+    <button class="btn-estado btn-azul" onclick="actualizarEstadoPedidoWebV724('${p.id}','aceptado')">✅ Aceptar</button>
+    <button class="btn-estado btn-morado" onclick="actualizarEstadoPedidoWebV724('${p.id}','preparando')">🍹 Preparando</button>
+    <button class="btn-estado btn-verde" onclick="marcarListoWebV724('${p.id}','${telWhatsV724(p.telefono)}','${String(p.nombre||"Cliente").replace(/'/g,"")}','${String(p.folio||"Pedido").replace(/'/g,"")}')">📦 Listo</button>
+    <button class="btn-estado btn-gris" onclick="actualizarEstadoPedidoWebV724('${p.id}','entregado')">✔️ Entregado</button>
+    <button class="btn-estado btn-rojo" onclick="actualizarEstadoPedidoWebV724('${p.id}','cancelado')">❌ Cancelar</button>
+  </div>`;
+}
+
+function botonesInternoV724(p){
+  return `<div class="acciones">
+    <button class="btn-estado btn-azul" onclick="actualizarEstadoPedidoInternoV724('${p.id}','aceptado')">✅ Aceptar</button>
+    <button class="btn-estado btn-morado" onclick="actualizarEstadoPedidoInternoV724('${p.id}','preparando')">🍹 Preparando</button>
+    <button class="btn-estado btn-verde" onclick="actualizarEstadoPedidoInternoV724('${p.id}','listo')">📦 Listo</button>
+    <button class="btn-estado btn-gris" onclick="actualizarEstadoPedidoInternoV724('${p.id}','entregado')">✔️ Entregado</button>
+    <button class="btn-estado btn-rojo" onclick="actualizarEstadoPedidoInternoV724('${p.id}','cancelado')">❌ Cancelar</button>
+  </div>`;
+}
+
+async function actualizarEstadoPedidoWebV724(id, estadoNuevo){
+  try{
+    if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+    const r=await db.from("pedidos_web").update({estado:estadoNuevo}).eq("id",id);
+    if(r.error) throw r.error;
+    if(typeof notificar==="function") notificar("🌐 Pedido web actualizado", nombreEstadoV724(estadoNuevo), "info", false);
+    await cargarTodosFijoV723();
+  }catch(e){
+    alert("Error actualizando pedido web: "+(e.message||e));
+  }
+}
+
+async function actualizarEstadoPedidoInternoV724(id, estadoNuevo){
+  try{
+    if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+    const r=await db.from("pedidos").update({estado:estadoNuevo}).eq("id",id);
+    if(r.error) throw r.error;
+    if(typeof notificar==="function") notificar("📦 Pedido interno actualizado", nombreEstadoV724(estadoNuevo), "info", false);
+    await cargarTodosFijoV723();
+  }catch(e){
+    alert("Error actualizando pedido interno: "+(e.message||e));
+  }
+}
+
+async function marcarListoWebV724(id,tel,nombre,folio){
+  await actualizarEstadoPedidoWebV724(id,"listo");
+  if(tel){
+    const msg=encodeURIComponent(`Hola ${nombre} 👋\n\nTu pedido ${folio} de Puesto Doña Cecy ya está listo para entregar.\nPuedes pasar por él cuando gustes.\n\n¡Gracias por tu compra! 😊🥤`);
+    window.open(`https://wa.me/${tel}?text=${msg}`,"_blank");
+  }else{
+    alert("Pedido marcado como listo, pero no hay teléfono válido para WhatsApp.");
+  }
+}
+
+function resumenEstadosV724(items){
+  const counts={pendiente:0,aceptado:0,preparando:0,listo:0,entregado:0,cancelado:0};
+  (items||[]).forEach(it=>{
+    const estado=it.tipo==="local_pedido"||it.tipo==="local_venta"?"pendiente":(it.data.estado||"pendiente");
+    counts[estadoClaseV724(estado)]++;
+  });
+  return `<div class="resumen-estados">
+    <div class="estado-box estado-pendiente">🟡 Pendientes<br>${counts.pendiente}</div>
+    <div class="estado-box estado-preparando">🟣 Preparando<br>${counts.preparando}</div>
+    <div class="estado-box estado-listo">🟢 Listos<br>${counts.listo}</div>
+    <div class="estado-box estado-entregado">⚪ Entregados<br>${counts.entregado}</div>
+  </div>`;
+}
+
+// Reemplazo visual mejorado de cargarTodosFijoV723
+async function cargarTodosFijoV723(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont){ alert("No encontré listaPedidosUnificados"); return; }
+  cont.innerHTML="<div class='warn'>⏳ Cargando pedidos...</div>";
+
+  let errores=[], web=[], internos=[], pedidosLocales=[], ventasLocales=[];
+  try{ pedidosLocales=jsonLocalV723("cecy_pedidos_pendientes_v78"); }catch(e){}
+  try{ ventasLocales=jsonLocalV723("cecy_ventas_pendientes_v73"); }catch(e){}
+
+  try{
+    if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+
+    const rw=await db.from("pedidos_web").select("*").order("fecha",{ascending:false}).limit(50);
+    if(rw.error) errores.push("pedidos_web: "+rw.error.message);
+    else web=rw.data||[];
+
+    const ri=await db.from("pedidos").select("*").order("fecha_creacion",{ascending:false}).limit(50);
+    if(ri.error) errores.push("pedidos: "+ri.error.message);
+    else internos=ri.data||[];
+  }catch(e){ errores.push(e.message||String(e)); }
+
+  const items=[
+    ...pedidosLocales.map(p=>({tipo:"local_pedido",fecha:p.fecha_local||"",data:p})),
+    ...ventasLocales.map(v=>({tipo:"local_venta",fecha:v.fecha_local||"",data:v})),
+    ...web.map(p=>({tipo:"web",fecha:p.fecha||"",data:p})),
+    ...internos.map(p=>({tipo:"app",fecha:p.fecha_creacion||"",data:p}))
+  ].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+  let html=`<div class="info"><b>Diagnóstico rápido</b><br>
+    pedidos_web: <b>${web.length}</b><br>
+    pedidos internos: <b>${internos.length}</b><br>
+    pedidos locales: <b>${pedidosLocales.length}</b><br>
+    ventas locales: <b>${ventasLocales.length}</b>
+  </div>`;
+  html+=resumenEstadosV724(items);
+
+  if(errores.length) html+=`<div class="alerta"><b>Errores:</b><br>${errores.join("<br>")}</div>`;
+  if(!items.length){ cont.innerHTML=html+"<div class='warn'>No hay pedidos para mostrar.</div>"; return; }
+
+  html+=items.map(it=>{
+    if(it.tipo==="web"){
+      const p=it.data, clase=estadoClaseV724(p.estado);
+      let det=[]; try{det=Array.isArray(p.detalle)?p.detalle:JSON.parse(p.detalle||"[]")}catch(e){}
+      return `<div class="pedido-extra web ${clase}">
+        <b>🌐 ${p.folio||"Pedido web"}</b> <span class="pill">${nombreEstadoV724(p.estado)}</span><br>
+        <small>${p.fecha?formatoJuarez(p.fecha):""} · ${p.nombre||""} · ${p.telefono||""}</small>
+        <div>${htmlItemsPedidoV723(det)}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+        <small>Pago: ${p.metodo_pago||""}</small>
+        ${botonesWebV724(p)}
+      </div>`;
+    }
+    if(it.tipo==="app"){
+      const p=it.data, clase=estadoClaseV724(p.estado);
+      return `<div class="pedido-extra local ${clase}">
+        <b>📦 Pedido interno</b> <span class="pill">${nombreEstadoV724(p.estado)}</span><br>
+        <small>${p.fecha_creacion?formatoJuarez(p.fecha_creacion):""}</small><br>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+        ${botonesInternoV724(p)}
+      </div>`;
+    }
+    if(it.tipo==="local_pedido"){
+      const p=it.data;
+      return `<div class="pedido-extra local pendiente">
+        <b>📱 Pedido local</b> <span class="pill">🟡 LOCAL</span><br>
+        <small>${p.fecha_local?formatoJuarez(p.fecha_local):""} · ${p.usuario_nombre||"Usuario"}</small>
+        <div>${htmlItemsPedidoV723(p.pedido||[])}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+        <small>Se sincronizará cuando haya conexión.</small>
+      </div>`;
+    }
+    const v=it.data;
+    return `<div class="pedido-extra venta pendiente">
+      <b>💰 Venta local pendiente</b><br>
+      <small>${v.fecha_local?formatoJuarez(v.fecha_local):""} · ${v.usuario_nombre||"Usuario"}</small>
+      <div>${htmlItemsPedidoV723(v.pedido||[])}</div>
+      <b>Total: $${Number(v.total||0).toFixed(0)}</b>
+    </div>`;
+  }).join("");
+
+  cont.innerHTML=html;
+}
+window.cargarTodosFijoV723=cargarTodosFijoV723;
+
+
+
+/* ===== V7.25 Auto actualización pedidos ===== */
+let ultimoConteoPedidosV725 = null;
+let autoPedidosV725 = null;
+let primeraCargaPedidosV725 = true;
+
+function contarPedidosEnPantallaV725(){
+  const cont=document.getElementById("listaPedidosUnificados");
+  if(!cont) return 0;
+  return cont.querySelectorAll(".pedido-extra, .pedido-unificado").length;
+}
+
+function estadoAutoPedidosV725(txt,tipo="ok"){
+  const el=document.getElementById("estadoAutoPedidosV725");
+  if(!el) return;
+  el.className="auto-pedidos-bar "+(tipo==="warn"?"warn":"");
+  el.innerHTML=txt;
+}
+
+async function cargarPedidosAutoV725(silencioso=false){
+  if(typeof cargarTodosFijoV723 !== "function"){
+    estadoAutoPedidosV725("⚠️ No encontré función de pedidos.", "warn");
+    return;
+  }
+
+  if(!silencioso){
+    estadoAutoPedidosV725("🔄 Actualizando pedidos...", "warn");
+  }
+
+  const antes=contarPedidosEnPantallaV725();
+
+  try{
+    await cargarTodosFijoV723();
+    const despues=contarPedidosEnPantallaV725();
+    const hora=new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    estadoAutoPedidosV725(`✅ Pedidos actualizados automáticamente · ${hora}`);
+
+    if(ultimoConteoPedidosV725===null){
+      ultimoConteoPedidosV725=despues;
+      primeraCargaPedidosV725=false;
+      return;
+    }
+
+    if(despues>ultimoConteoPedidosV725){
+      const nuevos=despues-ultimoConteoPedidosV725;
+      if(typeof notificar==="function"){
+        notificar("🔔 NUEVO PEDIDO",`${nuevos} pedido(s) nuevo(s) detectado(s)`,"pedido");
+      }else{
+        alert(`Nuevo pedido detectado (${nuevos})`);
+      }
+      try{ if(navigator.vibrate) navigator.vibrate([250,120,250]); }catch(e){}
+    }
+
+    ultimoConteoPedidosV725=despues;
+  }catch(e){
+    estadoAutoPedidosV725("❌ Error actualizando pedidos: "+(e.message||e), "warn");
+  }
+}
+
+function iniciarAutoPedidosV725(){
+  if(autoPedidosV725) clearInterval(autoPedidosV725);
+  setTimeout(()=>cargarPedidosAutoV725(false),800);
+  autoPedidosV725=setInterval(()=>cargarPedidosAutoV725(true),10000);
+}
+
+document.addEventListener("click",function(e){
+  const btn=e.target.closest("button");
+  if(!btn) return;
+  if((btn.textContent||"").includes("Todos") || (btn.textContent||"").includes("Actualizar todos los pedidos")){
+    setTimeout(()=>cargarPedidosAutoV725(false),300);
+  }
+},true);
+
+window.addEventListener("load",()=>{
+  try{ iniciarAutoPedidosV725(); }catch(e){}
+});
+
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden){
+    setTimeout(()=>cargarPedidosAutoV725(false),500);
+  }
+});
+
 </script>
