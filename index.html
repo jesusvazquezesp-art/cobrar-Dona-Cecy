@@ -2567,7 +2567,7 @@ async function cargarPedidoParaCobrar(id){
 let inventarioBajoAvisado={};
 function revisarInventarioBajoNotificar(){
   try{
-    const bajos=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.mínimo||10));
+    const bajos=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.minimo||10));
     bajos.forEach(i=>{
       const key=i.id+"_"+i.cantidad;
       if(!inventarioBajoAvisado[key]){
@@ -2582,7 +2582,7 @@ function renderInventario(){
   let cont=document.getElementById("tablaInventario");
   cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Mín.</th><th>Estado</th></tr>'+
     ingredientes.map(i=>{
-      let min=Number(i.mínimo||10);
+      let min=Number(i.minimo||10);
       let estado=Number(i.cantidad)<=min?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
       return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>${min.toFixed(0)}</td><td>${estado}<br><button class="btn-recargar" onclick="prepararCompra('${i.id}')">Recargar</button></td></tr>`;
     }).join("")+'</table>';
@@ -2643,7 +2643,7 @@ async function agregarIngrediente(){
   if(!validarAdmin()) return;
   let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0), min=Number(ingMínimo.value||10);
   if(!n||c<0||cu<0) return alert("Completa los datos.");
-  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,mínimo:min,activo:true});
+  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,minimo:min,activo:true});
   if(error) return alert(error.message.includes("duplicate")?"Ese ingrediente ya existe.":error.message);
   await auditoria("INGREDIENTE_NUEVO",`Se agregó ingrediente ${n}`,{nombre:n,cantidad:c,costo_unitario:cu});
   ingNombre.value=""; ingCantidad.value=""; ingCosto.value="";
@@ -2874,7 +2874,7 @@ async function cargarReporteHoy(){
 
   await cargarReporteProductos(ventasHoy, ventasSemana, ventasMes);
 
-  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=Number(i.mínimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.mínimo||10).toFixed(0)}.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
+  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=Number(i.minimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.minimo||10).toFixed(0)}.</div>`).join("")||"<div class='ok'>Todo está arriba del minimo.</div>";
 }
 
 async function cargarReporteProductos(ventasHoy, ventasSemana, ventasMes){
