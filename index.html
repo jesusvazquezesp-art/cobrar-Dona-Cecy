@@ -376,7 +376,7 @@ function pintarVentaLocalDirecto(v){
   </div>`;
 }
 
-async function asegurarConexionPedidos(){
+async function asegurarConexiónPedidos(){
   try{
     if(!db){
       db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
@@ -423,7 +423,7 @@ async function leerPedidosDirecto(){
   if(!cont) return alert("No encontré listaPedidosUnificados");
   cont.innerHTML="<div class='warn'>⏳ Leyendo pedidos directamente...</div>";
 
-  if(!await asegurarConexionPedidos()) return;
+  if(!await asegurarConexiónPedidos()) return;
 
   let html="";
   let errores=[];
@@ -492,7 +492,7 @@ async function leerPedidosDirecto(){
 async function diagnosticoPedidosDirecto(){
   const cont=document.getElementById("listaPedidosUnificados");
   if(!cont) return;
-  if(!await asegurarConexionPedidos()) return;
+  if(!await asegurarConexiónPedidos()) return;
 
   const tablas=["pedidos_web","pedidos","pedido_detalle","productos"];
   let html="<div class='info'><b>🔎 Diagnóstico directo Supabase</b><br>";
@@ -578,7 +578,7 @@ h3{margin:12px 0 8px;font-size:17px}
 }
 .tabs{
   display:grid;
-  grid-template-columns:repeat(8,1fr);
+  grid-template-columns:repeat(7,1fr);
   gap:6px;
   background:white;
   padding:8px;
@@ -845,6 +845,82 @@ th{background:#fafafa}
   color:#e65100;
 }
 
+
+/* ===== V7.26 Inventario editable ===== */
+.btn-editar-ing{background:#1e88e5!important;color:white!important;}
+.btn-eliminar-ing{background:#e53935!important;color:white!important;}
+.modal-edicion{
+  position:fixed; inset:0; background:rgba(0,0,0,.55);
+  display:none; align-items:center; justify-content:center;
+  z-index:20000; padding:12px;
+}
+.modal-edicion .modal-card{
+  background:white; border-radius:20px; padding:16px;
+  width:min(460px,100%); max-height:90vh; overflow:auto;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.modal-edicion h2{margin-top:0;color:#ae56ac;}
+.acciones-ing{display:flex;gap:6px;flex-wrap:wrap;}
+.acciones-ing button{width:auto!important;padding:7px 9px!important;font-size:12px!important;margin:2px!important;}
+
+
+/* ===== V7.27 Inventario compacto ===== */
+.estado-inv-ok{
+  background:#e8f5e9;
+  color:#1b5e20;
+  font-weight:bold;
+  border-radius:999px;
+  padding:5px 8px;
+  display:inline-block;
+  font-size:12px;
+}
+.estado-inv-comprar{
+  background:#fff8e1;
+  color:#e65100;
+  font-weight:bold;
+  border-radius:999px;
+  padding:5px 8px;
+  display:inline-block;
+  font-size:12px;
+}
+.acciones-ing{
+  display:flex;
+  gap:4px;
+  justify-content:center;
+  flex-wrap:nowrap;
+}
+.acciones-ing button{
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  padding:0!important;
+  margin:0!important;
+  font-size:16px!important;
+  border-radius:9px!important;
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+}
+.btn-recargar-ing{background:#43a047!important;color:white!important;}
+.btn-editar-ing{background:#1e88e5!important;color:white!important;}
+.btn-eliminar-ing{background:#e53935!important;color:white!important;}
+.tabla-inventario-compacta th,
+.tabla-inventario-compacta td{
+  font-size:13px;
+  padding:7px 4px;
+}
+@media(max-width:520px){
+  .tabla-inventario-compacta th,
+  .tabla-inventario-compacta td{
+    font-size:12px;
+    padding:6px 3px;
+  }
+  .estado-inv-ok,.estado-inv-comprar{
+    font-size:11px;
+    padding:4px 6px;
+  }
+}
+
 </style>
 
 <style>
@@ -937,15 +1013,14 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V7.25.15.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.25 · Pedidos auto</p>
+  <h1>🥤 Puesto Doña Cecy V7.27.15.2</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.27 · Inventario compacto</p>
 </header>
 
 <div class="tabs">
   <button class="tab activa" onclick="verTab('ventas',this)">🛒 Ventas</button>
   <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
   <button class="tab" onclick="verTab('pedidosUnificadosTab',this)">📋 Todos</button>
-  <button class="tab" onclick="verTab('pedidosWebTab',this)">🌐 Web</button>
   <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
   <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
   <button class="tab" onclick="verTab('cortesTab',this)">💾 Cortes</button>
@@ -963,7 +1038,7 @@ th{background:#fafafa}
     <button class="btn-verde" onclick="iniciarSesionUsuario()">Entrar con PIN</button>
     <div id="usuarioActivo" class="info">Cargando usuario...</div>
     <button class="btn-morado" onclick="cargarTodo()">🔄 Forzar lectura Supabase</button>
-    <div id="estadoConexion" class="warn">🟡 Verificando conexión con Supabase...</div>
+    <div id="estadoConexión" class="warn">🟡 Verificando conexión con Supabase...</div>
     <div id="pendientesLocal" class="info">📤 Ventas locales pendientes: 0</div>
   </div>
 
@@ -1005,15 +1080,6 @@ th{background:#fafafa}
   <div class="card">
     <h2>🔔 Avisos recientes</h2>
     <div id="avisos">Sin avisos todavía.</div>
-  </div>
-</section>
-
-
-<section id="pedidosWebTab" class="seccion">
-  <div class="card">
-    <h2>🌐 Pedidos desde página web</h2>
-    <button class="btn-morado" onclick="cargarPedidosWeb()">Actualizar pedidos web</button>
-    <div id="pedidosWebLista">Sin cargar.</div>
   </div>
 </section>
 
@@ -1160,7 +1226,7 @@ th{background:#fafafa}
       <label>Costo unitario</label>
       <input type="number" id="ingCosto" placeholder="Ejemplo: 3.50">
       <label>Mínimo recomendado</label>
-      <input type="number" id="ingMinimo" placeholder="Ejemplo: 10">
+      <input type="number" id="ingMínimo" placeholder="Ejemplo: 10">
       <button class="btn-azul" onclick="agregarIngrediente()">Guardar ingrediente</button>
     </div>
 
@@ -1397,7 +1463,7 @@ function crearDatosBaseEmergencia(){
 async function cargarTodoOfflineSeguro(){
   if(!db && !iniciarSupabase()){
     if(!cargarDatosOffline()) crearDatosBaseEmergencia();
-    iniciarModoLocalAutomatico();
+    iniciarModoLocalAutomático();
     renderPedido();
     return;
   }
@@ -1426,13 +1492,13 @@ async function cargarTodoOfflineSeguro(){
     actualizarVistaCorte();
     activarRealtime();
     iniciarAutoRefresh();
-    iniciarModoLocalAutomatico();
+    iniciarModoLocalAutomático();
     renderPedido();
     setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1500);
   }catch(e){
     console.warn("Falló carga online, usando modo local",e);
     if(!cargarDatosOffline()) crearDatosBaseEmergencia();
-    iniciarModoLocalAutomatico();
+    iniciarModoLocalAutomático();
     renderPedido();
   }
 }
@@ -1463,7 +1529,7 @@ async function cargarTodo(){
     actualizarVistaCorte();
     activarRealtime();
     iniciarAutoRefresh();
-    iniciarModoLocalAutomatico();
+    iniciarModoLocalAutomático();
 
     render();
 
@@ -1854,7 +1920,7 @@ async function enviarPedido(btn){
   if(pedidoActualId){mensaje("Este pedido ya fue enviado.","alerta");return}
   if(!pedido.length){mensaje("Agrega productos antes de realizar pedido.","alerta");return}
 
-  const enLinea=await probarConexionSupabase();
+  const enLinea=await probarConexiónSupabase();
   if(!enLinea){
     guardarPedidoLocalPendiente("Sin conexión antes de enviar pedido");
     return;
@@ -1903,7 +1969,7 @@ async function sincronizarPedidosPendientes(manual=false){
   const arr=pedidosPendientesLocal();
   if(!arr.length) return;
 
-  const enLinea=await probarConexionSupabase();
+  const enLinea=await probarConexiónSupabase();
   if(!enLinea){
     if(manual) mensaje("Todavía no hay conexión. Los pedidos siguen guardados localmente.","warn");
     return;
@@ -2023,7 +2089,7 @@ function descontarInventarioLocalPedido(){
 }
 
 
-function pedidoUsaCatalogoBaseLocal(){
+function pedidoUsaCatálogoBaseLocal(){
   return pedido.some(p=>String(p.producto_id||"").startsWith("prod_"));
 }
 
@@ -2057,7 +2123,7 @@ function guardarVentaLocal(motivo="Sin conexión"){
   return ventaLocal;
 }
 
-async function probarConexionSupabase(){
+async function probarConexiónSupabase(){
   if(!db && !iniciarSupabase()) return false;
   if(!navigator.onLine) return false;
   try{
@@ -2076,7 +2142,7 @@ async function registrarVenta(btn){
   let total=totalPedido(), pago=Number(document.getElementById("pagoCon").value||0);
   if(pago<total && !confirm("El pago es menor al total. ¿Registrar de todos modos?")) return;
 
-  const enLinea=await probarConexionSupabase();
+  const enLinea=await probarConexiónSupabase();
   if(!enLinea){
     guardarVentaLocal("Sin conexión antes de registrar");
     return;
@@ -2229,7 +2295,7 @@ async function sincronizarVentasPendientes(manual=false){
   actualizarPendientesLocal();
   if(!arr.length) return;
 
-  const enLinea=await probarConexionSupabase();
+  const enLinea=await probarConexiónSupabase();
   if(!enLinea){
     if(manual) mensaje("Todavía no hay conexión con Supabase. Las ventas siguen guardadas localmente.","warn");
     return;
@@ -2274,7 +2340,7 @@ async function sincronizarVentasPendientes(manual=false){
   }
 }
 
-function iniciarModoLocalAutomatico(){
+function iniciarModoLocalAutomático(){
   actualizarPendientesLocal();
   window.addEventListener("online",()=>setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1500));
   if(intentoSyncId) clearInterval(intentoSyncId);
@@ -2501,7 +2567,7 @@ async function cargarPedidoParaCobrar(id){
 let inventarioBajoAvisado={};
 function revisarInventarioBajoNotificar(){
   try{
-    const bajos=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.minimo||10));
+    const bajos=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.mínimo||10));
     bajos.forEach(i=>{
       const key=i.id+"_"+i.cantidad;
       if(!inventarioBajoAvisado[key]){
@@ -2516,7 +2582,7 @@ function renderInventario(){
   let cont=document.getElementById("tablaInventario");
   cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Mín.</th><th>Estado</th></tr>'+
     ingredientes.map(i=>{
-      let min=Number(i.minimo||10);
+      let min=Number(i.mínimo||10);
       let estado=Number(i.cantidad)<=min?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
       return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>${min.toFixed(0)}</td><td>${estado}<br><button class="btn-recargar" onclick="prepararCompra('${i.id}')">Recargar</button></td></tr>`;
     }).join("")+'</table>';
@@ -2575,9 +2641,9 @@ async function registrarMerma(){
 
 async function agregarIngrediente(){
   if(!validarAdmin()) return;
-  let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0), min=Number(ingMinimo.value||10);
+  let n=ingNombre.value.trim(), c=Number(ingCantidad.value||0), cu=Number(ingCosto.value||0), min=Number(ingMínimo.value||10);
   if(!n||c<0||cu<0) return alert("Completa los datos.");
-  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,minimo:min,activo:true});
+  const {error}=await db.from("ingredientes").insert({nombre:n,cantidad:c,costo_unitario:cu,mínimo:min,activo:true});
   if(error) return alert(error.message.includes("duplicate")?"Ese ingrediente ya existe.":error.message);
   await auditoria("INGREDIENTE_NUEVO",`Se agregó ingrediente ${n}`,{nombre:n,cantidad:c,costo_unitario:cu});
   ingNombre.value=""; ingCantidad.value=""; ingCosto.value="";
@@ -2808,7 +2874,7 @@ async function cargarReporteHoy(){
 
   await cargarReporteProductos(ventasHoy, ventasSemana, ventasMes);
 
-  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=Number(i.minimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.minimo||10).toFixed(0)}.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
+  recomendacionCompra.innerHTML=ingredientes.filter(i=>Number(i.cantidad)<=Number(i.mínimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.mínimo||10).toFixed(0)}.</div>`).join("")||"<div class='ok'>Todo está arriba del mínimo.</div>";
 }
 
 async function cargarReporteProductos(ventasHoy, ventasSemana, ventasMes){
@@ -2913,7 +2979,7 @@ function mostrarServidor(txt,tipo="ok"){ estado(txt,tipo); }
 function mostrarServer(txt,tipo="ok"){ estado(txt,tipo==="error"?"alerta":tipo==="wait"?"warn":tipo); }
 function mensaje(txt,tipo){mensajePedido.className=tipo; mensajePedido.innerHTML=txt}
 function msgMerma(txt,tipo){mensajeMerma.className=tipo; mensajeMerma.innerHTML=txt}
-function estado(txt,tipo){estadoConexion.className=tipo; estadoConexion.innerHTML=txt}
+function estado(txt,tipo){estadoConexión.className=tipo; estadoConexión.innerHTML=txt}
 function aviso(txt){let a=avisos;let f=formatoJuarez(new Date(),{timeStyle:"medium"});let n=`<div class="ok"><b>${f}</b><br>${txt}</div>`;if(a.textContent.includes("Sin avisos"))a.innerHTML="";a.innerHTML=n+a.innerHTML}
 
 
@@ -3693,6 +3759,39 @@ setTimeout(() => {
 })();
 </script>
 
+
+<div id="modalEditarIngrediente" class="modal-edicion">
+  <div class="modal-card">
+    <h2>✏️ Editar ingrediente</h2>
+    <input type="hidden" id="editIngId">
+    <label>Nombre del ingrediente</label>
+    <input id="editIngNombre" placeholder="Ejemplo: Popote">
+    <label>Cantidad actual</label>
+    <input type="number" id="editIngCantidad" placeholder="Ejemplo: 100">
+    <label>Costo unitario</label>
+    <input type="number" id="editIngCosto" placeholder="Ejemplo: 0.50">
+    <label>Mínimo recomendado</label>
+    <input type="number" id="editIngMinimo" placeholder="Ejemplo: 20">
+    <button class="btn-verde" onclick="guardarEdicionIngrediente()">Guardar cambios</button>
+    <button class="btn-gris" onclick="cerrarModalIngrediente()">Cancelar</button>
+  </div>
+</div>
+
+
+<div id="modalRecargarIngrediente" class="modal-edicion">
+  <div class="modal-card">
+    <h2>➕ Recargar inventario</h2>
+    <input type="hidden" id="recargaIngId">
+    <div id="recargaIngNombre" class="info"></div>
+
+    <label>Cantidad a agregar</label>
+    <input type="number" id="recargaIngCantidad" placeholder="Ejemplo: 50">
+
+    <button class="btn-verde" onclick="guardarRecargaIngrediente()">Guardar recarga</button>
+    <button class="btn-gris" onclick="cerrarModalRecarga()">Cancelar</button>
+  </div>
+</div>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
@@ -3730,11 +3829,11 @@ setTimeout(() => {
     if(typeof estado === 'function') estado(txt, tipo==='error'?'alerta':(tipo||'ok'));
   };
   window.estado = window.estado || (typeof estado === 'function' ? estado : function(txt,tipo){
-    const el=document.getElementById('estadoConexion'); if(el){el.className=tipo||'ok'; el.innerHTML=txt;}
+    const el=document.getElementById('estadoConexión'); if(el){el.className=tipo||'ok'; el.innerHTML=txt;}
   });
 
   window.descargarTexto=function(txt,nombre){const blob=new Blob([txt],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=nombre||'respaldo_dona_cecy.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);};
-  window.probarConexionCecy=async function(){
+  window.probarConexiónCecy=async function(){
     const b=ensureBanner();
     try{ if(!db&&typeof iniciarSupabase==='function') iniciarSupabase(); if(!db) throw new Error('Supabase no inicializado');
       const {error}=await db.from('usuarios').select('id').limit(1); if(error) throw error;
@@ -3780,10 +3879,10 @@ setTimeout(() => {
       if(typeof auditoria==='function') await auditoria('RESPALDO_RESTAURADO',(usuarioLogueado?.nombre||'Usuario')+' restauró respaldo completo',{resultados}); if(typeof cargarTodo==='function') await cargarTodo();
     }catch(e){console.error(e);estadoBackup('❌ Error restaurando respaldo:<br><b>'+(e.message||e)+'</b>','alerta');mostrarServer('❌ Error en restauración','error');}
   };
-  window.respaldoAutomaticoOnceDia=async function(){try{const ahora=new Date(new Date().toLocaleString('en-US',{timeZone:window.TZ}));const hoy=ahora.toISOString().slice(0,10);const key='cecy_respaldo_auto_'+hoy;if(ahora.getHours()>=23&&!localStorage.getItem(key)&&usuarioLogueado&&(usuarioLogueado.permisos?.admin||usuarioLogueado.permisos?.reportes)){if(typeof calcularResumenCorteRobusto==='function'){const rep=await calcularResumenCorteRobusto('dia');await db.from('cortes').insert({tipo:'diario_auto',fecha_inicio:rep.rango.inicioDate,fecha_fin:rep.rango.finDate,total_ventas:Number(rep.total_ventas||0),total_compras:Number(rep.total_compras||0),ganancia_estimada:Number(rep.ganancia_estimada||0),productos_vendidos:rep.productos_vendidos||{},mermas:rep.mermas||{},regalos:rep.regalos||{},datos:{ventas:rep.ventas||[],compras:rep.compras||[],movimientos:rep.movimientos||[],detalle:rep.detalle||[]}});localStorage.setItem(key,'1');estadoBackup('✅ Corte automático diario guardado.','ok');}}}catch(e){console.log('Respaldo automático pendiente:',e);}};
-  const oldCTS=window.cargarTodoSeguro; window.cargarTodoSeguro=async function(){mostrarServer('⏳ Esperando respuesta del servidor...','wait'); if(typeof oldCTS==='function') await oldCTS(); else if(typeof cargarTodo==='function') await cargarTodo(); await probarConexionCecy();};
-  setTimeout(()=>{addBackupUI();probarConexionCecy();respaldoAutomaticoOnceDia();},1200);
-  setInterval(()=>respaldoAutomaticoOnceDia(),60000);
+  window.respaldoAutomáticoOnceDia=async function(){try{const ahora=new Date(new Date().toLocaleString('en-US',{timeZone:window.TZ}));const hoy=ahora.toISOString().slice(0,10);const key='cecy_respaldo_auto_'+hoy;if(ahora.getHours()>=23&&!localStorage.getItem(key)&&usuarioLogueado&&(usuarioLogueado.permisos?.admin||usuarioLogueado.permisos?.reportes)){if(typeof calcularResumenCorteRobusto==='function'){const rep=await calcularResumenCorteRobusto('dia');await db.from('cortes').insert({tipo:'diario_auto',fecha_inicio:rep.rango.inicioDate,fecha_fin:rep.rango.finDate,total_ventas:Number(rep.total_ventas||0),total_compras:Number(rep.total_compras||0),ganancia_estimada:Number(rep.ganancia_estimada||0),productos_vendidos:rep.productos_vendidos||{},mermas:rep.mermas||{},regalos:rep.regalos||{},datos:{ventas:rep.ventas||[],compras:rep.compras||[],movimientos:rep.movimientos||[],detalle:rep.detalle||[]}});localStorage.setItem(key,'1');estadoBackup('✅ Corte automático diario guardado.','ok');}}}catch(e){console.log('Respaldo automático pendiente:',e);}};
+  const oldCTS=window.cargarTodoSeguro; window.cargarTodoSeguro=async function(){mostrarServer('⏳ Esperando respuesta del servidor...','wait'); if(typeof oldCTS==='function') await oldCTS(); else if(typeof cargarTodo==='function') await cargarTodo(); await probarConexiónCecy();};
+  setTimeout(()=>{addBackupUI();probarConexiónCecy();respaldoAutomáticoOnceDia();},1200);
+  setInterval(()=>respaldoAutomáticoOnceDia(),60000);
 })();
 </script>
 
@@ -3793,14 +3892,14 @@ setTimeout(() => {
 (function(){
   function listo(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
   listo(function(){
-    const e=document.getElementById('estadoConexion');
+    const e=document.getElementById('estadoConexión');
     if(e){ e.className='warn'; e.innerHTML='🟡 Verificando conexión con Supabase...'; }
     setTimeout(async function(){
       try{
         if(typeof cargarTodo === 'function') await cargarTodo();
       }catch(err){
         console.log('Error de carga:', err);
-        const x=document.getElementById('estadoConexion');
+        const x=document.getElementById('estadoConexión');
         if(x){ x.className='alerta'; x.innerHTML='🔴 Sin conexión real con Supabase. Revisa internet y vuelve a actualizar datos.'; }
       }
     }, 500);
@@ -4328,5 +4427,209 @@ document.addEventListener("visibilitychange",()=>{
     setTimeout(()=>cargarPedidosAutoV725(false),500);
   }
 });
+
+
+
+/* ===== V7.26 Editar ingredientes ===== */
+function renderInventario(){
+  let cont=document.getElementById("tablaInventario");
+  if(!cont) return;
+  if(!ingredientes.length){
+    cont.innerHTML="<div class='warn'>No hay ingredientes registrados.</div>";
+    renderSelects();
+    return;
+  }
+  cont.innerHTML=`<table>
+    <tr><th>Ingrediente</th><th>Cant.</th><th>Mín.</th><th>Costo</th><th>Acciones</th></tr>
+    ${ingredientes.map(i=>{
+      const bajo=Number(i.cantidad||0)<=Number(i.minimo||0);
+      return `<tr>
+        <td>${bajo?"⚠️ ":""}<b>${i.nombre}</b></td>
+        <td>${Number(i.cantidad||0).toFixed(1)}</td>
+        <td>${Number(i.minimo||0).toFixed(1)}</td>
+        <td>$${Number(i.costo_unitario||0).toFixed(2)}</td>
+        <td><div class="acciones-ing">
+          <button class="btn-editar-ing" onclick="editarIngrediente('${i.id}')">✏️ Editar</button>
+          <button class="btn-eliminar-ing" onclick="eliminarIngrediente('${i.id}')">🗑️ Eliminar</button>
+        </div></td>
+      </tr>`;
+    }).join("")}
+  </table>`;
+  if(typeof revisarInventarioBajoNotificar==="function") revisarInventarioBajoNotificar();
+}
+
+function editarIngrediente(id){
+  const ing=ingredientes.find(x=>x.id===id);
+  if(!ing){ alert("No encontré el ingrediente."); return; }
+  document.getElementById("editIngId").value=ing.id;
+  document.getElementById("editIngNombre").value=ing.nombre||"";
+  document.getElementById("editIngCantidad").value=Number(ing.cantidad||0);
+  document.getElementById("editIngCosto").value=Number(ing.costo_unitario||0);
+  document.getElementById("editIngMinimo").value=Number(ing.minimo||0);
+  document.getElementById("modalEditarIngrediente").style.display="flex";
+}
+
+function cerrarModalIngrediente(){
+  const m=document.getElementById("modalEditarIngrediente");
+  if(m) m.style.display="none";
+}
+
+async function guardarEdicionIngrediente(){
+  if(!validarPermiso("inventario","No tienes permiso para editar inventario.")) return;
+  if(!db && !iniciarSupabase()) return;
+  const id=document.getElementById("editIngId").value;
+  const nombre=document.getElementById("editIngNombre").value.trim();
+  const cantidad=Number(document.getElementById("editIngCantidad").value||0);
+  const costo=Number(document.getElementById("editIngCosto").value||0);
+  const minimo=Number(document.getElementById("editIngMinimo").value||0);
+  if(!id || !nombre){ alert("Falta el nombre del ingrediente."); return; }
+  const {error}=await db.from("ingredientes").update({
+    nombre:nombre, cantidad:cantidad, costo_unitario:costo, minimo:minimo, activo:true
+  }).eq("id",id);
+  if(error){ alert("Error al guardar ingrediente: "+error.message); return; }
+  await auditoria("INGREDIENTE_EDITADO",`${usuarioLogueado?.nombre||"Usuario"} editó ingrediente: ${nombre}`,{
+    ingrediente_id:id,nombre,cantidad,costo_unitario:costo,minimo
+  });
+  cerrarModalIngrediente();
+  await cargarIngredientes();
+  await cargarRecetas();
+  render();
+  estado("✅ Ingrediente actualizado correctamente.","ok");
+}
+
+async function eliminarIngrediente(id){
+  if(!validarPermiso("inventario","No tienes permiso para eliminar ingredientes.")) return;
+  if(!db && !iniciarSupabase()) return;
+  const ing=ingredientes.find(x=>x.id===id);
+  if(!ing) return alert("No encontré el ingrediente.");
+  if(!confirm(`¿Eliminar/desactivar "${ing.nombre}"?\n\nSi se usa en recetas, se marcará como inactivo para no romper historial.`)) return;
+  let usado=false;
+  try{
+    const r=await db.from("recetas").select("id").eq("ingrediente_id",id).limit(1);
+    usado=!!(r.data&&r.data.length);
+  }catch(e){ usado=true; }
+  let error=null;
+  if(usado){
+    const res=await db.from("ingredientes").update({activo:false}).eq("id",id);
+    error=res.error;
+  }else{
+    const res=await db.from("ingredientes").delete().eq("id",id);
+    error=res.error;
+  }
+  if(error){ alert("Error al eliminar ingrediente: "+error.message); return; }
+  await auditoria("INGREDIENTE_ELIMINADO",`${usuarioLogueado?.nombre||"Usuario"} eliminó/desactivó ingrediente: ${ing.nombre}`,{
+    ingrediente_id:id,nombre:ing.nombre, usado_en_recetas:usado
+  });
+  await cargarIngredientes();
+  await cargarRecetas();
+  render();
+  estado(usado?"✅ Ingrediente desactivado.":"✅ Ingrediente eliminado.","ok");
+}
+
+
+
+/* ===== V7.27 Inventario compacto ===== */
+function renderInventario(){
+  let cont=document.getElementById("tablaInventario");
+  if(!cont) return;
+
+  if(!ingredientes.length){
+    cont.innerHTML="<div class='warn'>No hay ingredientes registrados.</div>";
+    renderSelects();
+    return;
+  }
+
+  cont.innerHTML=`<table class="tabla-inventario-compacta">
+    <tr>
+      <th>Ingrediente</th>
+      <th>Exist.</th>
+      <th>Estado</th>
+      <th>Acciones</th>
+    </tr>
+    ${ingredientes.map(i=>{
+      const cantidad=Number(i.cantidad||0);
+      const minimo=Number(i.minimo||0);
+      const comprar=cantidad<=minimo;
+      return `<tr>
+        <td><b>${i.nombre}</b><br><small>Mín: ${minimo.toFixed(1)} · $${Number(i.costo_unitario||0).toFixed(2)}</small></td>
+        <td>${cantidad.toFixed(1)}</td>
+        <td>${comprar?'<span class="estado-inv-comprar">⚠️ Comprar</span>':'<span class="estado-inv-ok">🟢 OK</span>'}</td>
+        <td>
+          <div class="acciones-ing">
+            <button class="btn-recargar-ing" title="Recargar inventario" onclick="recargarIngrediente('${i.id}')">➕</button>
+            <button class="btn-editar-ing" title="Editar ingrediente" onclick="editarIngrediente('${i.id}')">✏️</button>
+            <button class="btn-eliminar-ing" title="Eliminar ingrediente" onclick="eliminarIngrediente('${i.id}')">🗑️</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join("")}
+  </table>`;
+
+  if(typeof revisarInventarioBajoNotificar==="function") revisarInventarioBajoNotificar();
+}
+
+function recargarIngrediente(id){
+  const ing=ingredientes.find(x=>x.id===id);
+  if(!ing){ alert("No encontré el ingrediente."); return; }
+  document.getElementById("recargaIngId").value=ing.id;
+  document.getElementById("recargaIngCantidad").value="";
+  document.getElementById("recargaIngNombre").innerHTML=`<b>${ing.nombre}</b><br>Existencia actual: ${Number(ing.cantidad||0).toFixed(1)}`;
+  document.getElementById("modalRecargarIngrediente").style.display="flex";
+}
+
+function cerrarModalRecarga(){
+  const m=document.getElementById("modalRecargarIngrediente");
+  if(m) m.style.display="none";
+}
+
+async function guardarRecargaIngrediente(){
+  if(!validarPermiso("inventario","No tienes permiso para recargar inventario.")) return;
+  if(!db && !iniciarSupabase()) return;
+
+  const id=document.getElementById("recargaIngId").value;
+  const cantidadAgregar=Number(document.getElementById("recargaIngCantidad").value||0);
+  if(!id || cantidadAgregar<=0){
+    alert("Escribe una cantidad mayor a cero.");
+    return;
+  }
+
+  const ing=ingredientes.find(x=>x.id===id);
+  if(!ing){ alert("No encontré el ingrediente."); return; }
+
+  const nuevaCantidad=Number(ing.cantidad||0)+cantidadAgregar;
+
+  const {error}=await db.from("ingredientes").update({
+    cantidad:nuevaCantidad,
+    activo:true
+  }).eq("id",id);
+
+  if(error){
+    alert("Error al recargar inventario: "+error.message);
+    return;
+  }
+
+  try{
+    await db.from("movimientos").insert({
+      ingrediente_id:id,
+      tipo:"recarga",
+      cantidad:cantidadAgregar,
+      motivo:"Recarga manual de inventario",
+      usuario_id:usuarioLogueado?.id||null
+    });
+  }catch(e){}
+
+  await auditoria("INGREDIENTE_RECARGADO",`${usuarioLogueado?.nombre||"Usuario"} recargó ${cantidadAgregar} de ${ing.nombre}`,{
+    ingrediente_id:id,
+    nombre:ing.nombre,
+    cantidad_agregada:cantidadAgregar,
+    cantidad_anterior:Number(ing.cantidad||0),
+    cantidad_nueva:nuevaCantidad
+  });
+
+  cerrarModalRecarga();
+  await cargarIngredientes();
+  render();
+  estado("✅ Inventario recargado correctamente.","ok");
+}
 
 </script>
