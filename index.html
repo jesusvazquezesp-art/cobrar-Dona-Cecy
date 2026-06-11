@@ -4,7 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Puesto Doña Cecy V7.2 - Conexión Real</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+function limpiarDatosLocalesPruebaReal(){
+  if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
+
+  const claves=[
+    "cecy_pedido_borrador_v1",
+    "cecy_ventas_pendientes_v73",
+    "cecy_pedidos_pendientes_v78",
+    "cecy_datos_offline_v73",
+    "cecy_usuario_v5",
+    "cecy_sesion_usuario_v77",
+    "ultimo_respaldo_auto"
+  ];
+
+  claves.forEach(k=>localStorage.removeItem(k));
+
+  pedido=[];
+  pedidoActualId=null;
+  pedidoActualEstado=null;
+  usuarioLogueado=null;
+  productos=[];
+  ingredientes=[];
+  recetas=[];
+  usuarios=[];
+  esAdmin=false;
+
+  try{
+    if(document.getElementById("usuarioSelect")) document.getElementById("usuarioSelect").innerHTML="";
+    if(document.getElementById("pinUsuario")) document.getElementById("pinUsuario").value="";
+    if(document.getElementById("pagoCon")) document.getElementById("pagoCon").value="";
+  }catch(e){}
+
+  actualizarPendientesLocal();
+  render();
+  mostrarUsuarioActivo();
+  estado("🧹 Datos locales limpiados. Presiona Actualizar datos para cargar solo lo real de Supabase.","ok");
+  alert("Datos locales limpiados. Ahora presiona Actualizar datos.");
+}
+
+
+</script>
 <style>
 :root{
   --morado:#ae56ac;
@@ -313,8 +353,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V7.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p>
+  <h1>🥤 Puesto Doña Cecy V7.13.2</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.13 Prueba real · Sin catálogo de emergencia</p>
 </header>
 
 <div class="tabs">
@@ -463,6 +503,15 @@ th{background:#fafafa}
   </div>
 
   <div id="adminPanel" class="admin-bloqueado">
+
+    <div class="card">
+      <h2>🧹 Limpieza de prueba real</h2>
+      <div class="warn">
+        Usa esto solo cuando quieras borrar caché, pedidos locales, ventas locales y menú guardado en este celular.
+      </div>
+      <button class="btn-rojo" onclick="limpiarDatosLocalesPruebaReal()">🧹 Limpiar datos locales de este celular</button>
+    </div>
+
     <div class="card">
       <h2>👥 Usuarios</h2>
       <label>Nombre</label>
@@ -726,62 +775,15 @@ function cargarDatosOffline(){
 
 
 function crearDatosBaseEmergencia(){
-  const uAdmin="local_user_jesus";
-  const ing = [
-    ["ing_arizona_mango","Arizona Mango",24,22,6],
-    ["ing_arizona_sandia","Arizona Sandia",24,22,6],
-    ["ing_tiko_azul","Tiko azul",12,20,3],
-    ["ing_clamato","Clamato",20,18,5],
-    ["ing_carlota","Carlota",12,25,3],
-    ["ing_gomita","Gomita Gusano Porcion",100,2,20],
-    ["ing_chamoy","Chamoy Porcion",100,1,20],
-    ["ing_chile","Chile Porcion",100,1,20],
-    ["ing_vaso_chico","Vaso Chico",100,2,20],
-    ["ing_tapa_chica","Tapa Chica",100,1,20],
-    ["ing_vaso_grande","Vaso Grande",50,3,10],
-    ["ing_tapa_grande","Tapa Grande",50,2,10],
-    ["ing_popote","Popote",100,1,20]
-  ];
-
-  ingredientes = ing.map(x=>({
-    id:x[0], nombre:x[1], cantidad:x[2], costo_unitario:x[3], minimo:x[4], activo:true, local_base:true
-  }));
-
-  productos = [
-    {id:"prod_arizona_mango",nombre:"Arizona Mango preparado",precio_venta:45,activo:true,local_base:true},
-    {id:"prod_arizona_sandia",nombre:"Arizona Sandia preparado",precio_venta:45,activo:true,local_base:true},
-    {id:"prod_clamato",nombre:"Clamato preparado",precio_venta:60,activo:true,local_base:true},
-    {id:"prod_tiko_azul",nombre:"Tiko azul preparado",precio_venta:45,activo:true,local_base:true},
-    {id:"prod_carlota",nombre:"Carlota",precio_venta:45,activo:true,local_base:true}
-  ];
-
-  recetas = [
-    ["prod_arizona_mango","ing_arizona_mango",1],["prod_arizona_mango","ing_gomita",1],["prod_arizona_mango","ing_chamoy",1],["prod_arizona_mango","ing_chile",1],["prod_arizona_mango","ing_vaso_chico",1],["prod_arizona_mango","ing_tapa_chica",1],["prod_arizona_mango","ing_popote",1],
-    ["prod_arizona_sandia","ing_arizona_sandia",1],["prod_arizona_sandia","ing_gomita",1],["prod_arizona_sandia","ing_chamoy",1],["prod_arizona_sandia","ing_chile",1],["prod_arizona_sandia","ing_vaso_chico",1],["prod_arizona_sandia","ing_tapa_chica",1],["prod_arizona_sandia","ing_popote",1],
-    ["prod_clamato","ing_clamato",1],["prod_clamato","ing_chamoy",1],["prod_clamato","ing_chile",1],["prod_clamato","ing_vaso_grande",1],["prod_clamato","ing_tapa_grande",1],["prod_clamato","ing_popote",1],
-    ["prod_tiko_azul","ing_tiko_azul",1],["prod_tiko_azul","ing_chamoy",1],["prod_tiko_azul","ing_chile",1],["prod_tiko_azul","ing_vaso_chico",1],["prod_tiko_azul","ing_tapa_chica",1],["prod_tiko_azul","ing_popote",1],
-    ["prod_carlota","ing_carlota",1]
-  ].map((r,i)=>({id:"rec_local_"+i,producto_id:r[0],ingrediente_id:r[1],cantidad:r[2],ingredientes:{nombre:(ingredientes.find(x=>x.id===r[1])||{}).nombre,costo_unitario:(ingredientes.find(x=>x.id===r[1])||{}).costo_unitario}}));
-
-  usuarios = [{
-    id:uAdmin,
-    nombre:"Jesus",
-    email:"jesus@dona-cecy.local",
-    rol:"admin",
-    activo:true,
-    pin:"2026",
-    permisos:{admin:true,ventas:true,pedidos:true,inventario:true,compras:true,reportes:true},
-    local_base:true
-  }];
-
-  guardarDatosOffline();
-  llenarSelectUsuariosLocal();
-  restaurarSesionUsuarioLocal();
+  estado("🔴 No hay datos locales ni datos en Supabase. Crea ingredientes, productos y recetas reales para iniciar prueba.","alerta");
+  usuarios = usuarios || [];
+  productos = [];
+  ingredientes = [];
+  recetas = [];
   render();
   mostrarUsuarioActivo();
   actualizarPendientesLocal();
-  estado("🟡 MODO LOCAL DE EMERGENCIA<br><small>Usando catálogo base del celular. Cuando regrese internet sincroniza pendientes.</small>","warn");
-  return true;
+  return false;
 }
 
 
