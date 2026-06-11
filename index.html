@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy - Roles y Compras V5</title>
+<title>Puesto Doña Cecy V7.2 - Conexión Real</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -62,7 +62,7 @@ h3{margin:12px 0 8px;font-size:17px}
 }
 .tabs{
   display:grid;
-  grid-template-columns:repeat(5,1fr);
+  grid-template-columns:repeat(6,1fr);
   gap:6px;
   background:white;
   padding:8px;
@@ -214,7 +214,7 @@ th{background:#fafafa}
   opacity:.85
 }
 @media(max-width:520px){
-  .tabs{top:74px;grid-template-columns:repeat(5,1fr)}
+  .tabs{top:74px;grid-template-columns:repeat(3,1fr)}
   .tab{font-size:11px;padding:9px 2px}
   .resumen{grid-template-columns:1fr}
   .productoVenta{grid-template-columns:1fr}
@@ -222,10 +222,98 @@ th{background:#fafafa}
   .ingrediente-row{grid-template-columns:1fr}
 }
 </style>
+
+<style>
+#toastNotificacion{
+  position:fixed;
+  left:12px;
+  right:12px;
+  top:92px;
+  z-index:9999;
+  display:none;
+  padding:14px;
+  border-radius:18px;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+  font-size:16px;
+  font-weight:bold;
+  text-align:center;
+  animation:entradaToast .25s ease;
+}
+#toastNotificacion small{
+  display:block;
+  font-size:13px;
+  font-weight:normal;
+  margin-top:4px;
+}
+.toast-ok{background:#e8f5e9;color:#1b5e20;border:2px solid #43a047}
+.toast-warn{background:#fff8e1;color:#e65100;border:2px solid #fb8c00}
+.toast-error{background:#ffebee;color:#b71c1c;border:2px solid #e53935}
+.toast-info{background:#e3f2fd;color:#0d47a1;border:2px solid #1e88e5}
+#campanaNotificaciones{
+  position:fixed;
+  right:14px;
+  bottom:16px;
+  z-index:9998;
+  background:#ae56ac;
+  color:white;
+  border-radius:999px;
+  width:58px;
+  height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:25px;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+  cursor:pointer;
+}
+#campanaConteo{
+  position:absolute;
+  top:-5px;
+  right:-4px;
+  background:#e53935;
+  color:white;
+  font-size:12px;
+  border-radius:999px;
+  min-width:21px;
+  padding:3px 5px;
+  border:2px solid white;
+}
+#panelNotificaciones{
+  position:fixed;
+  right:12px;
+  bottom:82px;
+  z-index:9998;
+  width:min(360px, calc(100vw - 24px));
+  max-height:55vh;
+  overflow:auto;
+  background:white;
+  color:#3e2723;
+  border-radius:18px;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+  padding:12px;
+  display:none;
+}
+.notifItem{
+  border-bottom:1px solid #eee;
+  padding:9px 4px;
+  font-size:14px;
+}
+.notifItem:last-child{border-bottom:none}
+@keyframes entradaToast{
+  from{transform:translateY(-18px);opacity:0}
+  to{transform:translateY(0);opacity:1}
+}
+</style>
+
 </head>
 <body>
+
+<div id="toastNotificacion"></div>
+<div id="panelNotificaciones"></div>
+<div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
+
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V4</h1>
+  <h1>🥤 Puesto Doña Cecy V7.2</h1>
   <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p>
 </header>
 
@@ -249,7 +337,8 @@ th{background:#fafafa}
     <button class="btn-verde" onclick="iniciarSesionUsuario()">Entrar con PIN</button>
     <div id="usuarioActivo" class="info">Cargando usuario...</div>
     <button class="btn-morado" onclick="cargarTodo()">Actualizar datos</button>
-    <div id="estadoConexion" class="warn">Cargando conexión...</div>
+    <div id="estadoConexion" class="warn">🟡 Verificando conexión con Supabase...</div>
+    <div id="pendientesLocal" class="info">📤 Ventas locales pendientes: 0</div>
   </div>
 
   <div class="card">
@@ -464,33 +553,284 @@ let pedido=[], pedidoActualId=null, pedidoActualEstado=null;
 let productoActualId="", realtimeActivado=false, procesando=false, esAdmin=false, toques=0;
 let usuarioLogueado=null;
 const LS_USER="cecy_usuario_v5";
+const LS_SESION_USUARIO="cecy_sesion_usuario_v77";
 let autoRefreshId=null;
+
+let historialNotificaciones=[];
+let sonidoHabilitado=false;
+
+function habilitarSonido(){
+  sonidoHabilitado=true;
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator();
+    const g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.value=0.0001;
+    o.start();
+    o.stop(ctx.currentTime+0.02);
+  }catch(e){}
+}
+
+function tono(freq=880,duracion=160,tipo="sine"){
+  if(!sonidoHabilitado) return;
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator();
+    const g=ctx.createGain();
+    o.type=tipo;
+    o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.28,ctx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+duracion/1000);
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime+duracion/1000+0.03);
+  }catch(e){}
+}
+
+function sonido(tipo="info"){
+  if(tipo==="pedido"){ tono(880,120); setTimeout(()=>tono(1175,180),130); }
+  else if(tipo==="venta"){ tono(659,110); setTimeout(()=>tono(988,120),120); setTimeout(()=>tono(1318,180),250); }
+  else if(tipo==="error"){ tono(220,260,"square"); }
+  else if(tipo==="sync"){ tono(740,120); setTimeout(()=>tono(988,160),130); }
+  else { tono(660,130); }
+  try{ if(navigator.vibrate) navigator.vibrate(tipo==="error"?[150,80,150]:80); }catch(e){}
+}
+
+function claseToast(tipo){
+  if(tipo==="error") return "toast-error";
+  if(tipo==="warn") return "toast-warn";
+  if(tipo==="ok" || tipo==="venta" || tipo==="sync") return "toast-ok";
+  return "toast-info";
+}
+
+function notificar(titulo,detalle="",tipo="info",sonar=true){
+  const item={titulo,detalle,tipo,fecha:new Date().toISOString()};
+  historialNotificaciones.unshift(item);
+  historialNotificaciones=historialNotificaciones.slice(0,30);
+
+  const toast=document.getElementById("toastNotificacion");
+  if(toast){
+    toast.className=claseToast(tipo);
+    toast.innerHTML=`${titulo}${detalle?`<small>${detalle}</small>`:""}`;
+    toast.style.display="block";
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer=setTimeout(()=>{toast.style.display="none"},5200);
+  }
+
+  actualizarCampana();
+  renderPanelNotificaciones();
+  if(sonar) sonido(tipo);
+}
+
+function actualizarCampana(){
+  const c=document.getElementById("campanaConteo");
+  if(c) c.textContent=String(historialNotificaciones.length);
+}
+
+function renderPanelNotificaciones(){
+  const p=document.getElementById("panelNotificaciones");
+  if(!p) return;
+  p.innerHTML=`<b>🔔 Notificaciones</b>
+    <button class="btn-small btn-gris" style="float:right" onclick="limpiarNotificaciones()">Limpiar</button>
+    <div style="clear:both"></div>`+
+    (historialNotificaciones.length?historialNotificaciones.map(n=>{
+      const f=formatoJuarez(n.fecha,{timeStyle:"short"});
+      return `<div class="notifItem"><b>${n.titulo}</b><br><small>${f}</small>${n.detalle?`<br>${n.detalle}`:""}</div>`;
+    }).join(""):"<div class='notifItem'>Sin notificaciones.</div>");
+}
+
+function togglePanelNotificaciones(){
+  habilitarSonido();
+  const p=document.getElementById("panelNotificaciones");
+  if(!p) return;
+  renderPanelNotificaciones();
+  p.style.display=p.style.display==="block"?"none":"block";
+}
+
+function limpiarNotificaciones(){
+  historialNotificaciones=[];
+  actualizarCampana();
+  renderPanelNotificaciones();
+}
+
+function iniciarNotificacionesSistema(){
+  document.addEventListener("click",habilitarSonido,{once:true});
+  window.addEventListener("offline",()=>{
+    notificar("🔴 SIN INTERNET","Trabajando en modo local. Las ventas se guardarán en este celular.","error");
+    estado("🔴 Sin internet. Modo local activo.","alerta");
+  });
+  window.addEventListener("online",()=>{
+    notificar("🟢 INTERNET RECUPERADO","Intentando sincronizar pendientes...","sync");
+    setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1000);
+  });
+  actualizarCampana();
+}
+
+const LS_VENTAS_PENDIENTES="cecy_ventas_pendientes_v73";
+const LS_PEDIDOS_PENDIENTES="cecy_pedidos_pendientes_v78";
+const LS_DATOS_OFFLINE="cecy_datos_offline_v73";
+let sincronizandoPendientes=false;
+let intentoSyncId=null;
 
 function iniciarSupabase(){
   if(!SUPABASE_KEY || SUPABASE_KEY.includes("AQUI_PEGA")){
-    estado("Falta pegar la Publishable Key en el HTML.","alerta");
+    estado("⚠️ Falta configurar la Publishable Key de Supabase.","warn");
     return false;
   }
   db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+  db = db;
+  estado("🟢 ESTAMOS EN LÍNEA", "ok");
   return true;
 }
 
-async function cargarTodo(){
-  if(!db && !iniciarSupabase()) return;
+
+function guardarDatosOffline(){
+  try{
+    const data={
+      fecha:new Date().toISOString(),
+      usuarios,
+      productos,
+      ingredientes,
+      recetas
+    };
+    localStorage.setItem(LS_DATOS_OFFLINE, JSON.stringify(data));
+  }catch(e){
+    console.warn("No se pudo guardar datos offline",e);
+  }
+}
+
+function cargarDatosOffline(){
+  try{
+    const raw=localStorage.getItem(LS_DATOS_OFFLINE);
+    if(!raw) return false;
+    const data=JSON.parse(raw);
+    usuarios=Array.isArray(data.usuarios)?data.usuarios:[];
+    productos=Array.isArray(data.productos)?data.productos:[];
+    ingredientes=Array.isArray(data.ingredientes)?data.ingredientes:[];
+    recetas=Array.isArray(data.recetas)?data.recetas:[];
+    llenarSelectUsuariosLocal();
+    restaurarSesionUsuarioLocal();
+    render();
+    mostrarUsuarioActivo();
+    actualizarPendientesLocal();
+    const f=data.fecha?formatoJuarez(data.fecha):"respaldo local";
+    estado(`🟡 MODO LOCAL: usando datos guardados del celular<br><small>Última copia: ${f}</small>`,"warn");
+    return productos.length>0 && ingredientes.length>0;
+  }catch(e){
+    console.warn("No se pudo cargar datos offline",e);
+    return false;
+  }
+}
+
+
+function crearDatosBaseEmergencia(){
+  const uAdmin="local_user_jesus";
+  const ing = [
+    ["ing_arizona_mango","Arizona Mango",24,22,6],
+    ["ing_arizona_sandia","Arizona Sandia",24,22,6],
+    ["ing_tiko_azul","Tiko azul",12,20,3],
+    ["ing_clamato","Clamato",20,18,5],
+    ["ing_carlota","Carlota",12,25,3],
+    ["ing_gomita","Gomita Gusano Porcion",100,2,20],
+    ["ing_chamoy","Chamoy Porcion",100,1,20],
+    ["ing_chile","Chile Porcion",100,1,20],
+    ["ing_vaso_chico","Vaso Chico",100,2,20],
+    ["ing_tapa_chica","Tapa Chica",100,1,20],
+    ["ing_vaso_grande","Vaso Grande",50,3,10],
+    ["ing_tapa_grande","Tapa Grande",50,2,10],
+    ["ing_popote","Popote",100,1,20]
+  ];
+
+  ingredientes = ing.map(x=>({
+    id:x[0], nombre:x[1], cantidad:x[2], costo_unitario:x[3], minimo:x[4], activo:true, local_base:true
+  }));
+
+  productos = [
+    {id:"prod_arizona_mango",nombre:"Arizona Mango preparado",precio_venta:45,activo:true,local_base:true},
+    {id:"prod_arizona_sandia",nombre:"Arizona Sandia preparado",precio_venta:45,activo:true,local_base:true},
+    {id:"prod_clamato",nombre:"Clamato preparado",precio_venta:60,activo:true,local_base:true},
+    {id:"prod_tiko_azul",nombre:"Tiko azul preparado",precio_venta:45,activo:true,local_base:true},
+    {id:"prod_carlota",nombre:"Carlota",precio_venta:45,activo:true,local_base:true}
+  ];
+
+  recetas = [
+    ["prod_arizona_mango","ing_arizona_mango",1],["prod_arizona_mango","ing_gomita",1],["prod_arizona_mango","ing_chamoy",1],["prod_arizona_mango","ing_chile",1],["prod_arizona_mango","ing_vaso_chico",1],["prod_arizona_mango","ing_tapa_chica",1],["prod_arizona_mango","ing_popote",1],
+    ["prod_arizona_sandia","ing_arizona_sandia",1],["prod_arizona_sandia","ing_gomita",1],["prod_arizona_sandia","ing_chamoy",1],["prod_arizona_sandia","ing_chile",1],["prod_arizona_sandia","ing_vaso_chico",1],["prod_arizona_sandia","ing_tapa_chica",1],["prod_arizona_sandia","ing_popote",1],
+    ["prod_clamato","ing_clamato",1],["prod_clamato","ing_chamoy",1],["prod_clamato","ing_chile",1],["prod_clamato","ing_vaso_grande",1],["prod_clamato","ing_tapa_grande",1],["prod_clamato","ing_popote",1],
+    ["prod_tiko_azul","ing_tiko_azul",1],["prod_tiko_azul","ing_chamoy",1],["prod_tiko_azul","ing_chile",1],["prod_tiko_azul","ing_vaso_chico",1],["prod_tiko_azul","ing_tapa_chica",1],["prod_tiko_azul","ing_popote",1],
+    ["prod_carlota","ing_carlota",1]
+  ].map((r,i)=>({id:"rec_local_"+i,producto_id:r[0],ingrediente_id:r[1],cantidad:r[2],ingredientes:{nombre:(ingredientes.find(x=>x.id===r[1])||{}).nombre,costo_unitario:(ingredientes.find(x=>x.id===r[1])||{}).costo_unitario}}));
+
+  usuarios = [{
+    id:uAdmin,
+    nombre:"Jesus",
+    email:"jesus@dona-cecy.local",
+    rol:"admin",
+    activo:true,
+    pin:"2026",
+    permisos:{admin:true,ventas:true,pedidos:true,inventario:true,compras:true,reportes:true},
+    local_base:true
+  }];
+
+  guardarDatosOffline();
+  llenarSelectUsuariosLocal();
+  restaurarSesionUsuarioLocal();
+  render();
+  mostrarUsuarioActivo();
+  actualizarPendientesLocal();
+  estado("🟡 MODO LOCAL DE EMERGENCIA<br><small>Usando catálogo base del celular. Cuando regrese internet sincroniza pendientes.</small>","warn");
+  return true;
+}
+
+
+async function cargarTodoOfflineSeguro(){
+  if(!db && !iniciarSupabase()){
+    if(!cargarDatosOffline()) crearDatosBaseEmergencia();
+    iniciarModoLocalAutomatico();
+    renderPedido();
+    return;
+  }
+
+  estado("🟡 Verificando conexión con Supabase...", "warn");
   restaurarPedidoLocal();
-  await cargarUsuarios();
-  await cargarIngredientes();
-  await cargarProductos();
-  await cargarRecetas();
-  await verificarPedidoActualEnNube();
-  await cargarPedidosPendientes();
-  await cargarReporteHoy();
-  await cargarAuditoria();
-  await cargarCortes();
-  actualizarVistaCorte();
-  activarRealtime();
-  iniciarAutoRefresh();
-  renderPedido();
+
+  try{
+    await cargarUsuarios();
+    await cargarIngredientes();
+    await cargarProductos();
+    await cargarRecetas();
+
+    if(productos.length && ingredientes.length){
+      guardarDatosOffline();
+      estado("🟢 ESTAMOS EN LÍNEA", "ok");
+    }else{
+      if(!cargarDatosOffline()) crearDatosBaseEmergencia();
+    }
+
+    await verificarPedidoActualEnNube();
+    await cargarPedidosPendientes();
+    await cargarReporteHoy();
+    await cargarAuditoria();
+    await cargarCortes();
+    actualizarVistaCorte();
+    activarRealtime();
+    iniciarAutoRefresh();
+    iniciarModoLocalAutomatico();
+    renderPedido();
+    setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1500);
+  }catch(e){
+    console.warn("Falló carga online, usando modo local",e);
+    if(!cargarDatosOffline()) crearDatosBaseEmergencia();
+    iniciarModoLocalAutomatico();
+    renderPedido();
+  }
+}
+
+
+async function cargarTodo(){
+  return cargarTodoOfflineSeguro();
 }
 
 function verTab(id,btn){
@@ -499,6 +839,68 @@ function verTab(id,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activa'));
   btn.classList.add('activa');
   render();
+}
+
+
+
+function guardarSesionUsuarioLocal(){
+  try{
+    if(usuarioLogueado){
+      localStorage.setItem(LS_SESION_USUARIO, JSON.stringify({
+        id:usuarioLogueado.id,
+        fecha:new Date().toISOString()
+      }));
+    }
+  }catch(e){}
+}
+
+function restaurarSesionUsuarioLocal(){
+  try{
+    const raw=localStorage.getItem(LS_SESION_USUARIO);
+    if(!raw) return false;
+    const data=JSON.parse(raw);
+    const u=(usuarios||[]).find(x=>x.id===data.id && x.activo!==false);
+    if(!u) return false;
+    usuarioLogueado=u;
+    esAdmin=!!u.permisos?.admin;
+    llenarSelectUsuariosLocal();
+    const sel=document.getElementById("usuarioSelect");
+    if(sel) sel.value=u.id;
+    mostrarUsuarioActivo();
+    actualizarAdminVisual();
+    return true;
+  }catch(e){return false;}
+}
+
+function asegurarUsuarioEmergencia(){
+  if((usuarios||[]).length) return;
+  usuarios=[{
+    id:"local_user_jesus",
+    nombre:"Jesus",
+    email:"jesus@dona-cecy.local",
+    rol:"admin",
+    activo:true,
+    pin:"2026",
+    permisos:{admin:true,ventas:true,pedidos:true,inventario:true,compras:true,reportes:true},
+    local_base:true
+  }];
+  llenarSelectUsuariosLocal();
+  mostrarUsuarioActivo();
+}
+
+function llenarSelectUsuariosLocal(){
+  const sel=document.getElementById("usuarioSelect");
+  if(!sel) return;
+  const actual=sel.value || localStorage.getItem(LS_USER);
+  sel.innerHTML="";
+  (usuarios||[]).filter(u=>u.activo!==false).forEach(u=>{
+    const op=document.createElement("option");
+    op.value=u.id;
+    op.textContent=`${u.nombre} (${u.rol||"usuario"})`;
+    sel.appendChild(op);
+  });
+  if(actual && [...sel.options].some(o=>o.value===actual)) sel.value=actual;
+  else if(sel.options.length) sel.selectedIndex=0;
 }
 
 function usuarioActual(){
@@ -523,13 +925,22 @@ function validarPermiso(p,msg="No tienes permiso para esta acción."){
   return true;
 }
 function iniciarSesionUsuario(){
+  llenarSelectUsuariosLocal();
   let u=usuarioActual();
   let pin=document.getElementById("pinUsuario").value.trim();
-  if(!u) return;
+  if(!u){
+    asegurarUsuarioEmergencia();
+    u=usuarioActual();
+  }
+  if(!u){
+    alert("No hay usuario cargado. Presiona Actualizar datos.");
+    return;
+  }
   if(String(u.pin||"")!==pin){ alert("PIN incorrecto"); return; }
   usuarioLogueado=u;
   document.getElementById("pinUsuario").value="";
   guardarUsuarioLocal();
+  guardarSesionUsuarioLocal();
   esAdmin=!!u.permisos?.admin;
   mostrarUsuarioActivo();
   actualizarAdminVisual();
@@ -538,8 +949,8 @@ function iniciarSesionUsuario(){
 
 async function cargarUsuarios(){
   const {data,error}=await db.from("usuarios").select("id,nombre,email,rol,activo,pin,permisos").order("nombre");
-  if(error){estado("Error usuarios: "+error.message,"alerta");return}
-  usuarios=data||[];
+  if(error){estado("🔴 Error usuarios: "+(error.message||error),"alerta");return}
+  usuarios=data||[]; guardarDatosOffline();
   let sel=document.getElementById("usuarioSelect");
   let actual=sel.value || localStorage.getItem(LS_USER);
   sel.innerHTML="";
@@ -551,27 +962,28 @@ async function cargarUsuarios(){
   });
   if(actual) sel.value=actual;
   if(usuarioLogueado){usuarioLogueado=usuarios.find(u=>u.id===usuarioLogueado.id)||null;}
+  llenarSelectUsuariosLocal();
   mostrarUsuarioActivo();
   renderUsuarios();
 }
 
 async function cargarIngredientes(){
   const {data,error}=await db.from("ingredientes").select("*").eq("activo",true).order("nombre");
-  if(error){estado("Error ingredientes: "+error.message,"alerta");return}
-  ingredientes=data||[];
+  if(error){estado("🔴 Error ingredientes: "+(error.message||error),"alerta");return}
+  ingredientes=data||[]; guardarDatosOffline();
 }
 
 async function cargarProductos(){
   const {data,error}=await db.from("productos").select("*").eq("activo",true).order("nombre");
-  if(error){estado("Error productos: "+error.message,"alerta");return}
-  productos=data||[];
-  estado("Conexión correcta. Datos cargados.", "ok");
+  if(error){estado("🔴 Error productos: "+(error.message||error),"alerta");return}
+  productos=data||[]; guardarDatosOffline();
+  // Estado final se muestra al terminar cargarTodo completo.
 }
 
 async function cargarRecetas(){
   const {data,error}=await db.from("recetas").select("id,producto_id,ingrediente_id,cantidad, ingredientes(nombre,costo_unitario)").order("fecha_creacion");
-  if(error){estado("Error recetas: "+error.message,"alerta");return}
-  recetas=data||[];
+  if(error){estado("🔴 Error recetas: "+(error.message||error),"alerta");return}
+  recetas=data||[]; guardarDatosOffline();
   render();
 }
 
@@ -719,7 +1131,139 @@ function bloquearBotonServidor(btn, texto="✓ Datos enviados, espere respuesta 
   };
 }
 
+
+function pedidosPendientesLocal(){
+  try{
+    const raw=localStorage.getItem(LS_PEDIDOS_PENDIENTES);
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){ return []; }
+}
+
+function guardarPedidosPendientesLocal(arr){
+  localStorage.setItem(LS_PEDIDOS_PENDIENTES, JSON.stringify(arr));
+  actualizarPendientesLocal();
+}
+
+function guardarPedidoLocalPendiente(motivo="Sin conexión"){
+  let u=usuarioLogueado || usuarioActual();
+  const total=totalPedido();
+  const pedidoLocal={
+    id_local:crearIdLocal(),
+    fecha_local:new Date().toISOString(),
+    usuario_id:u?.id||null,
+    usuario_nombre:u?.nombre||"Usuario",
+    pedido:JSON.parse(JSON.stringify(pedido)),
+    total,
+    estado:"pendiente",
+    motivo
+  };
+  const arr=pedidosPendientesLocal();
+  arr.push(pedidoLocal);
+  guardarPedidosPendientesLocal(arr);
+  mensaje(`🟡 Sin conexión. Pedido guardado localmente por $${total.toFixed(2)}.<br>Se sincronizará cuando regrese Internet.`,"warn");
+  notificar("📱 PEDIDO LOCAL GUARDADO",`Total: $${total.toFixed(2)}`,"pedido");
+  aviso(`🟡 Pedido local pendiente por $${total.toFixed(2)}`);
+  pedido=[]; pedidoActualId=null; pedidoActualEstado=null; borrarPedidoLocal();
+  document.getElementById("pagoCon").value="";
+  renderPedido();
+  actualizarPendientesLocal();
+  cargarPedidosPendientes();
+  estado("🟡 Trabajando en modo local. Pedido guardado en este celular.","warn");
+  return pedidoLocal;
+}
+
 async function enviarPedido(btn){
+  if(procesando) return;
+  if(!validarPermiso("pedidos")) return;
+  if(pedidoActualId){mensaje("Este pedido ya fue enviado.","alerta");return}
+  if(!pedido.length){mensaje("Agrega productos antes de realizar pedido.","alerta");return}
+
+  const enLinea=await probarConexionSupabase();
+  if(!enLinea){
+    guardarPedidoLocalPendiente("Sin conexión antes de enviar pedido");
+    return;
+  }
+
+  try{
+    await enviarPedidoServidor(btn);
+    setTimeout(()=>sincronizarPedidosPendientes(false),1000);
+  }catch(e){
+    guardarPedidoLocalPendiente(e?.message || "Error de conexión al enviar pedido");
+    if(btn){ btn.disabled=false; btn.classList.remove("btn-servidor","btn-pulso"); }
+  }
+}
+
+async function sincronizarUnPedidoLocal(p){
+  if(!p || !Array.isArray(p.pedido) || !p.pedido.length) throw new Error("Pedido local vacío.");
+  if(p.pedido.some(x=>String(x.producto_id||"").startsWith("prod_"))){ p.pedido=convertirPedidoLocalAServidor(p.pedido); }
+  if(!db && !iniciarSupabase()) throw new Error("Supabase no inicializado.");
+
+  const u = usuarios.find(x=>x.id===p.usuario_id) || usuarioLogueado || usuarioActual();
+  if(!u?.id) throw new Error("No hay usuario para sincronizar pedido.");
+
+  const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"pendiente",total:Number(p.total||0)}).select().single();
+  if(e1) throw new Error(e1.message||"Error creando pedido local.");
+
+  const det=p.pedido.map(it=>({
+    pedido_id:ped.id,
+    producto_id:it.producto_id,
+    cantidad:it.cantidad,
+    precio_unitario:it.precio_unitario,
+    subtotal:it.precio_unitario*it.cantidad
+  }));
+  const {error:e2}=await db.from("pedido_detalle").insert(det);
+  if(e2) throw new Error(e2.message||"Error creando detalle de pedido local.");
+
+  await auditoria("PEDIDO_LOCAL_SINCRONIZADO",`${u.nombre} sincronizó pedido local por $${Number(p.total||0).toFixed(2)}`,{
+    id_local:p.id_local,
+    fecha_local:p.fecha_local,
+    pedido:p.pedido,
+    total:p.total
+  });
+  return {ok:true};
+}
+
+async function sincronizarPedidosPendientes(manual=false){
+  const arr=pedidosPendientesLocal();
+  if(!arr.length) return;
+
+  const enLinea=await probarConexionSupabase();
+  if(!enLinea){
+    if(manual) mensaje("Todavía no hay conexión. Los pedidos siguen guardados localmente.","warn");
+    return;
+  }
+
+  estado(`🔄 Sincronizando ${arr.length} pedido(s) pendiente(s)...`,"warn");
+  await cargarProductos();
+  const pendientes=[];
+  let sincronizados=0;
+
+  for(const p of arr){
+    try{
+      await sincronizarUnPedidoLocal(p);
+      sincronizados++;
+    }catch(e){
+      p.ultimo_error=e?.message||String(e);
+      pendientes.push(p);
+      console.warn("No se pudo sincronizar pedido local", p.id_local, e);
+    }
+  }
+
+  guardarPedidosPendientesLocal(pendientes);
+
+  if(sincronizados>0){
+    mensaje(`✅ ${sincronizados} pedido(s) local(es) sincronizado(s).`,"ok");
+    aviso(`✅ ${sincronizados} pedido(s) pendientes sincronizados`);
+    notificar("✅ PEDIDOS SINCRONIZADOS",`${sincronizados} pedido(s) subidos a Supabase`,"sync");
+    await cargarPedidosPendientes();
+  }
+
+  if(!pendientes.length) estado("🟢 ESTAMOS EN LÍNEA","ok");
+}
+
+
+async function enviarPedidoServidor(btn){
   if(procesando) return;
   if(!validarPermiso("pedidos")) return;
   if(pedidoActualId){mensaje("Este pedido ya fue enviado.","alerta");return}
@@ -736,6 +1280,7 @@ async function enviarPedido(btn){
   const copiaPedido = [...pedido];
   await auditoria("PEDIDO_ENVIADO",`${u.nombre} envió pedido por $${total.toFixed(2)}`,{pedido: copiaPedido, total, pedido_id:ped.id});
   mensaje("📨 Pedido enviado. Ya puedes capturar otro pedido. No se descontó inventario.","ok");
+  notificar("📨 NUEVO PEDIDO",`Total: $${total.toFixed(2)}`,"pedido");
   aviso(`📨 ${u.nombre} realizó pedido por $${total.toFixed(2)}`);
   pedido=[]; pedidoActualId=null; pedidoActualEstado=null; borrarPedidoLocal();
   document.getElementById("pagoCon").value="";
@@ -745,7 +1290,323 @@ async function enviarPedido(btn){
   if(restaurarBtn)restaurarBtn();
 }
 
+
+function ventasPendientesLocal(){
+  try{
+    const raw=localStorage.getItem(LS_VENTAS_PENDIENTES);
+    const arr=raw?JSON.parse(raw):[];
+    return Array.isArray(arr)?arr:[];
+  }catch(e){ return []; }
+}
+
+function guardarVentasPendientesLocal(arr){
+  localStorage.setItem(LS_VENTAS_PENDIENTES, JSON.stringify(arr));
+  actualizarPendientesLocal();
+}
+
+
+function resumenErroresPendientesLocal(){
+  const errores=[...ventasPendientesLocal(),...pedidosPendientesLocal()]
+    .map(x=>x.ultimo_error)
+    .filter(Boolean)
+    .slice(-2);
+  return errores.length ? `<br><small>Último error: ${errores.join(" | ")}</small>` : "";
+}
+
+function actualizarPendientesLocal(){
+  const el=document.getElementById("pendientesLocal");
+  if(!el) return;
+  const nv=ventasPendientesLocal().length;
+  const np=pedidosPendientesLocal().length;
+  const n=nv+np;
+  el.className=n>0?"warn":"info";
+  el.innerHTML=n>0
+    ? `📤 Pendientes locales: <b>${n}</b><br><small>Ventas: ${nv} • Pedidos: ${np}</small>${resumenErroresPendientesLocal()}<br><button class="btn-small btn-morado" onclick="sincronizarVentasPendientes(true);sincronizarPedidosPendientes(true)">🔄 Sincronizar ahora</button>`
+    : "📤 Pendientes locales: 0";
+}
+
+function crearIdLocal(){
+  return "local_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+}
+
+
+function descontarInventarioLocalPedido(){
+  try{
+    const consumo={};
+    for(const p of pedido){
+      const rs=recetas.filter(r=>r.producto_id===p.producto_id);
+      rs.forEach(r=>{
+        consumo[r.ingrediente_id]=(consumo[r.ingrediente_id]||0)+Number(r.cantidad||0)*Number(p.cantidad||0);
+      });
+    }
+    Object.keys(consumo).forEach(ingId=>{
+      const ing=ingredientes.find(i=>i.id===ingId);
+      if(ing) ing.cantidad=Math.max(0,Number(ing.cantidad||0)-Number(consumo[ingId]||0));
+    });
+    guardarDatosOffline();
+  }catch(e){console.warn("No se pudo descontar inventario local",e)}
+}
+
+
+function pedidoUsaCatalogoBaseLocal(){
+  return pedido.some(p=>String(p.producto_id||"").startsWith("prod_"));
+}
+
+function guardarVentaLocal(motivo="Sin conexión"){
+  let u=usuarioLogueado || usuarioActual();
+  const total=totalPedido();
+  const pago=Number(document.getElementById("pagoCon")?.value||0);
+  const cambio=Math.max(0,pago-total);
+  const ventaLocal={
+    id_local:crearIdLocal(),
+    fecha_local:new Date().toISOString(),
+    usuario_id:u?.id||null,
+    usuario_nombre:u?.nombre||"Usuario",
+    pedido:JSON.parse(JSON.stringify(pedido)),
+    total,
+    pago_con:pago,
+    cambio,
+    motivo
+  };
+  const arr=ventasPendientesLocal();
+  arr.push(ventaLocal);
+  guardarVentasPendientesLocal(arr);
+  descontarInventarioLocalPedido();
+  renderInventario();
+
+  mensaje(`🟡 Sin conexión. Venta guardada localmente por $${total.toFixed(2)}.<br>Se sincronizará automáticamente cuando regrese Internet.`,"warn");
+  notificar("📱 VENTA LOCAL GUARDADA",`Total: $${total.toFixed(2)}`,"warn");
+  aviso(`🟡 Venta local pendiente por $${total.toFixed(2)}`);
+  limpiarPedido(false);
+  estado("🟡 Trabajando en modo local. Se sincronizará al volver Internet.","warn");
+  return ventaLocal;
+}
+
+async function probarConexionSupabase(){
+  if(!db && !iniciarSupabase()) return false;
+  if(!navigator.onLine) return false;
+  try{
+    const {error}=await db.from("usuarios").select("id").limit(1);
+    if(error) return false;
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
 async function registrarVenta(btn){
+  if(procesando) return;
+  if(!validarPermiso("ventas","No tienes permiso para registrar ventas.")) return;
+  if(!pedido.length){mensaje("Agrega productos antes de registrar venta.","alerta");return}
+  let total=totalPedido(), pago=Number(document.getElementById("pagoCon").value||0);
+  if(pago<total && !confirm("El pago es menor al total. ¿Registrar de todos modos?")) return;
+
+  const enLinea=await probarConexionSupabase();
+  if(!enLinea){
+    guardarVentaLocal("Sin conexión antes de registrar");
+    return;
+  }
+
+  try{
+    await registrarVentaServidor(btn);
+    setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1500);
+  }catch(e){
+    guardarVentaLocal(e?.message || "Error de conexión al registrar");
+    if(btn){ btn.disabled=false; btn.classList.remove("btn-servidor","btn-pulso"); }
+  }
+}
+
+
+function normalizarNombreProductoLocal(s){
+  return String(s||"")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/preparad[oa]/g,"")
+    .replace(/[^a-z0-9]+/g,"")
+    .trim();
+}
+
+function buscarProductoServidorPorNombre(nombreLocal){
+  const n=normalizarNombreProductoLocal(nombreLocal);
+  if(!n) return null;
+
+  let exacto=(productos||[]).find(p=>normalizarNombreProductoLocal(p.nombre)===n);
+  if(exacto) return exacto;
+
+  let contiene=(productos||[]).find(p=>{
+    const ps=normalizarNombreProductoLocal(p.nombre);
+    return ps.includes(n) || n.includes(ps);
+  });
+  if(contiene) return contiene;
+
+  // Atajos comunes para los nombres del catálogo de emergencia.
+  const reglas=[
+    ["arizonamango","mango"],
+    ["arizonasandia","sandia"],
+    ["clamato","clamato"],
+    ["tikoazul","tikoazul"],
+    ["carlota","carlota"]
+  ];
+  const r=reglas.find(x=>n.includes(x[0]) || n.includes(x[1]));
+  if(r){
+    return (productos||[]).find(p=>normalizarNombreProductoLocal(p.nombre).includes(r[1]));
+  }
+  return null;
+}
+
+function convertirPedidoLocalAServidor(lista){
+  return (lista||[]).map(it=>{
+    const prodServidor=buscarProductoServidorPorNombre(it.nombre);
+    if(!prodServidor){
+      throw new Error("No encontré en Supabase el producto: "+(it.nombre||"Producto"));
+    }
+    return {
+      ...it,
+      producto_id:prodServidor.id,
+      nombre:prodServidor.nombre,
+      precio_unitario:Number(prodServidor.precio_venta||it.precio_unitario||0)
+    };
+  });
+}
+
+async function sincronizarUnaVentaLocal(v){
+  if(!v || !Array.isArray(v.pedido) || !v.pedido.length) throw new Error("Venta local vacía.");
+  if(v.pedido.some(p=>String(p.producto_id||"").startsWith("prod_"))){ v.pedido=convertirPedidoLocalAServidor(v.pedido); }
+  if(!db && !iniciarSupabase()) throw new Error("Supabase no inicializado.");
+
+  const u = usuarios.find(x=>x.id===v.usuario_id) || usuarioLogueado || usuarioActual();
+  if(!u?.id) throw new Error("No hay usuario para sincronizar.");
+
+  // Si ya existe id_local en Supabase, se considera sincronizada para no duplicar.
+  try{
+    const {data:existe,error:eExiste}=await db.from("ventas").select("id").eq("id_local",v.id_local).maybeSingle();
+    if(existe?.id) return {duplicada:true};
+  }catch(e){ /* puede fallar si aún no hay columna; seguirá intentando insertar */ }
+
+  const pedidoAnterior=pedido;
+  const pedidoActualAnterior=pedidoActualId;
+  const estadoAnterior=pedidoActualEstado;
+
+  pedido=JSON.parse(JSON.stringify(v.pedido));
+  pedidoActualId=null;
+  pedidoActualEstado=null;
+
+  let inventarioSincronizado=true;
+  let notaInventario="";
+  try{
+    const ok=await descontarInventarioVenta(u);
+    if(!ok){
+      inventarioSincronizado=false;
+      notaInventario="No se pudo descontar inventario automáticamente. Venta sincronizada, revisar inventario.";
+    }
+  }catch(e){
+    inventarioSincronizado=false;
+    notaInventario=e?.message||"No se pudo descontar inventario automáticamente.";
+  }
+
+  const total=Number(v.total||0);
+  const {data:ped,error:e1}=await db.from("pedidos").insert({usuario_id:u.id,estado:"vendido",total}).select().single();
+  if(e1) throw new Error(e1.message||"Error creando pedido local.");
+
+  const det=pedido.map(it=>({
+    pedido_id:ped.id,
+    producto_id:it.producto_id,
+    cantidad:it.cantidad,
+    precio_unitario:it.precio_unitario,
+    subtotal:it.precio_unitario*it.cantidad
+  }));
+  const {error:e2}=await db.from("pedido_detalle").insert(det);
+  if(e2) throw new Error(e2.message||"Error creando detalle local.");
+
+  const ventaPayload={
+    pedido_id:ped.id,
+    usuario_id:u.id,
+    total,
+    pago_con:Number(v.pago_con||0),
+    cambio:Number(v.cambio||0),
+    id_local:v.id_local
+  };
+  const {error:e3}=await db.from("ventas").insert(ventaPayload);
+  if(e3){
+    // Si el id_local ya existe por carrera/reenintento, no duplicamos.
+    if(String(e3.message||"").toLowerCase().includes("duplicate")){
+      return {duplicada:true};
+    }
+    throw new Error(e3.message||"Error insertando venta local.");
+  }
+
+  await auditoria("VENTA_LOCAL_SINCRONIZADA",`${u.nombre} sincronizó venta local por $${total.toFixed(2)}`,{
+    id_local:v.id_local,
+    fecha_local:v.fecha_local,
+    pedido:v.pedido,
+    total,
+    inventario_sincronizado:inventarioSincronizado,
+    nota_inventario:notaInventario
+  });
+
+  pedido=pedidoAnterior; pedidoActualId=pedidoActualAnterior; pedidoActualEstado=estadoAnterior;
+  return {ok:true};
+}
+
+async function sincronizarVentasPendientes(manual=false){
+  if(sincronizandoPendientes) return;
+  const arr=ventasPendientesLocal();
+  actualizarPendientesLocal();
+  if(!arr.length) return;
+
+  const enLinea=await probarConexionSupabase();
+  if(!enLinea){
+    if(manual) mensaje("Todavía no hay conexión con Supabase. Las ventas siguen guardadas localmente.","warn");
+    return;
+  }
+
+  sincronizandoPendientes=true;
+  estado(`🔄 Sincronizando ${arr.length} venta(s) pendiente(s)...`,"warn");
+  await cargarProductos();
+  await cargarIngredientes();
+  await cargarRecetas();
+
+  const pendientes=[];
+  let sincronizadas=0;
+  for(const v of arr){
+    try{
+      await sincronizarUnaVentaLocal(v);
+      sincronizadas++;
+    }catch(e){
+      v.ultimo_error=e?.message||String(e);
+      pendientes.push(v);
+      console.warn("No se pudo sincronizar venta local", v.id_local, e);
+    }
+  }
+
+  guardarVentasPendientesLocal(pendientes);
+  sincronizandoPendientes=false;
+
+  if(sincronizadas>0){
+    mensaje(`✅ ${sincronizadas} venta(s) local(es) sincronizada(s). Si alguna no descontó inventario, quedó en auditoría para revisar.`,"ok");
+    aviso(`✅ ${sincronizadas} venta(s) pendientes sincronizadas`);
+    notificar("✅ VENTAS SINCRONIZADAS",`${sincronizadas} venta(s) subidas a Supabase`,"sync");
+    await cargarIngredientes();
+    await cargarReporteHoy();
+    await cargarPedidosPendientes();
+    render();
+  }
+
+  if(pendientes.length){
+    estado(`🟡 En línea, pero quedaron ${pendientes.length} venta(s) pendientes por revisar.`,"warn");
+  }else{
+    estado("🟢 ESTAMOS EN LÍNEA","ok");
+  }
+}
+
+function iniciarModoLocalAutomatico(){
+  actualizarPendientesLocal();
+  window.addEventListener("online",()=>setTimeout(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},1500));
+  if(intentoSyncId) clearInterval(intentoSyncId);
+  intentoSyncId=setInterval(()=>{sincronizarVentasPendientes(false);sincronizarPedidosPendientes(false);},30000);
+}
+
+async function registrarVentaServidor(btn){
   if(procesando) return;
   if(!validarPermiso("ventas","No tienes permiso para registrar ventas.")) return;
   if(!pedido.length){mensaje("Agrega productos antes de registrar venta.","alerta");return}
@@ -782,6 +1643,7 @@ async function registrarVenta(btn){
   if(e3){mensaje("Error venta: "+e3.message,"alerta");procesando=false;if(restaurarBtn)restaurarBtn();return}
   await auditoria("VENTA_REGISTRADA",`${u.nombre} registró venta por $${total.toFixed(2)}`,{pedido,total,pago,cambio,pedido_id:idPedido});
   mensaje("✅ Venta registrada e inventario descontado.","ok");
+  notificar("💰 VENTA REALIZADA",`Total: $${total.toFixed(2)}`,"venta");
   aviso(`✅ ${u.nombre} registró venta por $${total.toFixed(2)}`);
   limpiarPedido(false);
   await cargarIngredientes();
@@ -849,12 +1711,62 @@ function limpiarPedido(confirmar=true){
   renderPedido();
 }
 
+
+function htmlPedidosLocalesPendientes(){
+  const locales=pedidosPendientesLocal();
+  if(!locales.length) return "";
+  return `<div class="warn"><b>📱 Pedidos guardados localmente</b><br><small>Se subirán cuando regrese internet.</small></div>`+
+    locales.map(p=>{
+      const lista=(p.pedido||[]).map(d=>`• ${Number(d.cantidad||0)} x ${d.nombre||"Producto"} = $${(Number(d.precio_unitario||0)*Number(d.cantidad||0)).toFixed(2)}`).join("<br>");
+      return `<div class="pedido-card" style="border:2px dashed #fb8c00">
+        <b>Pedido local $${Number(p.total||0).toFixed(2)}</b> <span class="pill">LOCAL</span><br>
+        <small>${formatoJuarez(p.fecha_local||new Date(),{timeStyle:"short"})} • ${p.usuario_nombre||"Usuario"}</small>
+        <div style="margin:7px 0">${lista}</div>
+        <div class="acciones">
+          <button class="btn-verde" onclick="cargarPedidoLocalParaCobrar('${p.id_local}')">Cobrar pedido local</button>
+          <button class="btn-rojo" onclick="cancelarPedidoLocal('${p.id_local}')">Cancelar local</button>
+        </div>
+      </div>`;
+    }).join("");
+}
+
+function cargarPedidoLocalParaCobrar(idLocal){
+  const arr=pedidosPendientesLocal();
+  const p=arr.find(x=>x.id_local===idLocal);
+  if(!p) return alert("No encontré ese pedido local.");
+  pedido=(p.pedido||[]).map(d=>({
+    producto_id:d.producto_id,
+    nombre:d.nombre||"Producto",
+    precio_unitario:Number(d.precio_unitario||0),
+    cantidad:Number(d.cantidad||0)
+  }));
+  pedidoActualId=null;
+  pedidoActualEstado="local";
+  guardarPedidoLocal();
+  verTab('ventas', document.querySelectorAll('.tab')[0]);
+  renderPedido();
+  mensaje("Pedido local cargado para cobrar. Al realizar venta quedará como venta local pendiente.","ok");
+}
+
+function cancelarPedidoLocal(idLocal){
+  if(!confirm("¿Cancelar este pedido local?")) return;
+  const arr=pedidosPendientesLocal().filter(x=>x.id_local!==idLocal);
+  guardarPedidosPendientesLocal(arr);
+  cargarPedidosPendientes();
+  aviso("🔴 Pedido local cancelado");
+}
+
+
 async function cargarPedidosPendientes(){
-  if(!db) return;
+  const cont=document.getElementById("pedidosPendientes");
+  const htmlLocales=htmlPedidosLocalesPendientes();
+  if(!db){
+    if(cont) cont.innerHTML=htmlLocales || "<div class='warn'>No hay pedidos pendientes.</div>";
+    return;
+  }
   const {data,error}=await db.from("pedidos").select("id,usuario_id,estado,total,fecha_creacion,usuarios(nombre)").in("estado",["pendiente","listo"]).order("fecha_creacion",{ascending:false}).limit(20);
-  let cont=document.getElementById("pedidosPendientes");
-  if(error){cont.innerHTML="<div class='alerta'>Error pedidos: "+error.message+"</div>";return}
-  if(!data?.length){cont.innerHTML="<div class='warn'>No hay pedidos pendientes.</div>";return}
+  if(error){cont.innerHTML=htmlLocales+"<div class='alerta'>Error pedidos: "+error.message+"</div>";return}
+  if(!data?.length){cont.innerHTML=htmlLocales || "<div class='warn'>No hay pedidos pendientes.</div>";return}
 
   let html="";
   for(let p of data){
@@ -865,7 +1777,7 @@ async function cargarPedidosPendientes(){
       `<button class="btn-verde" onclick="cargarPedidoParaCobrar('${p.id}')">Cobrar pedido listo</button><button class="btn-rojo" onclick="cancelarPedidoNube('${p.id}', this)">Cancelar pedido</button>`;
     html+=`<div class="pedido-card"><b>Pedido $${Number(p.total).toFixed(2)}</b> <span class="pill">${p.estado.toUpperCase()}</span><br><small>${formatoJuarez(p.fecha_creacion,{timeStyle:"short"})} • ${p.usuarios?.nombre||"Usuario"}</small><br><div style="margin:7px 0">${lista}</div>${botones}</div>`;
   }
-  cont.innerHTML=html;
+  cont.innerHTML=htmlLocales + html;
 }
 
 async function marcarPedidoListo(id, btn){
@@ -910,6 +1822,21 @@ async function cargarPedidoParaCobrar(id){
   mensaje("Pedido cargado para cobrar.","ok");
 }
 
+
+let inventarioBajoAvisado={};
+function revisarInventarioBajoNotificar(){
+  try{
+    const bajos=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.minimo||10));
+    bajos.forEach(i=>{
+      const key=i.id+"_"+i.cantidad;
+      if(!inventarioBajoAvisado[key]){
+        inventarioBajoAvisado[key]=true;
+        notificar("⚠️ INVENTARIO BAJO",`${i.nombre}: quedan ${Number(i.cantidad).toFixed(1)}`,"warn");
+      }
+    });
+  }catch(e){}
+}
+
 function renderInventario(){
   let cont=document.getElementById("tablaInventario");
   cont.innerHTML='<table><tr><th>Ingrediente</th><th>Cant.</th><th>Mín.</th><th>Estado</th></tr>'+
@@ -918,6 +1845,7 @@ function renderInventario(){
       let estado=Number(i.cantidad)<=min?'<b style="color:red">Comprar</b>':'<span style="color:green">OK</span>';
       return `<tr><td>${i.nombre}</td><td>${Number(i.cantidad).toFixed(1)}</td><td>${min.toFixed(0)}</td><td>${estado}<br><button class="btn-recargar" onclick="prepararCompra('${i.id}')">Recargar</button></td></tr>`;
     }).join("")+'</table>';
+  revisarInventarioBajoNotificar();
 }
 
 function prepararCompra(ingredienteId){
@@ -1115,6 +2043,8 @@ function renderProductosAdmin(){
 }
 
 const TZ_JUAREZ = "America/Ciudad_Juarez";
+const TZ = TZ_JUAREZ;
+window.TZ = TZ_JUAREZ;
 const TZ_JUAREZ_FALLBACK = "America/Denver";
 
 function fechaSupabase(fecha){
@@ -1303,6 +2233,9 @@ function toqueTitulo(){
   }
 }
 
+
+function mostrarServidor(txt,tipo="ok"){ estado(txt,tipo); }
+function mostrarServer(txt,tipo="ok"){ estado(txt,tipo==="error"?"alerta":tipo==="wait"?"warn":tipo); }
 function mensaje(txt,tipo){mensajePedido.className=tipo; mensajePedido.innerHTML=txt}
 function msgMerma(txt,tipo){mensajeMerma.className=tipo; mensajeMerma.innerHTML=txt}
 function estado(txt,tipo){estadoConexion.className=tipo; estadoConexion.innerHTML=txt}
@@ -1855,7 +2788,7 @@ setTimeout(() => {
   };
 
   window.calcularResumenCorteRobusto = async function(tipo){
-    if(!window.db && typeof iniciarSupabase === "function"){
+    if(!db && typeof iniciarSupabase === "function"){
       iniciarSupabase();
     }
 
@@ -1938,14 +2871,14 @@ setTimeout(() => {
       window.estadoCorteUI("⏳ Generando corte, espere respuesta del servidor...", "warn");
       window.mostrarServer("⏳ Generando corte...", "wait");
 
-      if(!window.db && typeof iniciarSupabase === "function"){
+      if(!db && typeof iniciarSupabase === "function"){
         if(!iniciarSupabase()){
           window.estadoCorteUI("❌ No hay conexión a Supabase. Revisa la Publishable Key.", "alerta");
           return;
         }
       }
 
-      if(!window.usuarioLogueado){
+      if(!usuarioLogueado){
         window.estadoCorteUI("⚠️ Primero entra con PIN de usuario. Recomendado: Jesús PIN 2026.", "alerta");
         return;
       }
@@ -2016,7 +2949,7 @@ setTimeout(() => {
       const cont = document.getElementById("listaCortes");
       if(!cont) return;
 
-      if(!window.db && typeof iniciarSupabase === "function") iniciarSupabase();
+      if(!db && typeof iniciarSupabase === "function") iniciarSupabase();
 
       cont.innerHTML = "<div class='warn'>⏳ Consultando cortes guardados...</div>";
 
@@ -2060,9 +2993,9 @@ setTimeout(() => {
         tipo,
         rango: rep.rango,
         resumen: rep,
-        productos: window.productos || [],
-        ingredientes: window.ingredientes || [],
-        recetas: window.recetas || [],
+        productos: productos || [],
+        ingredientes: ingredientes || [],
+        recetas: recetas || [],
         fecha_respaldo: new Date().toISOString(),
         zona_horaria: window.TZ
       };
@@ -2104,7 +3037,7 @@ setTimeout(() => {
     ensureStyles();
     let b=el('bannerOnline');
     if(!b){
-      b=document.createElement('div'); b.id='bannerOnline'; b.className='onlineCecy warn'; b.innerHTML='⏳ Revisando conexión con servidor...';
+      b=document.createElement('div'); b.id='bannerOnline'; b.className='onlineCecy warn'; b.innerHTML='🟡 Verificando conexión con Supabase...';
       const tabs=document.querySelector('.tabs'); if(tabs&&tabs.parentNode) tabs.parentNode.insertBefore(b,tabs); else document.body.prepend(b);
     }
     return b;
@@ -2115,15 +3048,24 @@ setTimeout(() => {
     box.className='estadoServerV7 '+(tipo==='ok'?'serverOk':tipo==='error'?'serverErr':'serverWait');
     box.innerHTML=txt; box.style.display='block'; setTimeout(()=>box.style.display='none', tipo==='wait'?2300:3600);
   };
+
+  // ===== Helpers V7.1: alias y mensajes de servidor =====
+  window.mostrarServidor = window.mostrarServidor || function(txt,tipo){
+    if(typeof window.mostrarServer === 'function') return window.mostrarServer(txt,tipo);
+    if(typeof estado === 'function') estado(txt, tipo==='error'?'alerta':(tipo||'ok'));
+  };
+  window.estado = window.estado || (typeof estado === 'function' ? estado : function(txt,tipo){
+    const el=document.getElementById('estadoConexion'); if(el){el.className=tipo||'ok'; el.innerHTML=txt;}
+  });
+
   window.descargarTexto=function(txt,nombre){const blob=new Blob([txt],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=nombre||'respaldo_dona_cecy.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);};
   window.probarConexionCecy=async function(){
     const b=ensureBanner();
-    try{ if(!window.db&&typeof iniciarSupabase==='function') iniciarSupabase(); if(!window.db) throw new Error('Supabase no inicializado');
-      b.className='onlineCecy warn'; b.innerHTML='⏳ Conectando con servidor...';
+    try{ if(!db&&typeof iniciarSupabase==='function') iniciarSupabase(); if(!db) throw new Error('Supabase no inicializado');
       const {error}=await db.from('usuarios').select('id').limit(1); if(error) throw error;
-      b.className='onlineCecy ok'; b.innerHTML='🟢 ESTAMOS EN LÍNEA — conexión correcta, datos cargados';
-      if(typeof estado==='function') estado('🟢 ESTAMOS EN LÍNEA — conexión correcta, datos cargados','ok'); return true;
-    }catch(e){ b.className='onlineCecy alerta'; b.innerHTML='🔴 Sin conexión al servidor: '+(e.message||e); return false; }
+      b.className='onlineCecy ok'; b.innerHTML='🟢 ESTAMOS EN LÍNEA';
+      if(typeof estado==='function'){ estado('🟢 ESTAMOS EN LÍNEA','ok'); setTimeout(()=>estado('✅ Conexión exitosa. Datos cargados.','ok'),1800); } return true;
+    }catch(e){ b.className='onlineCecy alerta'; b.innerHTML='🔴 Sin conexión real con Supabase'; if(typeof estado==='function') estado('🔴 Sin conexión real con Supabase. Revisa internet y vuelve a actualizar datos.','alerta'); console.log('Conexión pendiente:', e); return false; }
   };
   function estadoBackup(txt,tipo){ let box=el('estadoRespaldo'); if(!box){ const card=document.querySelector('#cortesTab .card')||document.body; box=document.createElement('div'); box.id='estadoRespaldo'; box.className='info'; card.appendChild(box); } box.className=tipo||'info'; box.innerHTML=txt; }
   function addBackupUI(){
@@ -2141,31 +3083,52 @@ setTimeout(() => {
   const tablas=['usuarios','ingredientes','productos','recetas','pedidos','pedido_detalle','ventas','compras','movimientos_inventario','auditoria','cortes'];
   async function leerTabla(tabla){let out=[],from=0,step=1000;while(true){const {data,error}=await db.from(tabla).select('*').range(from,from+step-1);if(error)throw new Error(tabla+': '+error.message);out=out.concat(data||[]);if(!data||data.length<step)break;from+=step;}return out;}
   window.descargarRespaldoCompleto=async function(){
-    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede descargar respaldo completo.'))return; if(!window.db&&typeof iniciarSupabase==='function')iniciarSupabase();
+    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede descargar respaldo completo.'))return; if(!db&&typeof iniciarSupabase==='function')iniciarSupabase();
       estadoBackup('⏳ Generando respaldo completo, esperando respuesta del servidor...','warn'); mostrarServer('⏳ Esperando respuesta del servidor...','wait');
       const respaldo={tipo:'respaldo_completo',version:'V7',fecha_respaldo:new Date().toISOString(),zona_horaria:window.TZ,tablas:{}};
       for(const t of tablas){estadoBackup('⏳ Leyendo tabla <b>'+t+'</b>...','warn'); respaldo.tablas[t]=await leerTabla(t);}
       const fecha=new Date().toLocaleDateString('es-MX',{timeZone:window.TZ}).replaceAll('/','-'); descargarTexto(JSON.stringify(respaldo,null,2),'respaldo_completo_dona_cecy_'+fecha+'.json');
       estadoBackup('✅ Respaldo completo descargado correctamente.','ok'); mostrarServer('✅ Respaldo completo listo','ok');
-      if(typeof auditoria==='function') await auditoria('RESPALDO_COMPLETO_DESCARGADO',(window.usuarioLogueado?.nombre||'Usuario')+' descargó respaldo completo',{fecha:new Date().toISOString()});
+      if(typeof auditoria==='function') await auditoria('RESPALDO_COMPLETO_DESCARGADO',(usuarioLogueado?.nombre||'Usuario')+' descargó respaldo completo',{fecha:new Date().toISOString()});
     }catch(e){console.error(e);estadoBackup('❌ Error generando respaldo:<br><b>'+(e.message||e)+'</b>','alerta');mostrarServer('❌ Error en respaldo','error');}
   };
   function leerArchivoJSON(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{try{res(JSON.parse(r.result));}catch(e){rej(new Error('El archivo no es JSON válido.'));}};r.onerror=()=>rej(new Error('No se pudo leer el archivo.'));r.readAsText(file);});}
   async function upsertTabla(tabla,filas){if(!filas||!filas.length)return {tabla,insertadas:0,error:null};const chunk=200;let n=0;for(let i=0;i<filas.length;i+=chunk){const pedazo=filas.slice(i,i+chunk);const {error}=await db.from(tabla).upsert(pedazo,{onConflict:'id'});if(error)return {tabla,insertadas:n,error:error.message};n+=pedazo.length;}return {tabla,insertadas:n,error:null};}
   window.restaurarRespaldoCompleto=async function(){
-    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede restaurar respaldo completo.'))return; if(!window.db&&typeof iniciarSupabase==='function')iniciarSupabase();
+    try{ if(typeof validarPermiso==='function'&&!validarPermiso('admin','Solo Administrador puede restaurar respaldo completo.'))return; if(!db&&typeof iniciarSupabase==='function')iniciarSupabase();
       const inp=el('archivoRespaldo'); if(!inp||!inp.files||!inp.files[0]){estadoBackup('⚠️ Selecciona primero un archivo JSON de respaldo completo.','alerta');return;}
       if(prompt('⚠️ Restaurar puede modificar información actual.\n\nEscribe RESTAURAR para continuar:')!=='RESTAURAR'){estadoBackup('Operación cancelada. No se restauró nada.','warn');return;}
       estadoBackup('⏳ Leyendo respaldo...','warn'); mostrarServer('⏳ Esperando respuesta del servidor...','wait'); const respaldo=await leerArchivoJSON(inp.files[0]);
       if(!respaldo||respaldo.tipo!=='respaldo_completo'||!respaldo.tablas){estadoBackup('❌ Este archivo no parece ser un respaldo completo V7.','alerta');return;}
       let resultados=[]; for(const t of tablas){const filas=respaldo.tablas[t]||[];estadoBackup('⏳ Restaurando <b>'+t+'</b> ('+filas.length+')...','warn');const rr=await upsertTabla(t,filas);resultados.push(rr);if(rr.error){estadoBackup('❌ Error restaurando <b>'+t+'</b>: '+rr.error,'alerta');mostrarServer('❌ Error al restaurar','error');return;}}
       estadoBackup('✅ Restauración completada.<br>'+resultados.map(r=>'• '+r.tabla+': '+r.insertadas).join('<br>'),'ok'); mostrarServer('✅ Respaldo restaurado','ok');
-      if(typeof auditoria==='function') await auditoria('RESPALDO_RESTAURADO',(window.usuarioLogueado?.nombre||'Usuario')+' restauró respaldo completo',{resultados}); if(typeof cargarTodo==='function') await cargarTodo();
+      if(typeof auditoria==='function') await auditoria('RESPALDO_RESTAURADO',(usuarioLogueado?.nombre||'Usuario')+' restauró respaldo completo',{resultados}); if(typeof cargarTodo==='function') await cargarTodo();
     }catch(e){console.error(e);estadoBackup('❌ Error restaurando respaldo:<br><b>'+(e.message||e)+'</b>','alerta');mostrarServer('❌ Error en restauración','error');}
   };
-  window.respaldoAutomaticoOnceDia=async function(){try{const ahora=new Date(new Date().toLocaleString('en-US',{timeZone:window.TZ}));const hoy=ahora.toISOString().slice(0,10);const key='cecy_respaldo_auto_'+hoy;if(ahora.getHours()>=23&&!localStorage.getItem(key)&&window.usuarioLogueado&&(window.usuarioLogueado.permisos?.admin||window.usuarioLogueado.permisos?.reportes)){if(typeof calcularResumenCorteRobusto==='function'){const rep=await calcularResumenCorteRobusto('dia');await db.from('cortes').insert({tipo:'diario_auto',fecha_inicio:rep.rango.inicioDate,fecha_fin:rep.rango.finDate,total_ventas:Number(rep.total_ventas||0),total_compras:Number(rep.total_compras||0),ganancia_estimada:Number(rep.ganancia_estimada||0),productos_vendidos:rep.productos_vendidos||{},mermas:rep.mermas||{},regalos:rep.regalos||{},datos:{ventas:rep.ventas||[],compras:rep.compras||[],movimientos:rep.movimientos||[],detalle:rep.detalle||[]}});localStorage.setItem(key,'1');estadoBackup('✅ Corte automático diario guardado.','ok');}}}catch(e){console.log('Respaldo automático pendiente:',e);}};
+  window.respaldoAutomaticoOnceDia=async function(){try{const ahora=new Date(new Date().toLocaleString('en-US',{timeZone:window.TZ}));const hoy=ahora.toISOString().slice(0,10);const key='cecy_respaldo_auto_'+hoy;if(ahora.getHours()>=23&&!localStorage.getItem(key)&&usuarioLogueado&&(usuarioLogueado.permisos?.admin||usuarioLogueado.permisos?.reportes)){if(typeof calcularResumenCorteRobusto==='function'){const rep=await calcularResumenCorteRobusto('dia');await db.from('cortes').insert({tipo:'diario_auto',fecha_inicio:rep.rango.inicioDate,fecha_fin:rep.rango.finDate,total_ventas:Number(rep.total_ventas||0),total_compras:Number(rep.total_compras||0),ganancia_estimada:Number(rep.ganancia_estimada||0),productos_vendidos:rep.productos_vendidos||{},mermas:rep.mermas||{},regalos:rep.regalos||{},datos:{ventas:rep.ventas||[],compras:rep.compras||[],movimientos:rep.movimientos||[],detalle:rep.detalle||[]}});localStorage.setItem(key,'1');estadoBackup('✅ Corte automático diario guardado.','ok');}}}catch(e){console.log('Respaldo automático pendiente:',e);}};
   const oldCTS=window.cargarTodoSeguro; window.cargarTodoSeguro=async function(){mostrarServer('⏳ Esperando respuesta del servidor...','wait'); if(typeof oldCTS==='function') await oldCTS(); else if(typeof cargarTodo==='function') await cargarTodo(); await probarConexionCecy();};
   setTimeout(()=>{addBackupUI();probarConexionCecy();respaldoAutomaticoOnceDia();},1200);
   setInterval(()=>respaldoAutomaticoOnceDia(),60000);
+})();
+</script>
+
+
+<script>
+// Inicio seguro V7.2: muestra conexión real, no mensaje verde falso
+(function(){
+  function listo(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  listo(function(){
+    const e=document.getElementById('estadoConexion');
+    if(e){ e.className='warn'; e.innerHTML='🟡 Verificando conexión con Supabase...'; }
+    setTimeout(async function(){
+      try{
+        if(typeof cargarTodo === 'function') await cargarTodo();
+      }catch(err){
+        console.log('Error de carga:', err);
+        const x=document.getElementById('estadoConexion');
+        if(x){ x.className='alerta'; x.innerHTML='🔴 Sin conexión real con Supabase. Revisa internet y vuelve a actualizar datos.'; }
+      }
+    }, 500);
+  });
 })();
 </script>
