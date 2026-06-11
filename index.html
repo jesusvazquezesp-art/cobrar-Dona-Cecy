@@ -44,6 +44,100 @@ function limpiarDatosLocalesPruebaReal(){
 }
 
 
+
+let pedidosWebUltimoAvisado = new Set();
+
+function telLimpioMX(tel){
+  let t=String(tel||"").replace(/\D/g,"");
+  if(t.length===10) t="52"+t;
+  return t;
+}
+
+function detallePedidoWebHTML(detalle){
+  let arr=[];
+  try{ arr=Array.isArray(detalle)?detalle:JSON.parse(detalle||"[]"); }catch(e){ arr=[]; }
+  if(!arr.length) return "<small>Sin detalle.</small>";
+  return arr.map(x=>`• ${x.cantidad||0} x ${x.nombre||"Producto"} = $${Number(x.subtotal||0).toFixed(0)}`).join("<br>");
+}
+
+async function cargarPedidosWeb(){
+  if(!db && !iniciarSupabase()) return;
+  const cont=document.getElementById("pedidosWebLista");
+  if(!cont) return;
+
+  const {data,error}=await db
+    .from("pedidos_web")
+    .select("*")
+    .in("estado",["pendiente","aceptado","preparando","listo"])
+    .order("fecha",{ascending:false})
+    .limit(50);
+
+  if(error){
+    cont.innerHTML=`<div class="alerta">Error pedidos web: ${error.message}</div>`;
+    return;
+  }
+
+  const pedidos=data||[];
+  pedidos.filter(p=>p.estado==="pendiente").forEach(p=>{
+    if(!pedidosWebUltimoAvisado.has(p.id)){
+      pedidosWebUltimoAvisado.add(p.id);
+      if(typeof notificar==="function") notificar("🌐 NUEVO PEDIDO WEB",`${p.folio} · ${p.nombre} · $${Number(p.total||0).toFixed(0)}`,"pedido");
+      else aviso(`🌐 Nuevo pedido web ${p.folio}`);
+    }
+  });
+
+  if(!pedidos.length){
+    cont.innerHTML="<div class='warn'>No hay pedidos web pendientes.</div>";
+    return;
+  }
+
+  cont.innerHTML=pedidos.map(p=>{
+    const tel=telLimpioMX(p.telefono);
+    const detalle=detallePedidoWebHTML(p.detalle);
+    const anticipo=Number(p.anticipo||0);
+    const saldo=Number(p.saldo||0);
+    const msgListo=encodeURIComponent(`Hola ${p.nombre} 👋\n\nTu pedido ${p.folio} de Doña Cecy ya está listo.\nPuedes pasar por él cuando gustes.\n\nGracias por tu compra 🌵🥤`);
+    const wa=tel?`https://wa.me/${tel}?text=${msgListo}`:"#";
+    return `<div class="pedido-web-card ${p.estado}">
+      <b>${p.folio}</b> <span class="pill">${String(p.estado||"pendiente").toUpperCase()}</span><br>
+      <small>${formatoJuarez(p.fecha)} · ${p.nombre} · ${p.telefono||""}</small>
+      <div class="pedido-web-detalle">${detalle}</div>
+      <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+      <small>Pago: ${p.metodo_pago||""} · Anticipo $${anticipo.toFixed(0)} · Saldo $${saldo.toFixed(0)}</small><br>
+      <small>Hora recoger: ${p.hora_recoger||"Por confirmar"}</small><br>
+      ${p.notas?`<div class="info">Notas: ${p.notas}</div>`:""}
+      <div class="acciones">
+        <button class="btn-azul" onclick="actualizarPedidoWeb('${p.id}','aceptado')">✅ Aceptar</button>
+        <button class="btn-morado" onclick="actualizarPedidoWeb('${p.id}','preparando')">🍹 Preparando</button>
+        <button class="btn-verde" onclick="pedidoWebListo('${p.id}','${wa}')">📦 Listo</button>
+        <button class="btn-gris" onclick="actualizarPedidoWeb('${p.id}','entregado')">✔️ Entregado</button>
+        <button class="btn-rojo" onclick="actualizarPedidoWeb('${p.id}','cancelado')">Cancelar</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function actualizarPedidoWeb(id,estadoNuevo){
+  if(!db && !iniciarSupabase()) return;
+  const {error}=await db.from("pedidos_web").update({estado:estadoNuevo}).eq("id",id);
+  if(error){ alert(error.message); return; }
+  if(typeof notificar==="function") notificar("🌐 Pedido web actualizado",estadoNuevo,"info",false);
+  await cargarPedidosWeb();
+}
+
+async function pedidoWebListo(id,wa){
+  await actualizarPedidoWeb(id,"listo");
+  if(wa && wa!=="#") window.open(wa,"_blank");
+  else alert("No hay teléfono válido para WhatsApp.");
+}
+
+function iniciarPedidosWebAuto(){
+  setInterval(()=>{ try{cargarPedidosWeb();}catch(e){} },10000);
+  setTimeout(()=>{ try{cargarPedidosWeb();}catch(e){} },1500);
+}
+
+
+window.addEventListener("load",()=>{ try{iniciarPedidosWebAuto();}catch(e){} });
 </script>
 <style>
 :root{
@@ -102,7 +196,7 @@ h3{margin:12px 0 8px;font-size:17px}
 }
 .tabs{
   display:grid;
-  grid-template-columns:repeat(6,1fr);
+  grid-template-columns:repeat(7,1fr);
   gap:6px;
   background:white;
   padding:8px;
@@ -261,6 +355,27 @@ th{background:#fafafa}
   .acciones button{min-width:100%}
   .ingrediente-row{grid-template-columns:1fr}
 }
+
+/* ===== Pedidos Web V7.14 ===== */
+.pedido-web-card{
+  border:2px solid #e1bee7;
+  border-radius:16px;
+  padding:12px;
+  margin:10px 0;
+  background:#fff;
+}
+.pedido-web-card.pendiente{border-color:#fb8c00;background:#fff8e1}
+.pedido-web-card.aceptado{border-color:#1e88e5;background:#e3f2fd}
+.pedido-web-card.preparando{border-color:#ae56ac;background:#f3e5f5}
+.pedido-web-card.listo{border-color:#43a047;background:#e8f5e9}
+.pedido-web-card.cancelado{border-color:#e53935;background:#ffebee}
+.pedido-web-detalle{
+  margin:8px 0;
+  padding:8px;
+  background:rgba(255,255,255,.65);
+  border-radius:10px;
+}
+
 </style>
 
 <style>
@@ -360,6 +475,7 @@ th{background:#fafafa}
 <div class="tabs">
   <button class="tab activa" onclick="verTab('ventas',this)">🛒 Ventas</button>
   <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
+  <button class="tab" onclick="verTab('pedidosWebTab',this)">🌐 Web</button>
   <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
   <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
   <button class="tab" onclick="verTab('cortesTab',this)">💾 Cortes</button>
@@ -418,6 +534,15 @@ th{background:#fafafa}
   <div class="card">
     <h2>🔔 Avisos recientes</h2>
     <div id="avisos">Sin avisos todavía.</div>
+  </div>
+</section>
+
+
+<section id="pedidosWebTab" class="seccion">
+  <div class="card">
+    <h2>🌐 Pedidos desde página web</h2>
+    <button class="btn-morado" onclick="cargarPedidosWeb()">Actualizar pedidos web</button>
+    <div id="pedidosWebLista">Sin cargar.</div>
   </div>
 </section>
 
