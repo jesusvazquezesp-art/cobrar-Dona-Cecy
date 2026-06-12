@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V7.2 - Conexión Real</title>
+<title>Puesto Doña Cecy V7.30 - Todos solo hoy</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -586,7 +586,7 @@ h3{margin:12px 0 8px;font-size:17px}
 }
 .tabs{
   display:grid;
-  grid-template-columns:repeat(7,1fr);
+  grid-template-columns:repeat(8,1fr);
   gap:6px;
   background:white;
   padding:8px;
@@ -1013,6 +1013,21 @@ th{background:#fafafa}
 }
 </style>
 
+
+<style>
+.prep-linea{
+  display:grid;
+  grid-template-columns:1fr 105px 42px;
+  gap:6px;
+  align-items:center;
+  margin-bottom:7px;
+}
+.prep-linea button{height:40px;padding:0;margin:0}
+@media(max-width:520px){
+  .tabs{grid-template-columns:repeat(4,1fr)}
+  .prep-linea{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
 
@@ -1021,13 +1036,14 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V7.27.15.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.27 · Inventario compacto</p>
+  <h1>🥤 Puesto Doña Cecy V7.30</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V7.30 · Todos solo hoy + sin caché viejo</p>
 </header>
 
 <div class="tabs">
   <button class="tab activa" onclick="verTab('ventas',this)">🛒 Ventas</button>
   <button class="tab" onclick="verTab('pedidos',this)">🟡 Pedidos</button>
+  <button class="tab" onclick="verTab('preparacionesTab',this)">🥣 Prep.</button>
   <button class="tab" onclick="verTab('pedidosUnificadosTab',this)">📋 Todos</button>
   <button class="tab" onclick="verTab('inventario',this)">📦 Inv.</button>
   <button class="tab" onclick="verTab('reportes',this)">📊 Reportes</button>
@@ -1100,6 +1116,48 @@ th{background:#fafafa}
     <button class="btn-azul" onclick="diagnosticoFijoV723()">🔎 Diagnóstico pedidos</button>
     <div id="estadoAutoPedidosV725" class="auto-pedidos-bar warn">⏳ Auto actualización lista</div>
     <div id="listaPedidosUnificados">Sin cargar.</div>
+  </div>
+</section>
+
+
+<section id="preparacionesTab" class="seccion">
+  <div class="card">
+    <h2>🥣 Preparaciones / Subprocesos</h2>
+    <div class="info">
+      Aquí puedes fabricar un ingrediente intermedio, por ejemplo <b>Líquido preparado</b>.
+      La app descuenta materia prima y aumenta el inventario del líquido.
+    </div>
+
+    <label>Preparación rápida</label>
+    <select id="prepPreset" onchange="cargarPresetPreparacionV731()"></select>
+    <button class="btn-claro" onclick="guardarPresetPreparacionV731()">💾 Guardar esta receta rápida</button>
+    <button class="btn-rojo" onclick="eliminarPresetPreparacionV731()">🗑️ Eliminar receta rápida</button>
+
+    <h3>Resultado que se va a producir</h3>
+    <label>Ingrediente que aumenta</label>
+    <select id="prepSalidaIngrediente"></select>
+    <label>Cantidad producida</label>
+    <input type="number" id="prepSalidaCantidad" placeholder="Ejemplo: 1000 si son ml, o 1 si es litro">
+
+    <h3>Materia prima que se consume</h3>
+    <div id="prepLineas"></div>
+    <button class="btn-azul" onclick="agregarLineaPreparacionV731()">➕ Agregar materia prima</button>
+
+    <label>Nota / motivo</label>
+    <input id="prepNota" placeholder="Ejemplo: Líquido para waffles y carlotas">
+
+    <button class="btn-verde" onclick="registrarPreparacionV731(this)">🥣 Preparar y actualizar inventario</button>
+    <div id="prepMensaje"></div>
+  </div>
+
+  <div class="card">
+    <h2>📌 Cómo usarlo</h2>
+    <div class="warn">
+      1. Primero crea en inventario un ingrediente llamado <b>Líquido preparado</b>.<br>
+      2. En esta pantalla selecciona qué materia prima se consume.<br>
+      3. Al preparar, se descuentan esos ingredientes y se suma el líquido preparado.<br>
+      4. En la receta de waffles/carlotas usa solamente la cantidad de <b>Líquido preparado</b> que consume cada venta.
+    </div>
   </div>
 </section>
 
@@ -3801,9 +3859,11 @@ setTimeout(() => {
 </div>
     
    <script>
+/* Service Worker desactivado para evitar caché viejo */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js");
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
 }
+if (window.caches) { caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))); }
 </script>
 
 </body>
@@ -4647,3 +4707,303 @@ async function guardarRecargaIngrediente(){
 }
 
 </script>
+
+<script>
+/* ===== V7.30 CORRECCIÓN DEFINITIVA: PESTAÑA TODOS = SOLO HOY =====
+   Motivo: antes la pestaña Todos traía los últimos 50/100 registros, por eso seguían pedidos antiguos.
+   Ahora muestra SOLO pedidos con fecha de hoy en Ciudad Juárez, sin importar estado.
+   También limpia service worker/cache para que GitHub Pages no muestre la versión vieja.
+*/
+(function(){
+  try{
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
+    }
+    if(window.caches){ caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))); }
+  }catch(e){}
+
+  function inicioHoyJuarezV730(){
+    const ahora=new Date();
+    const partes=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Ciudad_Juarez',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(ahora);
+    const y=partes.find(p=>p.type==='year').value;
+    const m=partes.find(p=>p.type==='month').value;
+    const d=partes.find(p=>p.type==='day').value;
+    return `${y}-${m}-${d}`;
+  }
+
+  function fechaJuarezTextoV730(valor){
+    if(!valor) return '';
+    const f=new Date(valor);
+    if(isNaN(f.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Ciudad_Juarez',year:'numeric',month:'2-digit',day:'2-digit'}).format(f);
+  }
+
+  function esDeHoyJuarezV730(valor){
+    return fechaJuarezTextoV730(valor)===inicioHoyJuarezV730();
+  }
+
+  function fechaItemV730(p){
+    return p.fecha || p.fecha_creacion || p.fecha_local || p.created_at || p.inserted_at || p.updated_at || '';
+  }
+
+  function jsonLocalSeguroV730(clave){
+    try{
+      const raw=localStorage.getItem(clave);
+      const arr=raw?JSON.parse(raw):[];
+      return Array.isArray(arr)?arr:[];
+    }catch(e){ return []; }
+  }
+
+  function detalleWebV730(p){
+    let det=[];
+    try{ det=Array.isArray(p.detalle)?p.detalle:JSON.parse(p.detalle||'[]'); }catch(e){ det=[]; }
+    return typeof htmlItemsPedidoV723==='function' ? htmlItemsPedidoV723(det) : 'Sin detalle';
+  }
+
+  async function cargarTodosSoloHoyV730(){
+    const cont=document.getElementById('listaPedidosUnificados');
+    if(!cont) return;
+    cont.innerHTML="<div class='warn'>⏳ Cargando SOLO pedidos de hoy...</div>";
+
+    const hoy=inicioHoyJuarezV730();
+    let errores=[];
+    let web=[], internos=[], pedidosLocales=[], ventasLocales=[];
+
+    pedidosLocales=jsonLocalSeguroV730('cecy_pedidos_pendientes_v78').filter(p=>esDeHoyJuarezV730(fechaItemV730(p)));
+    ventasLocales=jsonLocalSeguroV730('cecy_ventas_pendientes_v73').filter(p=>esDeHoyJuarezV730(fechaItemV730(p)));
+
+    try{
+      if(!db) db=supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
+
+      const rw=await db.from('pedidos_web').select('*').order('fecha',{ascending:false}).limit(200);
+      if(rw.error) errores.push('pedidos_web: '+rw.error.message);
+      else web=(rw.data||[]).filter(p=>esDeHoyJuarezV730(fechaItemV730(p)));
+
+      const ri=await db.from('pedidos').select('*').order('fecha_creacion',{ascending:false}).limit(200);
+      if(ri.error) errores.push('pedidos internos: '+ri.error.message);
+      else internos=(ri.data||[]).filter(p=>esDeHoyJuarezV730(fechaItemV730(p)));
+    }catch(e){ errores.push(e.message||String(e)); }
+
+    const items=[
+      ...pedidosLocales.map(p=>({tipo:'local_pedido',fecha:fechaItemV730(p),data:p})),
+      ...ventasLocales.map(v=>({tipo:'local_venta',fecha:fechaItemV730(v),data:v})),
+      ...web.map(p=>({tipo:'web',fecha:fechaItemV730(p),data:p})),
+      ...internos.map(p=>({tipo:'app',fecha:fechaItemV730(p),data:p}))
+    ].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+    let html=`<div class="info"><b>📋 Todos los pedidos de HOY</b><br>
+      Fecha Juárez: <b>${hoy}</b><br>
+      Esta pestaña ya no muestra pedidos antiguos, aunque estén pendientes, entregados o cancelados.<br><br>
+      🌐 Web hoy: <b>${web.length}</b><br>
+      📦 Internos hoy: <b>${internos.length}</b><br>
+      📱 Locales hoy: <b>${pedidosLocales.length}</b><br>
+      💰 Ventas locales hoy: <b>${ventasLocales.length}</b>
+    </div>`;
+
+    if(typeof resumenEstadosV724==='function') html+=resumenEstadosV724(items);
+    if(errores.length) html+=`<div class="alerta"><b>Errores:</b><br>${errores.join('<br>')}</div>`;
+    if(!items.length){ cont.innerHTML=html+"<div class='warn'>No hay pedidos de hoy para mostrar.</div>"; return; }
+
+    html+=items.map(it=>{
+      const p=it.data;
+      if(it.tipo==='web'){
+        const clase=typeof estadoClaseV724==='function'?estadoClaseV724(p.estado):'pendiente';
+        return `<div class="pedido-extra web ${clase}">
+          <b>🌐 ${p.folio||'Pedido web'}</b> <span class="pill">${typeof nombreEstadoV724==='function'?nombreEstadoV724(p.estado):String(p.estado||'').toUpperCase()}</span><br>
+          <small>${fechaItemV730(p)?formatoJuarez(fechaItemV730(p)):''} · ${p.nombre||''} · ${p.telefono||''}</small>
+          <div>${detalleWebV730(p)}</div>
+          <b>Total: $${Number(p.total||0).toFixed(0)}</b><br>
+          <small>Pago: ${p.metodo_pago||''}</small>
+          ${typeof botonesWebV724==='function'?botonesWebV724(p):''}
+        </div>`;
+      }
+      if(it.tipo==='app'){
+        const clase=typeof estadoClaseV724==='function'?estadoClaseV724(p.estado):'pendiente';
+        return `<div class="pedido-extra local ${clase}">
+          <b>📦 Pedido interno</b> <span class="pill">${typeof nombreEstadoV724==='function'?nombreEstadoV724(p.estado):String(p.estado||'').toUpperCase()}</span><br>
+          <small>${fechaItemV730(p)?formatoJuarez(fechaItemV730(p)):''}</small><br>
+          <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+          ${typeof botonesInternoV724==='function'?botonesInternoV724(p):''}
+        </div>`;
+      }
+      if(it.tipo==='local_pedido'){
+        return `<div class="pedido-extra local pendiente">
+          <b>📱 Pedido local de hoy</b> <span class="pill">🟡 LOCAL</span><br>
+          <small>${fechaItemV730(p)?formatoJuarez(fechaItemV730(p)):''} · ${p.usuario_nombre||'Usuario'}</small>
+          <div>${typeof htmlItemsPedidoV723==='function'?htmlItemsPedidoV723(p.pedido||[]):'Sin detalle'}</div>
+          <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+        </div>`;
+      }
+      return `<div class="pedido-extra venta pendiente">
+        <b>💰 Venta local de hoy</b><br>
+        <small>${fechaItemV730(p)?formatoJuarez(fechaItemV730(p)):''} · ${p.usuario_nombre||'Usuario'}</small>
+        <div>${typeof htmlItemsPedidoV723==='function'?htmlItemsPedidoV723(p.pedido||[]):'Sin detalle'}</div>
+        <b>Total: $${Number(p.total||0).toFixed(0)}</b>
+      </div>`;
+    }).join('');
+
+    cont.innerHTML=html;
+  }
+
+  window.cargarTodosFijoV723=cargarTodosSoloHoyV730;
+  window.cargarTodosSoloHoyV730=cargarTodosSoloHoyV730;
+
+  window.limpiarPedidosLocalesAntiguosV730=function(){
+    const claves=['cecy_pedidos_pendientes_v78','cecy_ventas_pendientes_v73'];
+    claves.forEach(k=>{
+      const arr=jsonLocalSeguroV730(k).filter(p=>esDeHoyJuarezV730(fechaItemV730(p)));
+      localStorage.setItem(k,JSON.stringify(arr));
+    });
+    alert('Listo. Se dejaron en este celular solo pedidos/ventas locales de hoy.');
+    cargarTodosSoloHoyV730();
+  };
+
+  document.addEventListener('click',function(e){
+    const txt=(e.target?.textContent||'').trim();
+    if(txt.includes('Actualizar todos los pedidos')){
+      e.preventDefault(); e.stopPropagation(); cargarTodosSoloHoyV730();
+    }
+  },true);
+})();
+</script>
+
+
+<script>
+/* ===== V7.31 Preparaciones / Subprocesos ===== */
+const LS_PREP_PRESETS_V731="cecy_preparaciones_presets_v731";
+
+function prepMsgV731(txt,clase="info"){
+  const el=document.getElementById("prepMensaje");
+  if(el){ el.className=clase; el.innerHTML=txt; }
+}
+function leerPresetsPreparacionV731(){
+  try{ return JSON.parse(localStorage.getItem(LS_PREP_PRESETS_V731)||"[]")||[]; }catch(e){ return []; }
+}
+function guardarPresetsPreparacionV731(arr){
+  localStorage.setItem(LS_PREP_PRESETS_V731,JSON.stringify(arr||[]));
+  llenarSelectPreparacionesV731();
+}
+function opcionesIngredientesV731(valor=""){
+  return (ingredientes||[]).map(i=>`<option value="${i.id}" ${i.id===valor?'selected':''}>${i.nombre} — quedan ${Number(i.cantidad||0).toFixed(1)}</option>`).join("");
+}
+function llenarSelectPreparacionesV731(){
+  const salida=document.getElementById("prepSalidaIngrediente");
+  if(salida){ const v=salida.value; salida.innerHTML=opcionesIngredientesV731(v); if(v) salida.value=v; }
+  const preset=document.getElementById("prepPreset");
+  if(preset){
+    const v=preset.value;
+    const presets=leerPresetsPreparacionV731();
+    preset.innerHTML='<option value="">-- Sin receta rápida --</option>'+presets.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+    if(v) preset.value=v;
+  }
+  document.querySelectorAll(".prepIngrediente").forEach(sel=>{
+    const v=sel.value;
+    sel.innerHTML=opcionesIngredientesV731(v);
+    if(v) sel.value=v;
+  });
+}
+function agregarLineaPreparacionV731(ingredienteId="",cantidad=""){
+  const cont=document.getElementById("prepLineas");
+  if(!cont) return;
+  const div=document.createElement("div");
+  div.className="prep-linea";
+  div.innerHTML=`
+    <select class="prepIngrediente">${opcionesIngredientesV731(ingredienteId)}</select>
+    <input type="number" class="prepCantidad" placeholder="Cantidad" value="${cantidad||''}">
+    <button class="btn-rojo" type="button" onclick="this.closest('.prep-linea').remove()">×</button>
+  `;
+  cont.appendChild(div);
+}
+function datosPreparacionV731(){
+  const salidaId=document.getElementById("prepSalidaIngrediente")?.value||"";
+  const salidaCantidad=Number(document.getElementById("prepSalidaCantidad")?.value||0);
+  const nota=(document.getElementById("prepNota")?.value||"").trim();
+  const insumos=[];
+  document.querySelectorAll("#prepLineas .prep-linea").forEach(row=>{
+    const ingrediente_id=row.querySelector(".prepIngrediente")?.value||"";
+    const cantidad=Number(row.querySelector(".prepCantidad")?.value||0);
+    if(ingrediente_id && cantidad>0) insumos.push({ingrediente_id,cantidad});
+  });
+  return {salidaId,salidaCantidad,nota,insumos};
+}
+function guardarPresetPreparacionV731(){
+  const d=datosPreparacionV731();
+  if(!d.salidaId || d.salidaCantidad<=0 || !d.insumos.length){ prepMsgV731("Completa salida, cantidad producida y materia prima antes de guardar.","alerta"); return; }
+  const salida=ingredientes.find(i=>i.id===d.salidaId);
+  const nombre=prompt("Nombre de la receta rápida:", salida?`Preparar ${salida.nombre}`:"Preparación");
+  if(!nombre) return;
+  const presets=leerPresetsPreparacionV731().filter(p=>p.nombre!==nombre);
+  presets.push({id:"prep_"+Date.now(),nombre,salidaId:d.salidaId,salidaCantidad:d.salidaCantidad,nota:d.nota,insumos:d.insumos});
+  guardarPresetsPreparacionV731(presets);
+  prepMsgV731("✅ Receta rápida guardada en este dispositivo.","ok");
+}
+function cargarPresetPreparacionV731(){
+  const id=document.getElementById("prepPreset")?.value;
+  if(!id) return;
+  const p=leerPresetsPreparacionV731().find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById("prepSalidaIngrediente").value=p.salidaId||"";
+  document.getElementById("prepSalidaCantidad").value=p.salidaCantidad||"";
+  document.getElementById("prepNota").value=p.nota||"";
+  const cont=document.getElementById("prepLineas");
+  if(cont) cont.innerHTML="";
+  (p.insumos||[]).forEach(x=>agregarLineaPreparacionV731(x.ingrediente_id,x.cantidad));
+  llenarSelectPreparacionesV731();
+}
+function eliminarPresetPreparacionV731(){
+  const id=document.getElementById("prepPreset")?.value;
+  if(!id) return prepMsgV731("Selecciona una receta rápida para eliminar.","warn");
+  if(!confirm("¿Eliminar esta receta rápida de este dispositivo?")) return;
+  guardarPresetsPreparacionV731(leerPresetsPreparacionV731().filter(p=>p.id!==id));
+  prepMsgV731("🗑️ Receta rápida eliminada.","ok");
+}
+async function registrarPreparacionV731(btn){
+  if(!validarPermiso("inventario","Necesitas permiso de inventario para preparar subprocesos.")) return;
+  if(!db && !iniciarSupabase()) return;
+  const u=usuarioLogueado; if(!u){ prepMsgV731("Primero entra con PIN.","alerta"); return; }
+  const d=datosPreparacionV731();
+  if(!d.salidaId || d.salidaCantidad<=0 || !d.insumos.length){ prepMsgV731("Completa la preparación.","alerta"); return; }
+  const repetidos=d.insumos.reduce((m,x)=>{m[x.ingrediente_id]=(m[x.ingrediente_id]||0)+x.cantidad;return m;},{});
+  if(repetidos[d.salidaId]){ prepMsgV731("El ingrediente de salida no debe estar también como materia prima en esta misma preparación.","alerta"); return; }
+  if(btn){btn.disabled=true; btn.textContent="Procesando...";}
+  try{
+    await cargarIngredientes();
+    const salida=ingredientes.find(i=>i.id===d.salidaId);
+    if(!salida) throw new Error("No encontré el ingrediente de salida.");
+    for(const ingId in repetidos){
+      const ing=ingredientes.find(i=>i.id===ingId);
+      if(!ing) throw new Error("No encontré una materia prima.");
+      if(Number(ing.cantidad||0)<Number(repetidos[ingId])) throw new Error(`Inventario insuficiente: ${ing.nombre}. Quedan ${Number(ing.cantidad||0).toFixed(1)}, se necesitan ${Number(repetidos[ingId]).toFixed(1)}.`);
+    }
+    const referencia="preparacion_"+Date.now();
+    for(const ingId in repetidos){
+      const ing=ingredientes.find(i=>i.id===ingId);
+      const nueva=Number(ing.cantidad||0)-Number(repetidos[ingId]);
+      const {error}=await db.from("ingredientes").update({cantidad:nueva}).eq("id",ingId);
+      if(error) throw new Error("Error descontando "+ing.nombre+": "+error.message);
+      await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:ingId,tipo:"preparacion_consumo",cantidad:-Number(repetidos[ingId]),motivo:d.nota||"Preparación / subproceso",referencia});
+    }
+    const salidaNueva=Number(salida.cantidad||0)+Number(d.salidaCantidad);
+    const {error:eSalida}=await db.from("ingredientes").update({cantidad:salidaNueva}).eq("id",d.salidaId);
+    if(eSalida) throw new Error("Error aumentando "+salida.nombre+": "+eSalida.message);
+    await db.from("movimientos_inventario").insert({usuario_id:u.id,ingrediente_id:d.salidaId,tipo:"preparacion_salida",cantidad:Number(d.salidaCantidad),motivo:d.nota||"Preparación / subproceso",referencia});
+    await auditoria("PREPARACION",`${u.nombre} preparó ${d.salidaCantidad} de ${salida.nombre}`,{salida:salida.nombre,cantidad:d.salidaCantidad,insumos:d.insumos,nota:d.nota,referencia});
+    prepMsgV731(`✅ Preparación registrada. Se aumentó <b>${salida.nombre}</b> en ${d.salidaCantidad}.`,"ok");
+    if(typeof notificar==="function") notificar("🥣 PREPARACIÓN LISTA",`${salida.nombre}: +${d.salidaCantidad}`,"sync");
+    document.getElementById("prepSalidaCantidad").value="";
+    document.getElementById("prepNota").value="";
+    await cargarIngredientes(); render();
+  }catch(e){ prepMsgV731("🔴 "+(e.message||e),"alerta"); }
+  finally{ if(btn){btn.disabled=false; btn.textContent="🥣 Preparar y actualizar inventario";} }
+}
+(function activarPreparacionesV731(){
+  const oldRenderSelects=window.renderSelects;
+  if(typeof oldRenderSelects==="function") window.renderSelects=function(){ oldRenderSelects(); llenarSelectPreparacionesV731(); };
+  const oldRender=window.render;
+  if(typeof oldRender==="function") window.render=function(){ oldRender(); llenarSelectPreparacionesV731(); };
+  window.addEventListener("load",()=>setTimeout(()=>{ llenarSelectPreparacionesV731(); const cont=document.getElementById("prepLineas"); if(cont && !cont.children.length) agregarLineaPreparacionV731(); },1200));
+})();
+</script>
+
+</body>
+</html>
