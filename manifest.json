@@ -1,17 +1,23 @@
 {
-  "name": "Punto de ventas/Inventario Doña Cecy",
+  "name": "Cobrar Doña Cecy",
   "short_name": "Doña Cecy",
-  "start_url": "./",
-  "scope": "./",
+  "description": "Aplicación para cobrar pedidos y administrar ventas de Doña Cecy",
+  "start_url": "/cobrar-Dona-Cecy/",
+  "scope": "/cobrar-Dona-Cecy/",
   "display": "standalone",
   "background_color": "#fff3e0",
   "theme_color": "#AE56AC",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "16x16 32x32 48x48 64x64 128x128 256x256",
-      "type": "image/x-icon"
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }
