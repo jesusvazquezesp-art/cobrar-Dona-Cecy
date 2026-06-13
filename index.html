@@ -10650,3 +10650,294 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},500);
 })();
 </script>
+
+
+<style id="css-v88-carrito-limpio">
+/* ===== V8.8 Carrito de surtido limpio: panel independiente ===== */
+#carritoSurtidoFijoV869{display:none!important;}
+#carritoSurtidoV88{
+  border:4px solid #ae56ac;
+  background:#f3e5f5;
+  color:#4a1249;
+  border-radius:24px;
+  padding:16px;
+  margin:10px 0 18px;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);
+  scroll-margin-top:170px;
+}
+#carritoSurtidoV88 h3{margin:0 0 10px!important;font-size:24px!important;color:#4a1249!important;}
+.v88-ayuda{background:white;border:1px dashed #ae56ac;border-radius:16px;padding:10px;margin:8px 0 12px;color:#6a1b9a;font-size:14px;}
+.v88-cart-row{background:white;border-radius:16px;padding:12px;margin:10px 0;border:1px solid #ead5ec;}
+.v88-cart-title{font-weight:900;color:#4a1249;font-size:17px;margin-bottom:6px;}
+.v88-subtotal{font-size:15px;color:#4a1249;margin:4px 0 8px;}
+.v88-cart-inputs{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.v88-cart-inputs label{font-size:12px;color:#4a1249;}
+.v88-cart-inputs input{margin:4px 0 0!important;font-size:18px!important;padding:12px!important;border-radius:14px!important;}
+.v88-quitar{background:#e53935!important;color:white!important;margin-top:10px!important;width:100%!important;}
+.v88-extra{background:#fff;border:1px solid #e1bee7;border-radius:16px;padding:10px;margin:12px 0;}
+.v88-extra input{font-size:16px!important;margin:5px 0 8px!important;}
+.v88-total{font-size:28px;font-weight:900;text-align:right;color:#4a1249;margin:12px 0;}
+.v88-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.v88-paid{background:#43a047!important;color:white!important;}
+.v88-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:16px;}
+.v88-search{width:100%!important;border:2px solid #e1bee7!important;border-radius:16px!important;padding:14px!important;font-size:18px!important;margin:8px 0!important;direction:ltr!important;text-align:left!important;}
+.v88-product-list{height:520px;max-height:60vh;overflow-y:auto;background:white;border:1px solid #ead5ec;border-radius:18px;padding:8px;-webkit-overflow-scrolling:touch;}
+.v88-item{display:grid;grid-template-columns:1fr 112px;gap:10px;align-items:center;padding:12px 8px;border-bottom:1px solid #eee;}
+.v88-item:last-child{border-bottom:none;}
+.v88-name{font-weight:900;color:#4a1249;font-size:17px;line-height:1.25;}
+.v88-meta{font-size:13px;color:#666;margin-top:4px;}
+.v88-add{background:#1e88e5!important;color:white!important;border-radius:14px!important;padding:10px!important;margin:0!important;width:100%!important;font-size:14px!important;}
+.v88-add.en-carrito{background:#555!important;}
+.v88-empty{background:#fff8e1;color:#e65100;border-radius:14px;padding:10px;margin:8px 0;}
+@media(max-width:520px){
+  #carritoSurtidoV88{padding:14px;margin-left:0;margin-right:0;}
+  .v88-product-list{height:520px;max-height:62vh;}
+  .v88-item{grid-template-columns:1fr 100px;}
+  .v88-name{font-size:16px;}
+  .v88-actions{grid-template-columns:1fr;}
+  .v88-cart-inputs{grid-template-columns:1fr 1fr;}
+}
+</style>
+<script id="js-v88-carrito-limpio">
+/* ===== V8.8 Carrito de surtido limpio e independiente =====
+   - No depende de los parches viejos.
+   - El carrito se guarda en localStorage y no se borra hasta vaciar o pagar.
+   - Al agregar productos no mueve la lista ni sube la pantalla.
+*/
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_NOTA='cecy_ultima_nota_compra_v88';
+  const LS_HIST='cecy_historial_compras_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return Number.isFinite(n)?n:0;};
+  const money=v=>'$'+num(v).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const sid=s=>'v88_'+String(s).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const js=s=>JSON.stringify(String(s));
+  const cart=()=>{try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const hist=()=>{try{const a=JSON.parse(localStorage.getItem(LS_HIST)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveHist=a=>localStorage.setItem(LS_HIST,JSON.stringify(a||[]));
+  function allIng(){try{return Array.isArray(ingredientes)?ingredientes.filter(i=>i&&i.activo!==false):[]}catch(e){return []}}
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=num(i.cantidad),m=num(i.minimo); if(m<=0)return'green'; if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';}
+  function sugerido(i){const c=num(i.cantidad),m=num(i.minimo); if(m<=0)return 1; const objetivo=(tipo(i)==='red')?m:(m*2); return Math.max(1, Math.ceil(objetivo-c));}
+  const subtotal=x=>num(x.cantidad)*num(x.costo_unitario);
+  const totalCart=()=>cart().reduce((s,x)=>s+subtotal(x),0);
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec)return null;
+    let p=$('carritoSurtidoV88');
+    if(!p){p=document.createElement('div');p.id='carritoSurtidoV88';rec.parentNode.insertBefore(p,rec);}
+    const old=$('carritoSurtidoFijoV869'); if(old)old.style.display='none';
+    return p;
+  }
+
+  function pintarTotales(){
+    cart().forEach(x=>{const el=$('v88_sub_'+sid(x.id)); if(el)el.textContent=money(subtotal(x));});
+    const total=$('v88_total'); if(total)total.textContent=money(totalCart());
+  }
+
+  function renderCartOnly(){
+    const c=cart();
+    const cont=$('v88_cart_body'); if(!cont)return;
+    cont.innerHTML=c.length?c.map(x=>{
+      const id=sid(x.id);
+      return `<div class="v88-cart-row" data-cart-id="${esc(x.id)}">
+        <div class="v88-cart-title">${esc(x.nombre)}</div>
+        <div class="v88-subtotal">Subtotal: <b id="v88_sub_${id}">${money(subtotal(x))}</b></div>
+        <div class="v88-cart-inputs">
+          <label>Cantidad
+            <input data-v88-cart="1" data-id="${esc(x.id)}" data-campo="cantidad" type="number" inputmode="decimal" step="0.1" value="${num(x.cantidad)}">
+          </label>
+          <label>Precio unitario
+            <input data-v88-cart="1" data-id="${esc(x.id)}" data-campo="costo_unitario" type="number" inputmode="decimal" step="0.01" value="${num(x.costo_unitario)}">
+          </label>
+        </div>
+        <button class="v88-quitar" data-v88-remove="${esc(x.id)}">Quitar</button>
+      </div>`;
+    }).join(''):'<div class="v88-empty">Carrito vacío.</div>';
+    pintarTotales();
+    actualizarBotonesLista();
+  }
+
+  function productosSurtido(){
+    return allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+  }
+
+  function renderListaOnly(){
+    const list=$('v88_product_list'); if(!list)return;
+    const ids=new Set(cart().map(x=>String(x.id)));
+    const q=norm($('v88_search')?.value||'');
+    const rows=productosSurtido().filter(i=>!q||norm(i.nombre).includes(q)).map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', en=ids.has(String(i.id));
+      return `<div class="v88-item" data-v88-name="${esc(norm(i.nombre))}">
+        <div>
+          <div class="v88-name">${color} ${esc(i.nombre)}</div>
+          <div class="v88-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div>
+        </div>
+        <button class="v88-add ${en?'en-carrito':''}" data-v88-add="${esc(i.id)}">${en?'✓ En carrito':'Agregar'}</button>
+      </div>`;
+    }).join('') || '<div class="v88-empty">No hay rojos/amarillos para mostrar.</div>';
+    list.innerHTML=rows;
+  }
+
+  function actualizarBotonesLista(){
+    const ids=new Set(cart().map(x=>String(x.id)));
+    document.querySelectorAll('#carritoSurtidoV88 [data-v88-add]').forEach(b=>{
+      const en=ids.has(String(b.dataset.v88Add));
+      b.textContent=en?'✓ En carrito':'Agregar';
+      b.classList.toggle('en-carrito',en);
+    });
+  }
+
+  function renderPanel(force=false){
+    const p=ensurePanel(); if(!p)return;
+    const active=document.activeElement;
+    if(!force && active && p.contains(active) && active.matches('input')){pintarTotales();return;}
+    const oldSearch=$('v88_search')?.value||'';
+    const oldListScroll=$('v88_product_list')?.scrollTop||0;
+    const prov=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const nota=$('notaCompraV87')?.value ?? localStorage.getItem(LS_NOTA) ?? '';
+    p.innerHTML=`
+      <h3>🛒 Carrito de surtido</h3>
+      <div class="v88-ayuda">Agrega productos, ajusta cantidades y precios. <b>No toca inventario</b> hasta presionar <b>Carrito pagado</b>. El carrito no se borra hasta que tú lo vacíes o pagues.</div>
+      <div id="v88_cart_body"></div>
+      <div class="v88-extra">
+        <label>📍 Lugar / proveedor
+          <input id="proveedorCompraV87" data-v88-extra="1" placeholder="Ejemplo: La Económica, Smart Anapra, González" value="${esc(prov)}">
+        </label>
+        <label>📝 Nota
+          <input id="notaCompraV87" data-v88-extra="1" placeholder="Ejemplo: surtido mercado, oferta semanal" value="${esc(nota)}">
+        </label>
+      </div>
+      <div class="v88-total">Total carrito: <span id="v88_total">${money(totalCart())}</span></div>
+      <div class="v88-actions">
+        <button class="v88-paid" data-v88-paid="1">✅ Carrito pagado / aplicar al inventario</button>
+        <button class="btn-gris" data-v88-clear="1">🧹 Vaciar carrito</button>
+      </div>
+      <div class="v88-list-head"><h3>Agregar producto</h3><small>Rojos y amarillos</small></div>
+      <input id="v88_search" class="v88-search" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}">
+      <div id="v88_product_list" class="v88-product-list"></div>`;
+    renderCartOnly();
+    renderListaOnly();
+    const l=$('v88_product_list'); if(l)l.scrollTop=oldListScroll;
+  }
+
+  function add(id){
+    const p=ensurePanel(); const list=$('v88_product_list'); const sy=window.scrollY, sl=list?list.scrollTop:0;
+    const i=ingById(id); if(!i)return alert('No encontré el producto.');
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))){ actualizarBotonesLista(); return; }
+    const ult=last();
+    const cant=sugerido(i);
+    const cu=num(ult[String(id)] ?? i.costo_unitario ?? 0);
+    c.push({id:String(i.id),nombre:i.nombre,cantidad:cant,costo_unitario:cu,costo_total:cant*cu});
+    saveCart(c);
+    renderCartOnly();
+    actualizarBotonesLista();
+    if(list)list.scrollTop=sl;
+    try{window.scrollTo(0,sy)}catch(e){}
+  }
+
+  function updateField(input){
+    const id=input.dataset.id, campo=input.dataset.campo;
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id)); if(!it)return;
+    it[campo]=num(input.value);
+    it.costo_total=subtotal(it);
+    if(campo==='costo_unitario'){const l=last();l[String(id)]=it.costo_unitario;saveLast(l);}
+    saveCart(c); pintarTotales();
+  }
+
+  async function pagar(btn){
+    if(typeof validarPermiso==='function'&&!validarPermiso('compras','Necesitas permiso de compras.'))return;
+    const u=usuarioLogueado; if(!u)return alert('Entra con PIN.');
+    const c=cart(); if(!c.length)return alert('El carrito está vacío.');
+    for(const x of c){if(num(x.cantidad)<=0)return alert('Revisa cantidad en '+x.nombre); if(num(x.costo_unitario)<=0)return alert('Revisa precio unitario en '+x.nombre);}
+    const proveedor=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    const nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!proveedor && !confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?'))return;
+    if(!confirm('¿Carrito pagado? Ahora sí se subirá la existencia y se guardará historial.'))return;
+    if(btn){btn.disabled=true;btn.textContent='Aplicando...';}
+    const items=c.map(x=>({id:x.id,nombre:x.nombre,cantidad:num(x.cantidad),costo_unitario:num(x.costo_unitario),costo_total:subtotal(x)}));
+    const total=items.reduce((s,x)=>s+num(x.costo_total),0);
+    const compra={id:'compra_'+Date.now(),fecha:new Date().toISOString(),usuario:(u?.nombre||'Usuario'),usuario_id:u?.id||null,proveedor,nota,total,items};
+    try{
+      if(!db&&typeof iniciarSupabase==='function')iniciarSupabase();
+      if(typeof cargarIngredientes==='function')await cargarIngredientes();
+      const ult=last();
+      for(const x of items){
+        const ing=ingById(x.id); if(!ing)continue;
+        const nueva=num(ing.cantidad)+num(x.cantidad);
+        const {error}=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:x.costo_unitario}).eq('id',x.id);
+        if(error)throw new Error(ing.nombre+': '+error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:x.id,cantidad:x.cantidad,costo_total:x.costo_total,costo_unitario:x.costo_unitario});}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:x.id,tipo:'compra',cantidad:x.cantidad,motivo:(proveedor?('Compra en '+proveedor):'Compra desde carrito')+(nota?(' · '+nota):''),referencia:compra.id});}catch(e){}
+        ult[String(x.id)]=x.costo_unitario;
+      }
+      saveLast(ult);
+      const h=hist(); h.unshift(compra); saveHist(h);
+      try{if(typeof auditoria==='function')await auditoria('HISTORIAL_COMPRA',`${compra.usuario} registró compra por ${money(total)}${proveedor?' en '+proveedor:''}`,compra);}catch(e){}
+      saveCart([]); localStorage.setItem(LS_PROV,proveedor); localStorage.setItem(LS_NOTA,'');
+      if(typeof cargarIngredientes==='function')await cargarIngredientes();
+      if(typeof render==='function')render();
+      if(typeof cargarReporteHoy==='function')await cargarReporteHoy();
+      renderPanel(true);
+      if(typeof renderHistorialComprasV87==='function')renderHistorialComprasV87();
+      if(typeof notificar==='function')notificar('✅ Compra registrada','Inventario actualizado e historial guardado.','ok'); else alert('Compra registrada.');
+    }catch(e){alert('Error aplicando carrito: '+(e.message||e));}
+    finally{if(btn){btn.disabled=false;btn.textContent='✅ Carrito pagado / aplicar al inventario';}}
+  }
+
+  // Funciones públicas para que cualquier botón viejo apunte aquí si lo llama.
+  window.renderCarritoSurtidoV88=renderPanel;
+  window.renderCarritoFijoSurtidoV869=function(force){renderPanel(!!force);};
+  window.agregarCarritoOrdenadoV8610=add;
+  window.agregarAlCarritoSurtidoV869=add;
+  window.agregarAlCarritoSurtidoV866=add;
+  window.quitarCarritoSurtidoV869=function(id){saveCart(cart().filter(x=>String(x.id)!==String(id)));renderCartOnly();actualizarBotonesLista();};
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+  window.limpiarCarritoSurtidoV869=function(){if(confirm('¿Vaciar carrito de surtido?')){saveCart([]);renderCartOnly();actualizarBotonesLista();}};
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+  window.carritoPagadoSurtidoV869=pagar;
+  window.carritoPagadoSurtidoV866=pagar;
+
+  document.addEventListener('click',function(e){
+    const p=$('carritoSurtidoV88'); if(!p||!p.contains(e.target))return;
+    const addBtn=e.target.closest('[data-v88-add]'); if(addBtn){e.preventDefault();e.stopPropagation();add(addBtn.dataset.v88Add);return;}
+    const rem=e.target.closest('[data-v88-remove]'); if(rem){e.preventDefault();e.stopPropagation();window.quitarCarritoSurtidoV869(rem.dataset.v88Remove);return;}
+    if(e.target.closest('[data-v88-clear]')){e.preventDefault();e.stopPropagation();window.limpiarCarritoSurtidoV869();return;}
+    if(e.target.closest('[data-v88-paid]')){e.preventDefault();e.stopPropagation();pagar(e.target.closest('[data-v88-paid]'));return;}
+  },true);
+
+  document.addEventListener('input',function(e){
+    const p=$('carritoSurtidoV88'); if(!p||!p.contains(e.target))return;
+    e.stopPropagation();
+    if(e.target.matches('[data-v88-cart]')){updateField(e.target);return;}
+    if(e.target.id==='proveedorCompraV87'){localStorage.setItem(LS_PROV,e.target.value);return;}
+    if(e.target.id==='notaCompraV87'){localStorage.setItem(LS_NOTA,e.target.value);return;}
+    if(e.target.id==='v88_search'){
+      const q=norm(e.target.value);
+      p.querySelectorAll('.v88-item').forEach(row=>{row.style.display=!q||String(row.dataset.v88Name||'').includes(q)?'':'none';});
+    }
+  },true);
+
+  // Mantener oculto el carrito viejo aunque una función vieja lo vuelva a crear.
+  const mo=new MutationObserver(()=>{const old=$('carritoSurtidoFijoV869'); if(old)old.style.display='none';});
+  window.addEventListener('load',()=>{
+    setTimeout(()=>{try{renderPanel(true); const old=$('carritoSurtidoFijoV869'); if(old)old.style.display='none'; mo.observe(document.body,{childList:true,subtree:true});}catch(e){console.warn('V8.8 carrito',e)}},500);
+    setTimeout(()=>{try{renderPanel(true)}catch(e){}},1800);
+  });
+  const oldTab=window.verTab;
+  if(typeof oldTab==='function')window.verTab=function(id,btn){const r=oldTab.apply(this,arguments); if(id==='reportes')setTimeout(()=>renderPanel(true),160); return r;};
+})();
+</script>
