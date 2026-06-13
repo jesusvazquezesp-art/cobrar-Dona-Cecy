@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.7.1 - Buscador estable</title>
+<title>Puesto Doña Cecy V8.7.9.1 - Buscador estable</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1085,7 +1085,7 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.7.1</h1>
+  <h1>🥤 Puesto Doña Cecy V8.7.9.1</h1>
   <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.7.1 · Historial + buscador estable</p>
 </header>
 
@@ -5532,7 +5532,8 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 .v8610-quitar{width:100%!important;background:#e53935!important;color:white!important;margin-top:8px!important;}
 @media(max-width:520px){.v8610-item{grid-template-columns:1fr 88px}.v8610-name{font-size:14px}.v8610-lista{max-height:240px}}
 </style>
-<script id="js-v8610-carrito-ordenado">
+<script id="js-v8712-carrito-inputs-estables">
+/* ===== V8.7.2 Carrito estable: editar cantidad/costo sin cerrar teclado ===== */
 (function(){
   const LS_CART='cecy_carrito_surtido_v866';
   const LS_LAST='cecy_ultimo_costo_surtido_v866';
@@ -5540,41 +5541,733 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   const num=v=>Number(v||0);
   const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
-  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c));
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
   const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
-  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
-  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes.filter(i=>i&&i.activo!==false):[];
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(m<=0)return'green'; if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
   const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const subtotal=(x)=>num(x.cantidad)*num(x.costo_unitario);
+
+  function totalCart(){
+    return cart().reduce((s,x)=>s+subtotal(x),0);
+  }
+
+  function actualizarTotalesV8712(id){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(it){
+      const sub=document.getElementById('subCarritoV8712_'+CSS.escape(String(id)));
+      if(sub) sub.textContent=money(subtotal(it));
+    }
+    const t=document.getElementById('totalCarritoV8712');
+    if(t) t.textContent=money(totalCart());
+  }
+
+  window.actualizarCarritoSurtidoV8712=function(ev,id,campo,valor){
+    if(ev && ev.stopPropagation) ev.stopPropagation();
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=Number(valor||0);
+    if(campo==='costo_unitario'){
+      const u=last();
+      u[id]=it[campo];
+      saveLast(u);
+    }
+    saveCart(c);
+    actualizarTotalesV8712(id);
+  };
+
+  // También sobreescribe las funciones viejas para que NO repinten mientras escribes.
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){
+    window.actualizarCarritoSurtidoV8712(null,id,campo,valor);
+  };
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoSurtidoV869;
+
   window.agregarCarritoOrdenadoV8610=function(id){
     const i=ingById(id); if(!i)return;
-    const c=cart(); if(c.some(x=>String(x.id)===String(id))){alert('Ya está en el carrito.');return;}
-    const ult=last(); const minimo=num(i.minimo), actual=num(i.cantidad);
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))){alert('Ya está en el carrito.');return;}
+    const ult=last();
+    const minimo=num(i.minimo), actual=num(i.cantidad);
     const sugerida=Math.max(1, Number((minimo-actual).toFixed(1)) || 1);
     c.push({id:i.id,nombre:i.nombre,cantidad:sugerida,costo_unitario:num(ult[i.id]||i.costo_unitario||0)});
-    saveCart(c); window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true); window.inyectarBotonesCarritoV869&&window.inyectarBotonesCarritoV869();
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true);
+    window.inyectarBotonesCarritoV869&&window.inyectarBotonesCarritoV869();
   };
+
   window.renderCarritoFijoSurtidoV869=function(force){
     const rec=document.getElementById('recomendacionCompra'); if(!rec)return;
     let panel=document.getElementById('carritoSurtidoFijoV869');
     if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
+
+    // No repintar si estás editando cantidad/costo del carrito.
     const active=document.activeElement;
+    const editandoCarrito=active && panel.contains(active) &&
+      active.matches('input[data-cart-input-v8712="1"]');
+    if(editandoCarrito && !force) return;
+
     const oldInput=document.getElementById('buscarCarritoV8610');
     const oldSearch=oldInput?.value||'';
     const oldPos=(oldInput && typeof oldInput.selectionStart==='number') ? oldInput.selectionStart : oldSearch.length;
+
     const c=cart();
     const ids=new Set(c.map(x=>String(x.id)));
     const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
-      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1; if(ta!==tb)return ta-tb; return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
     });
+
     const q=norm(oldSearch);
     const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,40);
-    const lista=filtrados.map(i=>{const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id)); return `<div class="v8610-item"><div><div class="v8610-name">${color} ${i.nombre}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${i.id}')">${ya?'✓ En carrito':'Agregar'}</button></div>`}).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
-    const rows=c.map(x=>{const st=num(x.cantidad)*num(x.costo_unitario); return `<div class="v8610-cart-row"><b>${x.nombre}</b><br><small>Subtotal: <b>${money(st)}</b></small><div class="v8610-cart-inputs"><input type="number" step="0.1" value="${num(x.cantidad)}" onchange="actualizarCarritoSurtidoV869('${x.id}','cantidad',this.value)" placeholder="Cantidad"><input type="number" step="0.01" value="${num(x.costo_unitario)}" onchange="actualizarCarritoSurtidoV869('${x.id}','costo_unitario',this.value)" placeholder="$ unitario"></div><button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${x.id}')">Quitar</button></div>`}).join('');
-    const total=c.reduce((s,x)=>s+num(x.cantidad)*num(x.costo_unitario),0);
-    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v869-total">Total carrito: ${money(total)}</div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${oldSearch.replace(/"/g,'&quot;')}" oninput="renderCarritoFijoSurtidoV869()"><div class="v8610-lista">${lista}</div>`;
-    if(active&&active.id==='buscarCarritoV8610'){const n=document.getElementById('buscarCarritoV8610'); if(n){n.focus(); try{n.setSelectionRange(oldPos,oldPos);}catch(e){}}}
+
+    const lista=filtrados.map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      return `<div class="v8610-item">
+        <div>
+          <div class="v8610-name">${color} ${i.nombre}</div>
+          <div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div>
+        </div>
+        <button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${i.id}')">${ya?'✓ En carrito':'Agregar'}</button>
+      </div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    const rows=c.map(x=>{
+      const idEsc=String(x.id).replace(/"/g,'&quot;');
+      const st=subtotal(x);
+      return `<div class="v8610-cart-row">
+        <b>${x.nombre}</b><br>
+        <small>Subtotal: <b id="subCarritoV8712_${idEsc}">${money(st)}</b></small>
+        <div class="v8610-cart-inputs">
+          <label>Cantidad
+            <input data-cart-input-v8712="1" type="number" inputmode="decimal" step="0.1"
+              value="${num(x.cantidad)}"
+              oninput="actualizarCarritoSurtidoV8712(event,'${x.id}','cantidad',this.value)"
+              onchange="actualizarCarritoSurtidoV8712(event,'${x.id}','cantidad',this.value)"
+              placeholder="Cantidad">
+          </label>
+          <label>Costo unitario
+            <input data-cart-input-v8712="1" type="number" inputmode="decimal" step="0.01"
+              value="${num(x.costo_unitario)}"
+              oninput="actualizarCarritoSurtidoV8712(event,'${x.id}','costo_unitario',this.value)"
+              onchange="actualizarCarritoSurtidoV8712(event,'${x.id}','costo_unitario',this.value)"
+              placeholder="$ unitario">
+          </label>
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${x.id}')">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const total=totalCart();
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v869-total">Total carrito: <span id="totalCarritoV8712">${money(total)}</span></div>
+      <div class="v869-actions">
+        <button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button>
+        <button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button>
+      </div>
+      <hr>
+      <b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;"
+        placeholder="Buscar rojo o amarillo..."
+        value="${oldSearch.replace(/"/g,'&quot;')}"
+        oninput="event.stopPropagation(); renderCarritoFijoSurtidoV869()">
+      <div class="v8610-lista">${lista}</div>`;
+
+    if(active&&active.id==='buscarCarritoV8610'){
+      const n=document.getElementById('buscarCarritoV8610');
+      if(n){n.focus(); try{n.setSelectionRange(oldPos,oldPos);}catch(e){}}
+    }
   };
+
+  // Bloquea el listener viejo que repintaba el carrito cada vez que escribías.
+  document.addEventListener('input',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input[data-cart-input-v8712="1"]')){
+      e.stopImmediatePropagation();
+    }
+  },true);
+
   window.addEventListener('load',()=>setTimeout(()=>window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true),600));
+})();
+</script>
+
+
+
+<script id="js-v874-carrito-meta-final">
+(function(){
+  const LS_CART = 'cecy_carrito_surtido_v866';
+  const LS_PROV = 'cecy_ultimo_proveedor_v87';
+  function n(v){ return Number(v||0); }
+  function money(v){ return '$' + Number(v||0).toFixed(2); }
+  function esc(s){ return String(s??'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function norm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+  function cart(){ try{ const a=JSON.parse(localStorage.getItem(LS_CART)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function save(c){ localStorage.setItem(LS_CART, JSON.stringify(c||[])); }
+  function allIng(){ try{return Array.isArray(ingredientes)?ingredientes:[];}catch(e){return [];} }
+  function ingById(id){ return allIng().find(i=>String(i.id)===String(id)); }
+  function tipoInv(i){ const cant=n(i.cantidad), min=n(i.minimo); if(min<=0) return 'green'; if(cant<=min) return 'red'; if(cant<=min*2) return 'yellow'; return 'green'; }
+  function subtotal(x){ return n(x.cantidad)*n(x.costo_unitario); }
+  function totalCart(){ return cart().reduce((s,x)=>s+subtotal(x),0); }
+  function safeId(id){ return String(id).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+  function updateLineDom(id){
+    const c=cart(); const x=c.find(y=>String(y.id)===String(id));
+    if(!x) return;
+    const sid=safeId(id);
+    const sub=document.getElementById('subCartV874_'+sid); if(sub) sub.textContent=money(subtotal(x));
+    const total=document.getElementById('totalCarritoV874'); if(total) total.textContent=money(totalCart());
+  }
+  function persistirCampoCarrito(id,campo,valor){
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=Number(valor||0);
+    save(c);
+    updateLineDom(id);
+  }
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){ persistirCampoCarrito(id,campo,valor); return false; };
+  window.actualizarCarritoSurtidoV873=function(ev,id,campo,valor){ if(ev){ev.stopPropagation();} persistirCampoCarrito(id,campo,valor); return false; };
+  window.actualizarCarritoSurtidoV865=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV864=window.actualizarCarritoSurtidoV869;
+
+  function wireStableCart(){
+    const panel=document.getElementById('carritoSurtidoFijoV869'); if(!panel) return;
+    panel.querySelectorAll('input[data-cart-v874]').forEach(inp=>{
+      if(inp.__wiredV874) return; inp.__wiredV874=true;
+      inp.addEventListener('input', e=>{
+        e.stopPropagation();
+        persistirCampoCarrito(inp.dataset.id, inp.dataset.campo, inp.value);
+      });
+      inp.addEventListener('change', e=>{
+        e.stopPropagation();
+        persistirCampoCarrito(inp.dataset.id, inp.dataset.campo, inp.value);
+      });
+    });
+    const busc=document.getElementById('buscarCarritoV8610');
+    if(busc && !busc.__wiredV874){
+      busc.__wiredV874=true;
+      busc.addEventListener('input', e=>{
+        e.stopPropagation();
+        const q=norm(busc.value);
+        panel.querySelectorAll('.v874-add-item').forEach(row=>{
+          row.style.display = !q || norm(row.dataset.nombre||'').includes(q) ? '' : 'none';
+        });
+      });
+    }
+    const prov=document.getElementById('proveedorCompraV87');
+    if(prov && !prov.__wiredV874){ prov.__wiredV874=true; prov.addEventListener('input',e=>{e.stopPropagation(); localStorage.setItem(LS_PROV,prov.value);}); }
+    const nota=document.getElementById('notaCompraV87');
+    if(nota && !nota.__wiredV874){ nota.__wiredV874=true; nota.addEventListener('input',e=>e.stopPropagation()); }
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const rec=document.getElementById('recomendacionCompra'); if(!rec) return;
+    let panel=document.getElementById('carritoSurtidoFijoV869');
+    if(!panel){ panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec); }
+    const active=document.activeElement;
+    if(!force && active && panel.contains(active) && active.matches('input, textarea')){
+      const total=document.getElementById('totalCarritoV874'); if(total) total.textContent=money(totalCart());
+      return;
+    }
+    const oldSearch=document.getElementById('buscarCarritoV8610')?.value||'';
+    const oldProv=document.getElementById('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=document.getElementById('notaCompraV87')?.value ?? '';
+    const c=cart(); const ids=new Set(c.map(x=>String(x.id)));
+    const rows=c.map(x=>{
+      const sid=safeId(x.id);
+      return `<div class="v873-cart-row"><b>${esc(x.nombre)}</b><div class="v873-sub">Subtotal: <b id="subCartV874_${sid}">${money(subtotal(x))}</b></div><div class="v873-cart-inputs"><label>Cantidad<input data-cart-v874="1" data-id="${esc(x.id)}" data-campo="cantidad" type="number" inputmode="decimal" step="0.1" value="${n(x.cantidad)}"></label><label>Costo unitario<input data-cart-v874="1" data-id="${esc(x.id)}" data-campo="costo_unitario" type="number" inputmode="decimal" step="0.01" value="${n(x.costo_unitario)}"></label></div><button class="v873-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button></div>`;
+    }).join('');
+    const items=allIng().filter(i=>tipoInv(i)!=='green').sort((a,b)=>{ const ta=tipoInv(a)==='red'?0:1, tb=tipoInv(b)==='red'?0:1; if(ta!==tb) return ta-tb; return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');});
+    const q=norm(oldSearch);
+    const lista=items.slice(0,80).map(i=>{
+      const t=tipoInv(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      const show=!q||norm(i.nombre).includes(q);
+      return `<div class="v8610-item v874-add-item" data-nombre="${esc(i.nombre)}" style="${show?'':'display:none'}"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${n(i.cantidad).toFixed(1)} · mín ${n(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v87-cart-extra"><label>📍 Lugar / proveedor<input id="proveedorCompraV87" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}"></label><label>📝 Nota<input id="notaCompraV87" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label></div><div class="v869-total">Total carrito: <span id="totalCarritoV874">${money(totalCart())}</span></div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}"><div class="v8610-lista">${lista}</div>`;
+    wireStableCart();
+  };
+
+  const oldAgregar=window.agregarCarritoOrdenadoV8610;
+  window.agregarCarritoOrdenadoV8610=function(id){
+    if(typeof oldAgregar==='function'){
+      const r=oldAgregar.apply(this,arguments);
+      setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true);}catch(e){}},20);
+      return r;
+    }
+    const i=ingById(id); if(!i) return;
+    const c=cart(); if(c.some(x=>String(x.id)===String(id))) return;
+    c.push({id:String(i.id),nombre:i.nombre,cantidad:Math.max(1,n(i.minimo)-n(i.cantidad)),costo_unitario:n(i.costo_unitario)}); save(c); window.renderCarritoFijoSurtidoV869(true);
+  };
+
+  // Meta definitiva: calcula ventas de hoy sin depender de relación pedidos() para que no se quede en 0.
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+      let total=0, cantidad=0;
+      if(db){
+        const desde=new Date(); desde.setDate(desde.getDate()-3);
+        const r=await db.from('ventas').select('id,total,fecha_creacion,pedido_id').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+        if(r.error) throw r.error;
+        const hoy=(typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85():new Date().toISOString().slice(0,10);
+        (r.data||[]).forEach(v=>{
+          const fv=(typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10);
+          if(fv===hoy){ total+=Number(v.total||0); cantidad++; }
+        });
+      }
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+      return {total,cantidad};
+    }catch(e){ console.log('Meta V8.7.4:',e); if(typeof renderMetaV85==='function') renderMetaV85(0,0); }
+  };
+  const baseReporteV874=window.cargarReporteHoy;
+  if(typeof baseReporteV874==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await baseReporteV874.apply(this,arguments);
+      try{ await window.actualizarMetaDiariaV85(); }catch(e){}
+      try{ window.renderCarritoFijoSurtidoV869(false); }catch(e){}
+      return r;
+    };
+  }
+  document.addEventListener('input',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input')){ e.stopPropagation(); }
+  },true);
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true); wireStableCart(); window.actualizarMetaDiariaV85();}catch(e){}},1200));
+})();
+</script>
+
+
+
+<script>
+/* ===== V8.7.5 Corrección final: carrito con totales vivos + meta igual al reporte ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_HIST='cecy_historial_compras_v87';
+  const $=id=>document.getElementById(id);
+  const n=v=>Number(String(v??'0').replace(',','.'))||0;
+  const money=v=>'$'+n(v).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const sid=id=>String(id).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const cart=()=>{try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveCart=a=>localStorage.setItem(LS_CART,JSON.stringify(a||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(window.ingredientes)?window.ingredientes:(typeof ingredientes!=='undefined'&&Array.isArray(ingredientes)?ingredientes:[]);
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=n(i.cantidad),m=n(i.minimo); if(c<=m)return 'red'; if(c<=m*2)return 'yellow'; return 'green';}
+  function sugerir(i){return Math.max(1,n(i.minimo)-n(i.cantidad));}
+  function subtotalItem(x){return n(x.cantidad)*n(x.costo_unitario);}  
+  function totalCart(){return cart().reduce((s,x)=>s+subtotalItem(x),0);}  
+
+  function actualizarTotalesCarritoV875(){
+    const c=cart();
+    let total=0;
+    c.forEach(x=>{
+      const st=subtotalItem(x); total+=st;
+      const sub=$('subCarritoV875_'+sid(x.id)); if(sub) sub.textContent=money(st);
+    });
+    const tot=$('totalCarritoV875'); if(tot) tot.textContent=money(total);
+  }
+
+  window.actualizarCarritoSurtidoV875=function(ev,id,campo,valor){
+    if(ev){ ev.stopPropagation(); }
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return false;
+    it[campo]=n(valor);
+    if(campo==='costo_unitario'){
+      const u=last(); u[id]=it[campo]; saveLast(u);
+    }
+    saveCart(c);
+    actualizarTotalesCarritoV875();
+    return false;
+  };
+
+  // Sobrescribir nombres viejos para que cualquier input antiguo use la misma lógica.
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){return window.actualizarCarritoSurtidoV875(null,id,campo,valor)};
+  window.actualizarCarritoSurtidoV873=function(ev,id,campo,valor){return window.actualizarCarritoSurtidoV875(ev,id,campo,valor)};
+  window.actualizarCarritoSurtidoV8712=function(ev,id,campo,valor){return window.actualizarCarritoSurtidoV875(ev,id,campo,valor)};
+  window.actualizarCarritoSurtidoV865=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV863=window.actualizarCarritoSurtidoV869;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){ saveCart([]); window.renderCarritoFijoSurtidoV869(true); }
+  };
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const i=ingById(id); if(!i) return;
+    const c=cart();
+    let it=c.find(x=>String(x.id)===String(id));
+    const u=last();
+    const costo=n(u[id] ?? i.costo_unitario ?? 0);
+    if(it){ it.cantidad=n(it.cantidad)+sugerir(i); }
+    else c.push({id:String(i.id),nombre:i.nombre,cantidad:sugerir(i),costo_unitario:costo});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV865=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){ panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec); }
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force=false){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    // Si están editando cantidad/precio/proveedor/nota, no reconstruir: solo recalcular totales.
+    if(!force && active && panel.contains(active) && active.matches('input[data-cart-v875="1"]')){
+      actualizarTotalesCarritoV875();
+      return;
+    }
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,40);
+    const lista=filtrados.map(i=>{
+      const color=tipo(i)==='red'?'🔴':'🟡'; const ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${n(i.cantidad).toFixed(1)} · mín ${n(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    const rows=c.map(x=>{
+      const id=sid(x.id); const st=subtotalItem(x);
+      return `<div class="v8610-cart-row"><b>${esc(x.nombre)}</b><br><small>Subtotal: <b id="subCarritoV875_${id}">${money(st)}</b></small><div class="v8610-cart-inputs"><input data-cart-v875="1" type="number" inputmode="decimal" step="0.1" value="${n(x.cantidad)}" oninput="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','cantidad',this.value)" onchange="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','cantidad',this.value)" placeholder="Cantidad"><input data-cart-v875="1" type="number" inputmode="decimal" step="0.01" value="${n(x.costo_unitario)}" oninput="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','costo_unitario',this.value)" onchange="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','costo_unitario',this.value)" placeholder="$ unitario"></div><button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button></div>`;
+    }).join('');
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v87-cart-extra"><label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v875="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="event.stopPropagation();localStorage.setItem('${LS_PROV}',this.value)"></label><label>📝 Nota<input id="notaCompraV87" data-cart-v875="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}" oninput="event.stopPropagation()"></label></div><div class="v869-total">Total carrito: <span id="totalCarritoV875">${money(totalCart())}</span></div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="event.stopPropagation(); renderCarritoFijoSurtidoV869(true)"><div class="v8610-lista">${lista}</div>`;
+    if(active && active.id){ const neo=$(active.id); if(neo){ neo.focus(); try{neo.setSelectionRange(active.selectionStart||neo.value.length,active.selectionStart||neo.value.length)}catch(e){} } }
+  };
+
+  // Evita que los escuchadores viejos de input repinten el carrito mientras editas.
+  document.addEventListener('input',function(e){
+    if($('carritoSurtidoFijoV869')?.contains(e.target) && e.target.matches('input[data-cart-v875="1"]')){
+      e.stopPropagation();
+    }
+  }, true);
+
+  function totalVisibleReporteHoy(){
+    const rg=$('reporteGeneral'); if(!rg) return null;
+    const box=[...rg.querySelectorAll('.box')].find(b=>(b.textContent||'').trim().toLowerCase().startsWith('hoy'));
+    if(!box) return null;
+    const txt=box.textContent||'';
+    const m=txt.match(/\$\s*([0-9.,]+)/);
+    const v=txt.match(/([0-9]+)\s*ventas?/i);
+    if(!m) return null;
+    return {total:n(m[1].replace(/,/g,'')), cantidad:v?Number(v[1]):0};
+  }
+  async function totalVentasHoyConsulta(){
+    let total=0,cantidad=0;
+    if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+    if(!db) return {total,cantidad};
+    const desde=new Date(); desde.setDate(desde.getDate()-40);
+    const r=await db.from('ventas').select('id,total,fecha_creacion').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+    if(r.error) throw r.error;
+    const hoy=(typeof fechaJuarezKey==='function')?fechaJuarezKey(new Date()):((typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85():new Date().toISOString().slice(0,10));
+    (r.data||[]).forEach(v=>{
+      const fv=(typeof fechaJuarezKey==='function')?fechaJuarezKey(v.fecha_creacion):((typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10));
+      if(fv===hoy){ total+=n(v.total); cantidad++; }
+    });
+    return {total,cantidad};
+  }
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      const q=await totalVentasHoyConsulta().catch(()=>({total:0,cantidad:0}));
+      const dom=totalVisibleReporteHoy();
+      // Usa el mayor para que la barra coincida con el reporte visible cuando haya otra función calculando mejor el día.
+      const total=dom&&dom.total>q.total ? dom.total : q.total;
+      const cantidad=dom&&dom.total>=q.total ? (dom.cantidad||q.cantidad) : q.cantidad;
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+      return {total,cantidad};
+    }catch(e){ console.log('Meta V8.7.5:',e); }
+  };
+  const oldReporteV875=window.cargarReporteHoy;
+  if(typeof oldReporteV875==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await oldReporteV875.apply(this,arguments);
+      setTimeout(()=>{try{window.actualizarMetaDiariaV85()}catch(e){}},100);
+      return r;
+    };
+  }
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{ window.renderCarritoFijoSurtidoV869(true); window.actualizarMetaDiariaV85(); }catch(e){}
+  },1200));
+})();
+</script>
+
+
+
+<script id="js-v877-carrito-totales-vivos">
+/* ===== V8.7.7 Carrito: totales vivos sin repintar y sin cerrar teclado ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=id=>String(id).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  function totalCart(){return cart().reduce((s,x)=>s+num(x.cantidad)*num(x.costo_unitario),0);}
+  function actualizarTotalesVivos(){
+    const c=cart();
+    c.forEach(x=>{
+      const el=$('subtotalCartV877_'+safe(x.id));
+      if(el) el.textContent=money(num(x.cantidad)*num(x.costo_unitario));
+    });
+    const total=money(totalCart());
+    ['totalCarritoV877','totalCarritoV876','totalCarritoV875','totalCarritoV874'].forEach(id=>{const el=$(id); if(el) el.textContent=total;});
+  }
+  window.actualizarCarritoV877=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return false;
+    it[campo]=num(valor);
+    it.costo_total=num(it.cantidad)*num(it.costo_unitario);
+    if(campo==='costo_unitario'){
+      const l=last(); l[id]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    actualizarTotalesVivos();
+    return false;
+  };
+  window.actualizarCarritoV876=window.actualizarCarritoV877;
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV877;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV877;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    if(!force && active && panel.contains(active) && active.matches('input[data-cart-v877="1"]')) return;
+    const activeId=active?.id||'';
+    const start=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+    const rows=c.map(x=>{
+      const eid=safe(x.id); const idAttr=esc(x.id); const st=num(x.cantidad)*num(x.costo_unitario);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV877_${eid}">${money(st)}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV877_${eid}" data-cart-v877="1" type="number" inputmode="decimal" step="0.1" value="${num(x.cantidad)}" oninput="return actualizarCarritoV877('${idAttr}','cantidad',this.value)" placeholder="Cantidad">
+          <input id="costoCartV877_${eid}" data-cart-v877="1" type="number" inputmode="decimal" step="0.01" value="${num(x.costo_unitario)}" oninput="return actualizarCarritoV877('${idAttr}','costo_unitario',this.value)" placeholder="$ unitario">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${idAttr}')">Quitar</button>
+      </div>`;
+    }).join('');
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id)); return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`}).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v877="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v877="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV877">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+    if(activeId){
+      const el=$(activeId); if(el){el.focus(); try{el.setSelectionRange(start??el.value.length,start??el.value.length)}catch(e){}}
+    }
+    actualizarTotalesVivos();
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},700));
+})();
+</script>
+
+
+
+<script>
+/* ===== V8.7.9 DEFINITIVO: carrito con totales vivos sin data bloqueada =====
+   Nota: versiones anteriores agregaron listeners en captura que bloqueaban inputs con
+   data-cart-v876/v878. Esta versión pinta el carrito con data-cart-v879 para que
+   Android no cierre teclado y para que el subtotal/total cambien en vivo. */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=s=>'id_'+String(s).replace(/[^a-zA-Z0-9_-]/g,'_');
+  function cart(){try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]));}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}));}
+  function allIng(){return Array.isArray(ingredientes)?ingredientes:[];}
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';}
+  function subtotal(x){return num(x.cantidad)*num(x.costo_unitario);}
+  function totalCart(){return cart().reduce((s,x)=>s+subtotal(x),0);}
+
+  function pintarTotales(){
+    const c=cart();
+    c.forEach(x=>{
+      const el=$('subtotalCartV879_'+safe(x.id));
+      if(el) el.textContent=money(subtotal(x));
+    });
+    const t=$('totalCarritoV879');
+    if(t) t.textContent=money(totalCart());
+  }
+
+  window.actualizarCarritoV879=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=num(valor);
+    it.costo_total=subtotal(it);
+    if(campo==='costo_unitario'){
+      const l=last(); l[String(id)]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    pintarTotales();
+  };
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV879;
+  window.actualizarCarritoV878=window.actualizarCarritoV879;
+  window.actualizarCarritoV876=window.actualizarCarritoV879;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){saveCart([]);window.renderCarritoFijoSurtidoV869(true);}
+  };
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const ing=ingById(id); if(!ing) return alert('No encontré el producto.');
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))) return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    const cant=Math.max(1,Math.ceil(Math.max(num(ing.minimo)-num(ing.cantidad),1)));
+    const cu=num(l[String(id)] ?? ing.costo_unitario);
+    c.push({id:String(ing.id),nombre:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:cant*cu});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div');panel.id='carritoSurtidoFijoV869';rec.parentNode.insertBefore(panel,rec);}
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    const activeId=active?.id||'';
+    const activePos=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+
+    const rows=c.map(x=>{
+      const sid=safe(x.id);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV879_${sid}">${money(subtotal(x))}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV879_${sid}" data-cart-v879="1" type="number" step="0.1" value="${num(x.cantidad)}" placeholder="Cantidad" oninput="actualizarCarritoV879('${esc(x.id)}','cantidad',this.value)">
+          <input id="costoCartV879_${sid}" data-cart-v879="1" type="number" step="0.01" value="${num(x.costo_unitario)}" placeholder="$ unitario" oninput="actualizarCarritoV879('${esc(x.id)}','costo_unitario',this.value)">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Edita <b>cantidad</b> y <b>precio unitario</b>. El subtotal y total cambian al momento. No sube inventario hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v879="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v879="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV879">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+
+    if(activeId){
+      const el=$(activeId);
+      if(el){el.focus();try{el.setSelectionRange(activePos??el.value.length,activePos??el.value.length)}catch(e){}}
+    }
+    pintarTotales();
+  };
+
+  // Refuerzo: si por cualquier motivo se usa un input viejo, este listener actualiza el carrito.
+  document.addEventListener('input',function(e){
+    const panel=$('carritoSurtidoFijoV869');
+    if(!panel || !panel.contains(e.target)) return;
+    const id=e.target.id||'';
+    if(id.startsWith('cantCartV879_') || id.startsWith('costoCartV879_')){
+      e.stopPropagation();
+      pintarTotales();
+    }
+  },false);
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},900));
+  setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},300);
 })();
 </script>
 
@@ -8443,7 +9136,8 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 .v8610-quitar{width:100%!important;background:#e53935!important;color:white!important;margin-top:8px!important;}
 @media(max-width:520px){.v8610-item{grid-template-columns:1fr 88px}.v8610-name{font-size:14px}.v8610-lista{max-height:240px}}
 </style>
-<script id="js-v8610-carrito-ordenado">
+<script id="js-v8712-carrito-inputs-estables">
+/* ===== V8.7.2 Carrito estable: editar cantidad/costo sin cerrar teclado ===== */
 (function(){
   const LS_CART='cecy_carrito_surtido_v866';
   const LS_LAST='cecy_ultimo_costo_surtido_v866';
@@ -8451,41 +9145,866 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   const num=v=>Number(v||0);
   const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
-  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c));
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
   const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
-  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
-  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes.filter(i=>i&&i.activo!==false):[];
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(m<=0)return'green'; if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
   const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const subtotal=(x)=>num(x.cantidad)*num(x.costo_unitario);
+
+  function totalCart(){
+    return cart().reduce((s,x)=>s+subtotal(x),0);
+  }
+
+  function actualizarTotalesV8712(id){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(it){
+      const sub=document.getElementById('subCarritoV8712_'+CSS.escape(String(id)));
+      if(sub) sub.textContent=money(subtotal(it));
+    }
+    const t=document.getElementById('totalCarritoV8712');
+    if(t) t.textContent=money(totalCart());
+  }
+
+  window.actualizarCarritoSurtidoV8712=function(ev,id,campo,valor){
+    if(ev && ev.stopPropagation) ev.stopPropagation();
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=Number(valor||0);
+    if(campo==='costo_unitario'){
+      const u=last();
+      u[id]=it[campo];
+      saveLast(u);
+    }
+    saveCart(c);
+    actualizarTotalesV8712(id);
+  };
+
+  // También sobreescribe las funciones viejas para que NO repinten mientras escribes.
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){
+    window.actualizarCarritoSurtidoV8712(null,id,campo,valor);
+  };
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoSurtidoV869;
+
   window.agregarCarritoOrdenadoV8610=function(id){
     const i=ingById(id); if(!i)return;
-    const c=cart(); if(c.some(x=>String(x.id)===String(id))){alert('Ya está en el carrito.');return;}
-    const ult=last(); const minimo=num(i.minimo), actual=num(i.cantidad);
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))){alert('Ya está en el carrito.');return;}
+    const ult=last();
+    const minimo=num(i.minimo), actual=num(i.cantidad);
     const sugerida=Math.max(1, Number((minimo-actual).toFixed(1)) || 1);
     c.push({id:i.id,nombre:i.nombre,cantidad:sugerida,costo_unitario:num(ult[i.id]||i.costo_unitario||0)});
-    saveCart(c); window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true); window.inyectarBotonesCarritoV869&&window.inyectarBotonesCarritoV869();
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true);
+    window.inyectarBotonesCarritoV869&&window.inyectarBotonesCarritoV869();
   };
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const rec=document.getElementById('recomendacionCompra'); if(!rec)return;
+    let panel=document.getElementById('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
+
+    // No repintar si estás editando cantidad/costo del carrito.
+    const active=document.activeElement;
+    const editandoCarrito=active && panel.contains(active) &&
+      active.matches('input[data-cart-input-v8712="1"]');
+    if(editandoCarrito && !force) return;
+
+    const oldInput=document.getElementById('buscarCarritoV8610');
+    const oldSearch=oldInput?.value||'';
+    const oldPos=(oldInput && typeof oldInput.selectionStart==='number') ? oldInput.selectionStart : oldSearch.length;
+
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,40);
+
+    const lista=filtrados.map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      return `<div class="v8610-item">
+        <div>
+          <div class="v8610-name">${color} ${i.nombre}</div>
+          <div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div>
+        </div>
+        <button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${i.id}')">${ya?'✓ En carrito':'Agregar'}</button>
+      </div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    const rows=c.map(x=>{
+      const idEsc=String(x.id).replace(/"/g,'&quot;');
+      const st=subtotal(x);
+      return `<div class="v8610-cart-row">
+        <b>${x.nombre}</b><br>
+        <small>Subtotal: <b id="subCarritoV8712_${idEsc}">${money(st)}</b></small>
+        <div class="v8610-cart-inputs">
+          <label>Cantidad
+            <input data-cart-input-v8712="1" type="number" inputmode="decimal" step="0.1"
+              value="${num(x.cantidad)}"
+              oninput="actualizarCarritoSurtidoV8712(event,'${x.id}','cantidad',this.value)"
+              onchange="actualizarCarritoSurtidoV8712(event,'${x.id}','cantidad',this.value)"
+              placeholder="Cantidad">
+          </label>
+          <label>Costo unitario
+            <input data-cart-input-v8712="1" type="number" inputmode="decimal" step="0.01"
+              value="${num(x.costo_unitario)}"
+              oninput="actualizarCarritoSurtidoV8712(event,'${x.id}','costo_unitario',this.value)"
+              onchange="actualizarCarritoSurtidoV8712(event,'${x.id}','costo_unitario',this.value)"
+              placeholder="$ unitario">
+          </label>
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${x.id}')">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const total=totalCart();
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v869-total">Total carrito: <span id="totalCarritoV8712">${money(total)}</span></div>
+      <div class="v869-actions">
+        <button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button>
+        <button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button>
+      </div>
+      <hr>
+      <b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;"
+        placeholder="Buscar rojo o amarillo..."
+        value="${oldSearch.replace(/"/g,'&quot;')}"
+        oninput="event.stopPropagation(); renderCarritoFijoSurtidoV869()">
+      <div class="v8610-lista">${lista}</div>`;
+
+    if(active&&active.id==='buscarCarritoV8610'){
+      const n=document.getElementById('buscarCarritoV8610');
+      if(n){n.focus(); try{n.setSelectionRange(oldPos,oldPos);}catch(e){}}
+    }
+  };
+
+  // Bloquea el listener viejo que repintaba el carrito cada vez que escribías.
+  document.addEventListener('input',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input[data-cart-input-v8712="1"]')){
+      e.stopImmediatePropagation();
+    }
+  },true);
+
+  window.addEventListener('load',()=>setTimeout(()=>window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true),600));
+})();
+</script>
+
+
+
+<style id="css-v873-carrito-meta-estable">
+.v873-cart-row{display:grid;grid-template-columns:1fr;gap:7px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.12)}
+.v873-cart-inputs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v873-cart-inputs label{font-size:12px}.v873-cart-inputs input{margin:3px 0 0!important;padding:10px!important;font-size:16px!important}
+.v873-sub{font-size:13px;color:#4a1249}.v873-quitar{background:#e53935!important;color:white!important}
+@media(max-width:520px){.v873-cart-inputs{grid-template-columns:1fr 1fr}}
+</style>
+<script id="js-v873-carrito-meta-estable">
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const money=n=>'$'+Number(n||0).toFixed(2);
+  const num=v=>Number(v||0);
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  function totalCart(){return cart().reduce((s,x)=>s+(num(x.cantidad)*num(x.costo_unitario)),0)}
+  function subtotal(x){return num(x.cantidad)*num(x.costo_unitario)}
+  function actualizarTotales(id){
+    const c=cart();
+    const item=c.find(x=>String(x.id)===String(id));
+    const sub=document.getElementById('subCarritoV873_'+String(id).replace(/[^a-zA-Z0-9_-]/g,''));
+    if(sub&&item) sub.textContent=money(subtotal(item));
+    const total=document.getElementById('totalCarritoV873');
+    if(total) total.textContent=money(totalCart());
+  }
+  window.actualizarCarritoSurtidoV873=function(ev,id,campo,valor){
+    if(ev){ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id)); if(!it)return false;
+    it[campo]=Number(valor||0);
+    saveCart(c);
+    if(campo==='costo_unitario'){const u=last();u[id]=Number(valor||0);saveLast(u);}
+    actualizarTotales(id);
+    return false;
+  };
+  // Compatibilidad: cualquier función vieja que se llame desde inputs ya no repinta.
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){return window.actualizarCarritoSurtidoV873(null,id,campo,valor)};
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV863=function(id,campo,valor){return window.actualizarCarritoSurtidoV873(null,id,campo,valor)};
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const i=ingById(id); if(!i)return;
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))){alert('Ya está en el carrito.');return;}
+    const ult=last();
+    const minimo=num(i.minimo), actual=num(i.cantidad);
+    const sugerida=Math.max(1, Number((minimo-actual).toFixed(1)) || 1);
+    c.push({id:i.id,nombre:i.nombre,cantidad:sugerida,costo_unitario:num(ult[i.id]||i.costo_unitario||0)});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.quitarCarritoSurtidoV869=function(id){saveCart(cart().filter(x=>String(x.id)!==String(id)));window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true)};
+  window.limpiarCarritoSurtidoV869=function(){if(confirm('¿Vaciar carrito de surtido?')){saveCart([]);window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true)}};
+
   window.renderCarritoFijoSurtidoV869=function(force){
     const rec=document.getElementById('recomendacionCompra'); if(!rec)return;
     let panel=document.getElementById('carritoSurtidoFijoV869');
     if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
     const active=document.activeElement;
-    const oldInput=document.getElementById('buscarCarritoV8610');
-    const oldSearch=oldInput?.value||'';
-    const oldPos=(oldInput && typeof oldInput.selectionStart==='number') ? oldInput.selectionStart : oldSearch.length;
+    const editando=active && panel.contains(active) && active.matches('input[data-cart-v873="1"], #proveedorCompraV87, #notaCompraV87');
+    if(editando && !force) return; // no destruye el input mientras escribes
+
+    const oldSearch=document.getElementById('buscarCarritoV8610')?.value||'';
+    const searchPos=document.getElementById('buscarCarritoV8610')?.selectionStart ?? oldSearch.length;
+    const oldProv=document.getElementById('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=document.getElementById('notaCompraV87')?.value ?? '';
     const c=cart();
     const ids=new Set(c.map(x=>String(x.id)));
-    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
-      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1; if(ta!==tb)return ta-tb; return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
-    });
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
     const q=norm(oldSearch);
     const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,40);
     const lista=filtrados.map(i=>{const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id)); return `<div class="v8610-item"><div><div class="v8610-name">${color} ${i.nombre}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${i.id}')">${ya?'✓ En carrito':'Agregar'}</button></div>`}).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
-    const rows=c.map(x=>{const st=num(x.cantidad)*num(x.costo_unitario); return `<div class="v8610-cart-row"><b>${x.nombre}</b><br><small>Subtotal: <b>${money(st)}</b></small><div class="v8610-cart-inputs"><input type="number" step="0.1" value="${num(x.cantidad)}" onchange="actualizarCarritoSurtidoV869('${x.id}','cantidad',this.value)" placeholder="Cantidad"><input type="number" step="0.01" value="${num(x.costo_unitario)}" onchange="actualizarCarritoSurtidoV869('${x.id}','costo_unitario',this.value)" placeholder="$ unitario"></div><button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${x.id}')">Quitar</button></div>`}).join('');
-    const total=c.reduce((s,x)=>s+num(x.cantidad)*num(x.costo_unitario),0);
-    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v869-total">Total carrito: ${money(total)}</div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${oldSearch.replace(/"/g,'&quot;')}" oninput="renderCarritoFijoSurtidoV869()"><div class="v8610-lista">${lista}</div>`;
-    if(active&&active.id==='buscarCarritoV8610'){const n=document.getElementById('buscarCarritoV8610'); if(n){n.focus(); try{n.setSelectionRange(oldPos,oldPos);}catch(e){}}}
+    const rows=c.map(x=>{const safe=String(x.id).replace(/[^a-zA-Z0-9_-]/g,''); const st=subtotal(x); return `<div class="v873-cart-row"><b>${x.nombre}</b><div class="v873-sub">Subtotal: <b id="subCarritoV873_${safe}">${money(st)}</b></div><div class="v873-cart-inputs"><label>Cantidad<input data-cart-v873="1" type="number" inputmode="decimal" step="0.1" value="${num(x.cantidad)}" oninput="return actualizarCarritoSurtidoV873(event,'${x.id}','cantidad',this.value)" onchange="return actualizarCarritoSurtidoV873(event,'${x.id}','cantidad',this.value)"></label><label>Costo unitario<input data-cart-v873="1" type="number" inputmode="decimal" step="0.01" value="${num(x.costo_unitario)}" oninput="return actualizarCarritoSurtidoV873(event,'${x.id}','costo_unitario',this.value)" onchange="return actualizarCarritoSurtidoV873(event,'${x.id}','costo_unitario',this.value)"></label></div><button class="v873-quitar" onclick="quitarCarritoSurtidoV869('${x.id}')">Quitar</button></div>`}).join('');
+    const total=totalCart();
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v87-cart-extra"><label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v873="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${String(oldProv).replace(/"/g,'&quot;')}" oninput="event.stopPropagation();localStorage.setItem('${LS_PROV}',this.value)"></label><label>📝 Nota<input id="notaCompraV87" data-cart-v873="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${String(oldNota).replace(/"/g,'&quot;')}" oninput="event.stopPropagation()"></label></div><div class="v869-total">Total carrito: <span id="totalCarritoV873">${money(total)}</span></div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${oldSearch.replace(/"/g,'&quot;')}" oninput="event.stopPropagation(); renderCarritoFijoSurtidoV869(true)"><div class="v8610-lista">${lista}</div>`;
+    if(active&&active.id==='buscarCarritoV8610'){
+      const n=document.getElementById('buscarCarritoV8610'); if(n){n.focus(); try{n.setSelectionRange(searchPos,searchPos)}catch(e){}}
+    }
   };
-  window.addEventListener('load',()=>setTimeout(()=>window.renderCarritoFijoSurtidoV869&&window.renderCarritoFijoSurtidoV869(true),600));
+
+  document.addEventListener('input',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input[data-cart-v873="1"]')){
+      e.stopPropagation();
+      if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    }
+  },true);
+  document.addEventListener('change',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input[data-cart-v873="1"]')){
+      e.stopPropagation();
+      if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    }
+  },true);
+
+  // Meta corregida: usa ventas reales de hoy y no deja la barra en cero.
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+      let total=0,cantidad=0;
+      if(db){
+        const desde=new Date(); desde.setDate(desde.getDate()-40);
+        const r=await db.from('ventas').select('id,total,fecha_creacion,pedidos(estado)').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+        const hoy=(typeof fechaJuarezSimpleV85==='function'?fechaJuarezSimpleV85(): (typeof fechaJuarezKey==='function'?fechaJuarezKey(new Date()):new Date().toISOString().slice(0,10)));
+        (r.data||[]).forEach(v=>{
+          const estado=String(v.pedidos?.estado||'vendido').toLowerCase();
+          if(estado==='anulada'||estado==='cancelado') return;
+          const fv=(typeof fechaJuarezSimpleV85==='function'?fechaJuarezSimpleV85(v.fecha_creacion):(typeof fechaJuarezKey==='function'?fechaJuarezKey(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10)));
+          if(fv===hoy){ total+=Number(v.total||0); cantidad++; }
+        });
+      }
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+    }catch(e){console.log('Meta V8.7.3:',e)}
+  };
+  const baseReporteV873=window.cargarReporteHoy;
+  if(typeof baseReporteV873==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await baseReporteV873.apply(this,arguments);
+      try{await window.actualizarMetaDiariaV85()}catch(e){}
+      try{window.renderCarritoFijoSurtidoV869(false)}catch(e){}
+      return r;
+    };
+  }
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true);window.actualizarMetaDiariaV85()}catch(e){}},900));
+})();
+</script>
+
+
+<script id="js-v874-carrito-meta-final">
+(function(){
+  const LS_CART = 'cecy_carrito_surtido_v866';
+  const LS_PROV = 'cecy_ultimo_proveedor_v87';
+  function n(v){ return Number(v||0); }
+  function money(v){ return '$' + Number(v||0).toFixed(2); }
+  function esc(s){ return String(s??'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function norm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+  function cart(){ try{ const a=JSON.parse(localStorage.getItem(LS_CART)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function save(c){ localStorage.setItem(LS_CART, JSON.stringify(c||[])); }
+  function allIng(){ try{return Array.isArray(ingredientes)?ingredientes:[];}catch(e){return [];} }
+  function ingById(id){ return allIng().find(i=>String(i.id)===String(id)); }
+  function tipoInv(i){ const cant=n(i.cantidad), min=n(i.minimo); if(min<=0) return 'green'; if(cant<=min) return 'red'; if(cant<=min*2) return 'yellow'; return 'green'; }
+  function subtotal(x){ return n(x.cantidad)*n(x.costo_unitario); }
+  function totalCart(){ return cart().reduce((s,x)=>s+subtotal(x),0); }
+  function safeId(id){ return String(id).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+  function updateLineDom(id){
+    const c=cart(); const x=c.find(y=>String(y.id)===String(id));
+    if(!x) return;
+    const sid=safeId(id);
+    const sub=document.getElementById('subCartV874_'+sid); if(sub) sub.textContent=money(subtotal(x));
+    const total=document.getElementById('totalCarritoV874'); if(total) total.textContent=money(totalCart());
+  }
+  function persistirCampoCarrito(id,campo,valor){
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=Number(valor||0);
+    save(c);
+    updateLineDom(id);
+  }
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){ persistirCampoCarrito(id,campo,valor); return false; };
+  window.actualizarCarritoSurtidoV873=function(ev,id,campo,valor){ if(ev){ev.stopPropagation();} persistirCampoCarrito(id,campo,valor); return false; };
+  window.actualizarCarritoSurtidoV865=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV864=window.actualizarCarritoSurtidoV869;
+
+  function wireStableCart(){
+    const panel=document.getElementById('carritoSurtidoFijoV869'); if(!panel) return;
+    panel.querySelectorAll('input[data-cart-v874]').forEach(inp=>{
+      if(inp.__wiredV874) return; inp.__wiredV874=true;
+      inp.addEventListener('input', e=>{
+        e.stopPropagation();
+        persistirCampoCarrito(inp.dataset.id, inp.dataset.campo, inp.value);
+      });
+      inp.addEventListener('change', e=>{
+        e.stopPropagation();
+        persistirCampoCarrito(inp.dataset.id, inp.dataset.campo, inp.value);
+      });
+    });
+    const busc=document.getElementById('buscarCarritoV8610');
+    if(busc && !busc.__wiredV874){
+      busc.__wiredV874=true;
+      busc.addEventListener('input', e=>{
+        e.stopPropagation();
+        const q=norm(busc.value);
+        panel.querySelectorAll('.v874-add-item').forEach(row=>{
+          row.style.display = !q || norm(row.dataset.nombre||'').includes(q) ? '' : 'none';
+        });
+      });
+    }
+    const prov=document.getElementById('proveedorCompraV87');
+    if(prov && !prov.__wiredV874){ prov.__wiredV874=true; prov.addEventListener('input',e=>{e.stopPropagation(); localStorage.setItem(LS_PROV,prov.value);}); }
+    const nota=document.getElementById('notaCompraV87');
+    if(nota && !nota.__wiredV874){ nota.__wiredV874=true; nota.addEventListener('input',e=>e.stopPropagation()); }
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const rec=document.getElementById('recomendacionCompra'); if(!rec) return;
+    let panel=document.getElementById('carritoSurtidoFijoV869');
+    if(!panel){ panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec); }
+    const active=document.activeElement;
+    if(!force && active && panel.contains(active) && active.matches('input, textarea')){
+      const total=document.getElementById('totalCarritoV874'); if(total) total.textContent=money(totalCart());
+      return;
+    }
+    const oldSearch=document.getElementById('buscarCarritoV8610')?.value||'';
+    const oldProv=document.getElementById('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=document.getElementById('notaCompraV87')?.value ?? '';
+    const c=cart(); const ids=new Set(c.map(x=>String(x.id)));
+    const rows=c.map(x=>{
+      const sid=safeId(x.id);
+      return `<div class="v873-cart-row"><b>${esc(x.nombre)}</b><div class="v873-sub">Subtotal: <b id="subCartV874_${sid}">${money(subtotal(x))}</b></div><div class="v873-cart-inputs"><label>Cantidad<input data-cart-v874="1" data-id="${esc(x.id)}" data-campo="cantidad" type="number" inputmode="decimal" step="0.1" value="${n(x.cantidad)}"></label><label>Costo unitario<input data-cart-v874="1" data-id="${esc(x.id)}" data-campo="costo_unitario" type="number" inputmode="decimal" step="0.01" value="${n(x.costo_unitario)}"></label></div><button class="v873-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button></div>`;
+    }).join('');
+    const items=allIng().filter(i=>tipoInv(i)!=='green').sort((a,b)=>{ const ta=tipoInv(a)==='red'?0:1, tb=tipoInv(b)==='red'?0:1; if(ta!==tb) return ta-tb; return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');});
+    const q=norm(oldSearch);
+    const lista=items.slice(0,80).map(i=>{
+      const t=tipoInv(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      const show=!q||norm(i.nombre).includes(q);
+      return `<div class="v8610-item v874-add-item" data-nombre="${esc(i.nombre)}" style="${show?'':'display:none'}"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${n(i.cantidad).toFixed(1)} · mín ${n(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v87-cart-extra"><label>📍 Lugar / proveedor<input id="proveedorCompraV87" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}"></label><label>📝 Nota<input id="notaCompraV87" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label></div><div class="v869-total">Total carrito: <span id="totalCarritoV874">${money(totalCart())}</span></div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}"><div class="v8610-lista">${lista}</div>`;
+    wireStableCart();
+  };
+
+  const oldAgregar=window.agregarCarritoOrdenadoV8610;
+  window.agregarCarritoOrdenadoV8610=function(id){
+    if(typeof oldAgregar==='function'){
+      const r=oldAgregar.apply(this,arguments);
+      setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true);}catch(e){}},20);
+      return r;
+    }
+    const i=ingById(id); if(!i) return;
+    const c=cart(); if(c.some(x=>String(x.id)===String(id))) return;
+    c.push({id:String(i.id),nombre:i.nombre,cantidad:Math.max(1,n(i.minimo)-n(i.cantidad)),costo_unitario:n(i.costo_unitario)}); save(c); window.renderCarritoFijoSurtidoV869(true);
+  };
+
+  // Meta definitiva: calcula ventas de hoy sin depender de relación pedidos() para que no se quede en 0.
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+      let total=0, cantidad=0;
+      if(db){
+        const desde=new Date(); desde.setDate(desde.getDate()-3);
+        const r=await db.from('ventas').select('id,total,fecha_creacion,pedido_id').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+        if(r.error) throw r.error;
+        const hoy=(typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85():new Date().toISOString().slice(0,10);
+        (r.data||[]).forEach(v=>{
+          const fv=(typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10);
+          if(fv===hoy){ total+=Number(v.total||0); cantidad++; }
+        });
+      }
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+      return {total,cantidad};
+    }catch(e){ console.log('Meta V8.7.4:',e); if(typeof renderMetaV85==='function') renderMetaV85(0,0); }
+  };
+  const baseReporteV874=window.cargarReporteHoy;
+  if(typeof baseReporteV874==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await baseReporteV874.apply(this,arguments);
+      try{ await window.actualizarMetaDiariaV85(); }catch(e){}
+      try{ window.renderCarritoFijoSurtidoV869(false); }catch(e){}
+      return r;
+    };
+  }
+  document.addEventListener('input',function(e){
+    const panel=document.getElementById('carritoSurtidoFijoV869');
+    if(panel && panel.contains(e.target) && e.target.matches('input')){ e.stopPropagation(); }
+  },true);
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true); wireStableCart(); window.actualizarMetaDiariaV85();}catch(e){}},1200));
+})();
+</script>
+
+
+
+<script>
+/* ===== V8.7.5 Corrección final: carrito con totales vivos + meta igual al reporte ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_HIST='cecy_historial_compras_v87';
+  const $=id=>document.getElementById(id);
+  const n=v=>Number(String(v??'0').replace(',','.'))||0;
+  const money=v=>'$'+n(v).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const sid=id=>String(id).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const cart=()=>{try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveCart=a=>localStorage.setItem(LS_CART,JSON.stringify(a||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(window.ingredientes)?window.ingredientes:(typeof ingredientes!=='undefined'&&Array.isArray(ingredientes)?ingredientes:[]);
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=n(i.cantidad),m=n(i.minimo); if(c<=m)return 'red'; if(c<=m*2)return 'yellow'; return 'green';}
+  function sugerir(i){return Math.max(1,n(i.minimo)-n(i.cantidad));}
+  function subtotalItem(x){return n(x.cantidad)*n(x.costo_unitario);}  
+  function totalCart(){return cart().reduce((s,x)=>s+subtotalItem(x),0);}  
+
+  function actualizarTotalesCarritoV875(){
+    const c=cart();
+    let total=0;
+    c.forEach(x=>{
+      const st=subtotalItem(x); total+=st;
+      const sub=$('subCarritoV875_'+sid(x.id)); if(sub) sub.textContent=money(st);
+    });
+    const tot=$('totalCarritoV875'); if(tot) tot.textContent=money(total);
+  }
+
+  window.actualizarCarritoSurtidoV875=function(ev,id,campo,valor){
+    if(ev){ ev.stopPropagation(); }
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return false;
+    it[campo]=n(valor);
+    if(campo==='costo_unitario'){
+      const u=last(); u[id]=it[campo]; saveLast(u);
+    }
+    saveCart(c);
+    actualizarTotalesCarritoV875();
+    return false;
+  };
+
+  // Sobrescribir nombres viejos para que cualquier input antiguo use la misma lógica.
+  window.actualizarCarritoSurtidoV869=function(id,campo,valor){return window.actualizarCarritoSurtidoV875(null,id,campo,valor)};
+  window.actualizarCarritoSurtidoV873=function(ev,id,campo,valor){return window.actualizarCarritoSurtidoV875(ev,id,campo,valor)};
+  window.actualizarCarritoSurtidoV8712=function(ev,id,campo,valor){return window.actualizarCarritoSurtidoV875(ev,id,campo,valor)};
+  window.actualizarCarritoSurtidoV865=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoSurtidoV869;
+  window.actualizarCarritoSurtidoV863=window.actualizarCarritoSurtidoV869;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){ saveCart([]); window.renderCarritoFijoSurtidoV869(true); }
+  };
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const i=ingById(id); if(!i) return;
+    const c=cart();
+    let it=c.find(x=>String(x.id)===String(id));
+    const u=last();
+    const costo=n(u[id] ?? i.costo_unitario ?? 0);
+    if(it){ it.cantidad=n(it.cantidad)+sugerir(i); }
+    else c.push({id:String(i.id),nombre:i.nombre,cantidad:sugerir(i),costo_unitario:costo});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV865=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){ panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec); }
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force=false){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    // Si están editando cantidad/precio/proveedor/nota, no reconstruir: solo recalcular totales.
+    if(!force && active && panel.contains(active) && active.matches('input[data-cart-v875="1"]')){
+      actualizarTotalesCarritoV875();
+      return;
+    }
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,40);
+    const lista=filtrados.map(i=>{
+      const color=tipo(i)==='red'?'🔴':'🟡'; const ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${n(i.cantidad).toFixed(1)} · mín ${n(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    const rows=c.map(x=>{
+      const id=sid(x.id); const st=subtotalItem(x);
+      return `<div class="v8610-cart-row"><b>${esc(x.nombre)}</b><br><small>Subtotal: <b id="subCarritoV875_${id}">${money(st)}</b></small><div class="v8610-cart-inputs"><input data-cart-v875="1" type="number" inputmode="decimal" step="0.1" value="${n(x.cantidad)}" oninput="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','cantidad',this.value)" onchange="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','cantidad',this.value)" placeholder="Cantidad"><input data-cart-v875="1" type="number" inputmode="decimal" step="0.01" value="${n(x.costo_unitario)}" oninput="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','costo_unitario',this.value)" onchange="return actualizarCarritoSurtidoV875(event,'${esc(x.id)}','costo_unitario',this.value)" placeholder="$ unitario"></div><button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button></div>`;
+    }).join('');
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3><div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>${c.length?rows:'<div class="warn">Carrito vacío.</div>'}<div class="v87-cart-extra"><label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v875="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="event.stopPropagation();localStorage.setItem('${LS_PROV}',this.value)"></label><label>📝 Nota<input id="notaCompraV87" data-cart-v875="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}" oninput="event.stopPropagation()"></label></div><div class="v869-total">Total carrito: <span id="totalCarritoV875">${money(totalCart())}</span></div><div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div><hr><b>Agregar producto</b><input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="event.stopPropagation(); renderCarritoFijoSurtidoV869(true)"><div class="v8610-lista">${lista}</div>`;
+    if(active && active.id){ const neo=$(active.id); if(neo){ neo.focus(); try{neo.setSelectionRange(active.selectionStart||neo.value.length,active.selectionStart||neo.value.length)}catch(e){} } }
+  };
+
+  // Evita que los escuchadores viejos de input repinten el carrito mientras editas.
+  document.addEventListener('input',function(e){
+    if($('carritoSurtidoFijoV869')?.contains(e.target) && e.target.matches('input[data-cart-v875="1"]')){
+      e.stopPropagation();
+    }
+  }, true);
+
+  function totalVisibleReporteHoy(){
+    const rg=$('reporteGeneral'); if(!rg) return null;
+    const box=[...rg.querySelectorAll('.box')].find(b=>(b.textContent||'').trim().toLowerCase().startsWith('hoy'));
+    if(!box) return null;
+    const txt=box.textContent||'';
+    const m=txt.match(/\$\s*([0-9.,]+)/);
+    const v=txt.match(/([0-9]+)\s*ventas?/i);
+    if(!m) return null;
+    return {total:n(m[1].replace(/,/g,'')), cantidad:v?Number(v[1]):0};
+  }
+  async function totalVentasHoyConsulta(){
+    let total=0,cantidad=0;
+    if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+    if(!db) return {total,cantidad};
+    const desde=new Date(); desde.setDate(desde.getDate()-40);
+    const r=await db.from('ventas').select('id,total,fecha_creacion').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+    if(r.error) throw r.error;
+    const hoy=(typeof fechaJuarezKey==='function')?fechaJuarezKey(new Date()):((typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85():new Date().toISOString().slice(0,10));
+    (r.data||[]).forEach(v=>{
+      const fv=(typeof fechaJuarezKey==='function')?fechaJuarezKey(v.fecha_creacion):((typeof fechaJuarezSimpleV85==='function')?fechaJuarezSimpleV85(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10));
+      if(fv===hoy){ total+=n(v.total); cantidad++; }
+    });
+    return {total,cantidad};
+  }
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      const q=await totalVentasHoyConsulta().catch(()=>({total:0,cantidad:0}));
+      const dom=totalVisibleReporteHoy();
+      // Usa el mayor para que la barra coincida con el reporte visible cuando haya otra función calculando mejor el día.
+      const total=dom&&dom.total>q.total ? dom.total : q.total;
+      const cantidad=dom&&dom.total>=q.total ? (dom.cantidad||q.cantidad) : q.cantidad;
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+      return {total,cantidad};
+    }catch(e){ console.log('Meta V8.7.5:',e); }
+  };
+  const oldReporteV875=window.cargarReporteHoy;
+  if(typeof oldReporteV875==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await oldReporteV875.apply(this,arguments);
+      setTimeout(()=>{try{window.actualizarMetaDiariaV85()}catch(e){}},100);
+      return r;
+    };
+  }
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{ window.renderCarritoFijoSurtidoV869(true); window.actualizarMetaDiariaV85(); }catch(e){}
+  },1200));
+})();
+</script>
+
+
+
+<script id="js-v877-carrito-totales-vivos">
+/* ===== V8.7.7 Carrito: totales vivos sin repintar y sin cerrar teclado ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=id=>String(id).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  function totalCart(){return cart().reduce((s,x)=>s+num(x.cantidad)*num(x.costo_unitario),0);}
+  function actualizarTotalesVivos(){
+    const c=cart();
+    c.forEach(x=>{
+      const el=$('subtotalCartV877_'+safe(x.id));
+      if(el) el.textContent=money(num(x.cantidad)*num(x.costo_unitario));
+    });
+    const total=money(totalCart());
+    ['totalCarritoV877','totalCarritoV876','totalCarritoV875','totalCarritoV874'].forEach(id=>{const el=$(id); if(el) el.textContent=total;});
+  }
+  window.actualizarCarritoV877=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return false;
+    it[campo]=num(valor);
+    it.costo_total=num(it.cantidad)*num(it.costo_unitario);
+    if(campo==='costo_unitario'){
+      const l=last(); l[id]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    actualizarTotalesVivos();
+    return false;
+  };
+  window.actualizarCarritoV876=window.actualizarCarritoV877;
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV877;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV877;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    if(!force && active && panel.contains(active) && active.matches('input[data-cart-v877="1"]')) return;
+    const activeId=active?.id||'';
+    const start=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+    const rows=c.map(x=>{
+      const eid=safe(x.id); const idAttr=esc(x.id); const st=num(x.cantidad)*num(x.costo_unitario);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV877_${eid}">${money(st)}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV877_${eid}" data-cart-v877="1" type="number" inputmode="decimal" step="0.1" value="${num(x.cantidad)}" oninput="return actualizarCarritoV877('${idAttr}','cantidad',this.value)" placeholder="Cantidad">
+          <input id="costoCartV877_${eid}" data-cart-v877="1" type="number" inputmode="decimal" step="0.01" value="${num(x.costo_unitario)}" oninput="return actualizarCarritoV877('${idAttr}','costo_unitario',this.value)" placeholder="$ unitario">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${idAttr}')">Quitar</button>
+      </div>`;
+    }).join('');
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id)); return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`}).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v877="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v877="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV877">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+    if(activeId){
+      const el=$(activeId); if(el){el.focus(); try{el.setSelectionRange(start??el.value.length,start??el.value.length)}catch(e){}}
+    }
+    actualizarTotalesVivos();
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},700));
+})();
+</script>
+
+
+
+<script>
+/* ===== V8.7.9 DEFINITIVO: carrito con totales vivos sin data bloqueada =====
+   Nota: versiones anteriores agregaron listeners en captura que bloqueaban inputs con
+   data-cart-v876/v878. Esta versión pinta el carrito con data-cart-v879 para que
+   Android no cierre teclado y para que el subtotal/total cambien en vivo. */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=s=>'id_'+String(s).replace(/[^a-zA-Z0-9_-]/g,'_');
+  function cart(){try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]));}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}));}
+  function allIng(){return Array.isArray(ingredientes)?ingredientes:[];}
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';}
+  function subtotal(x){return num(x.cantidad)*num(x.costo_unitario);}
+  function totalCart(){return cart().reduce((s,x)=>s+subtotal(x),0);}
+
+  function pintarTotales(){
+    const c=cart();
+    c.forEach(x=>{
+      const el=$('subtotalCartV879_'+safe(x.id));
+      if(el) el.textContent=money(subtotal(x));
+    });
+    const t=$('totalCarritoV879');
+    if(t) t.textContent=money(totalCart());
+  }
+
+  window.actualizarCarritoV879=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=num(valor);
+    it.costo_total=subtotal(it);
+    if(campo==='costo_unitario'){
+      const l=last(); l[String(id)]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    pintarTotales();
+  };
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV879;
+  window.actualizarCarritoV878=window.actualizarCarritoV879;
+  window.actualizarCarritoV876=window.actualizarCarritoV879;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){saveCart([]);window.renderCarritoFijoSurtidoV869(true);}
+  };
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const ing=ingById(id); if(!ing) return alert('No encontré el producto.');
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))) return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    const cant=Math.max(1,Math.ceil(Math.max(num(ing.minimo)-num(ing.cantidad),1)));
+    const cu=num(l[String(id)] ?? ing.costo_unitario);
+    c.push({id:String(ing.id),nombre:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:cant*cu});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div');panel.id='carritoSurtidoFijoV869';rec.parentNode.insertBefore(panel,rec);}
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    const activeId=active?.id||'';
+    const activePos=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+
+    const rows=c.map(x=>{
+      const sid=safe(x.id);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV879_${sid}">${money(subtotal(x))}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV879_${sid}" data-cart-v879="1" type="number" step="0.1" value="${num(x.cantidad)}" placeholder="Cantidad" oninput="actualizarCarritoV879('${esc(x.id)}','cantidad',this.value)">
+          <input id="costoCartV879_${sid}" data-cart-v879="1" type="number" step="0.01" value="${num(x.costo_unitario)}" placeholder="$ unitario" oninput="actualizarCarritoV879('${esc(x.id)}','costo_unitario',this.value)">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Edita <b>cantidad</b> y <b>precio unitario</b>. El subtotal y total cambian al momento. No sube inventario hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v879="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v879="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV879">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+
+    if(activeId){
+      const el=$(activeId);
+      if(el){el.focus();try{el.setSelectionRange(activePos??el.value.length,activePos??el.value.length)}catch(e){}}
+    }
+    pintarTotales();
+  };
+
+  // Refuerzo: si por cualquier motivo se usa un input viejo, este listener actualiza el carrito.
+  document.addEventListener('input',function(e){
+    const panel=$('carritoSurtidoFijoV869');
+    if(!panel || !panel.contains(e.target)) return;
+    const id=e.target.id||'';
+    if(id.startsWith('cantCartV879_') || id.startsWith('costoCartV879_')){
+      e.stopPropagation();
+      pintarTotales();
+    }
+  },false);
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},900));
+  setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},300);
 })();
 </script>
 
@@ -8617,5 +10136,517 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   window.addEventListener('load',()=>setTimeout(()=>{try{renderCarritoV87();renderHistorialComprasV87();}catch(e){}},1000));
   const oldTab=window.verTab;
   if(typeof oldTab==='function')window.verTab=function(id,btn){const r=oldTab.apply(this,arguments); if(id==='reportes')setTimeout(()=>{try{renderCarritoV87();renderHistorialComprasV87();}catch(e){}},120); return r;};
+})();
+</script>
+
+
+<script id="js-v876-carrito-meta-real-final">
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_HIST='cecy_historial_compras_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cart=()=>{try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const hist=()=>{try{return JSON.parse(localStorage.getItem(LS_HIST)||'[]')}catch(e){return []}};
+  const saveHist=a=>localStorage.setItem(LS_HIST,JSON.stringify((a||[]).slice(0,300)));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  const nombreUsuario=()=>usuarioLogueado?.nombre||$('usuarioSelect')?.selectedOptions?.[0]?.textContent||'Usuario';
+
+  function totalCart(){return cart().reduce((s,x)=>s+num(x.cantidad)*num(x.costo_unitario),0);}
+  function updateCartTotalsOnly(){
+    const c=cart();
+    c.forEach(x=>{
+      const sub=$('subtotalCartV876_'+CSS.escape(String(x.id)));
+      if(sub) sub.textContent=money(num(x.cantidad)*num(x.costo_unitario));
+    });
+    ['totalCarritoV876','totalCarritoV875','totalCarritoV874','totalCarritoV873','totalCarritoSurtidoV864','totalCarritoSurtidoV863'].forEach(id=>{const el=$(id); if(el) el.textContent=money(totalCart());});
+  }
+
+  window.actualizarCarritoV876=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=num(valor);
+    if(campo==='costo_unitario'){
+      const l=last(); l[id]=num(valor); saveLast(l);
+    }
+    it.costo_total=num(it.cantidad)*num(it.costo_unitario);
+    saveCart(c);
+    updateCartTotalsOnly();
+  };
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV876;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV876;
+
+  window.quitarCarritoSurtidoV869=function(id){saveCart(cart().filter(x=>String(x.id)!==String(id))); window.renderCarritoFijoSurtidoV869(true);};
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+  window.limpiarCarritoSurtidoV869=function(){if(confirm('¿Vaciar carrito de surtido?')){saveCart([]); window.renderCarritoFijoSurtidoV869(true);}};
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const ing=ingById(id); if(!ing) return alert('No encontré el producto.');
+    const c=cart(); if(c.some(x=>String(x.id)===String(id))) return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    c.push({id:String(ing.id),nombre:ing.nombre,cantidad:Math.max(1,num(ing.minimo)-num(ing.cantidad)),costo_unitario:num(l[id]??ing.costo_unitario),costo_total:0});
+    saveCart(c); window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec);}
+    return panel;
+  }
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    const activeId=active?.id||''; const start=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart(); const ids=new Set(c.map(x=>String(x.id)));
+    const rows=c.map(x=>{
+      const id=esc(x.id); const eid=String(x.id).replace(/[^a-zA-Z0-9_-]/g,'_');
+      const st=num(x.cantidad)*num(x.costo_unitario);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV876_${eid}">${money(st)}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV876_${eid}" data-cart-v876="1" type="number" step="0.1" value="${num(x.cantidad)}" oninput="actualizarCarritoV876('${id}','cantidad',this.value);event.stopPropagation();" placeholder="Cantidad">
+          <input id="costoCartV876_${eid}" data-cart-v876="1" type="number" step="0.01" value="${num(x.costo_unitario)}" oninput="actualizarCarritoV876('${id}','costo_unitario',this.value);event.stopPropagation();" placeholder="$ unitario">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${id}')">Quitar</button>
+      </div>`;
+    }).join('');
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{const ta=tipo(a)==='red'?0:1,tb=tipo(b)==='red'?0:1;if(ta!==tb)return ta-tb;return String(a.nombre||'').localeCompare(String(b.nombre||''),'es')});
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id)); return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`}).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Agrega solo lo que vas a surtir. <b>No sube inventario</b> hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v876="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value);event.stopPropagation();"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v876="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}" oninput="event.stopPropagation();"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV876">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="event.stopPropagation(); window.renderCarritoFijoSurtidoV869(true);">
+      <div class="v8610-lista">${lista}</div>`;
+    if(activeId){
+      const el=$(activeId); if(el){el.focus(); try{el.setSelectionRange(start??el.value.length,start??el.value.length)}catch(e){}}
+    }
+  };
+
+  // Bloquea que escuchadores viejos repinten el carrito al editar cantidad/precio.
+  document.addEventListener('input',function(e){
+    if($('carritoSurtidoFijoV869')?.contains(e.target) && e.target.matches('input[data-cart-v876="1"]')){
+      e.stopImmediatePropagation();
+    }
+  },true);
+
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function'&&!validarPermiso('compras','Necesitas permiso de compras.'))return;
+    const u=usuarioLogueado; if(!u)return alert('Entra con PIN.');
+    const c=cart(); if(!c.length)return alert('El carrito está vacío.');
+    for(const x of c){if(num(x.cantidad)<=0)return alert('Revisa cantidad en '+x.nombre); if(num(x.costo_unitario)<=0)return alert('Revisa costo unitario en '+x.nombre);}
+    const proveedor=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    const nota=($('notaCompraV87')?.value||'').trim();
+    if(!proveedor && !confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?'))return;
+    if(!confirm('¿Carrito pagado? Ahora sí se subirá la existencia y se guardará el historial de compra.'))return;
+    if(btn){btn.disabled=true;btn.textContent='Aplicando...';}
+    const fecha=new Date().toISOString();
+    const items=c.map(x=>({id:x.id,nombre:x.nombre,cantidad:num(x.cantidad),costo_unitario:num(x.costo_unitario),costo_total:num(x.cantidad)*num(x.costo_unitario)}));
+    const total=items.reduce((s,x)=>s+num(x.costo_total),0);
+    const compra={id:'compra_'+Date.now(),fecha,usuario:nombreUsuario(),usuario_id:u.id||null,proveedor,nota,total,items};
+    try{
+      if(!db&&typeof iniciarSupabase==='function')iniciarSupabase();
+      if(typeof cargarIngredientes==='function')await cargarIngredientes();
+      const ult=last();
+      for(const x of items){
+        const i=ingById(x.id); if(!i)continue;
+        const nueva=num(i.cantidad)+num(x.cantidad);
+        const {error}=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:x.costo_unitario}).eq('id',x.id);
+        if(error)throw new Error(i.nombre+': '+error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:x.id,cantidad:x.cantidad,costo_total:x.costo_total,costo_unitario:x.costo_unitario});}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:x.id,tipo:'compra',cantidad:x.cantidad,motivo:(proveedor?('Compra en '+proveedor):'Compra desde carrito')+(nota?(' · '+nota):''),referencia:compra.id});}catch(e){}
+        ult[x.id]=x.costo_unitario;
+      }
+      saveLast(ult);
+      const h=hist(); h.unshift(compra); saveHist(h);
+      try{if(typeof auditoria==='function')await auditoria('HISTORIAL_COMPRA',`${compra.usuario} registró compra por ${money(total)}${proveedor?' en '+proveedor:''}`,compra);}catch(e){}
+      saveCart([]); if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function')await cargarIngredientes();
+      if(typeof render==='function')render();
+      if(typeof cargarReporteHoy==='function')await cargarReporteHoy();
+      window.renderCarritoFijoSurtidoV869(true); if(typeof renderHistorialComprasV87==='function')renderHistorialComprasV87();
+      if(typeof notificar==='function')notificar('✅ Compra registrada','Inventario actualizado e historial guardado.','ok'); else alert('Compra registrada.');
+    }catch(e){alert('Error aplicando carrito: '+(e.message||e));}
+    finally{if(btn){btn.disabled=false;btn.textContent='✅ Carrito pagado / aplicar al inventario';}}
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+
+  async function totalVentasHoyReal(){
+    let total=0,cantidad=0;
+    if(!db&&typeof iniciarSupabase==='function') iniciarSupabase();
+    if(!db) return {total,cantidad};
+    const desde=new Date(); desde.setDate(desde.getDate()-10);
+    const r=await db.from('ventas').select('id,total,fecha_creacion,pedidos(estado)').gte('fecha_creacion',desde.toISOString()).order('fecha_creacion',{ascending:false});
+    if(r.error) throw r.error;
+    const hoy=(typeof fechaJuarezKey==='function')?fechaJuarezKey(new Date()):new Date().toISOString().slice(0,10);
+    (r.data||[]).forEach(v=>{
+      const f=(typeof fechaJuarezKey==='function')?fechaJuarezKey(v.fecha_creacion):String(v.fecha_creacion||'').slice(0,10);
+      const est=String(v.pedidos?.estado||'vendido').toLowerCase();
+      if(f===hoy && est!=='anulada' && est!=='cancelado'){
+        total+=num(v.total); cantidad++;
+      }
+    });
+    return {total,cantidad};
+  }
+  window.actualizarMetaDiariaV85=async function(){
+    try{
+      const {total,cantidad}=await totalVentasHoyReal();
+      if(typeof renderMetaV85==='function') renderMetaV85(total,cantidad);
+      return {total,cantidad};
+    }catch(e){console.log('Meta V8.7.6:',e); if(typeof renderMetaV85==='function') renderMetaV85(0,0);}
+  };
+  const oldReporte=window.cargarReporteHoy;
+  if(typeof oldReporte==='function'){
+    window.cargarReporteHoy=async function(){
+      const r=await oldReporte.apply(this,arguments);
+      setTimeout(()=>{try{window.actualizarMetaDiariaV85()}catch(e){}},150);
+      return r;
+    };
+  }
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true); window.actualizarMetaDiariaV85();}catch(e){}},1500));
+})();
+
+
+/* ===== V8.7.8 FIX FINAL: carrito con totales vivos sin listeners viejos ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return isFinite(n)?n:0;};
+  const money=n=>'$'+num(n).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=s=>'id_'+String(s).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const cart=()=>{try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]'); return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const allIng=()=>Array.isArray(ingredientes)?ingredientes:[];
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo); if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';};
+  const subtotal=x=>num(x.cantidad)*num(x.costo_unitario);
+  const totalCart=()=>cart().reduce((s,x)=>s+subtotal(x),0);
+
+  function pintarTotalesV878(){
+    const c=cart();
+    c.forEach(x=>{
+      const el=$('subtotalCartV878_'+safe(x.id));
+      if(el) el.textContent=money(subtotal(x));
+    });
+    const total=$('totalCarritoV878');
+    if(total) total.textContent=money(totalCart());
+  }
+
+  window.actualizarCarritoV878=function(id,campo,valor){
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it) return;
+    it[campo]=num(valor);
+    it.costo_total=subtotal(it);
+    if(campo==='costo_unitario'){
+      const l=last(); l[String(id)]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    pintarTotalesV878();
+  };
+  window.actualizarCarritoV876=window.actualizarCarritoV878;
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV878;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV878;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){
+      saveCart([]);
+      window.renderCarritoFijoSurtidoV869(true);
+    }
+  };
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const ing=ingById(id); if(!ing) return alert('No encontré el producto.');
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id))) return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    const cant=Math.max(1, Math.ceil(Math.max(num(ing.minimo)-num(ing.cantidad), 1)));
+    const costoUnit=num(l[String(id)] ?? ing.costo_unitario);
+    c.push({id:String(ing.id),nombre:ing.nombre,cantidad:cant,costo_unitario:costoUnit,costo_total:cant*costoUnit});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  function ensurePanel(){
+    const rec=$('recomendacionCompra'); if(!rec) return null;
+    let panel=$('carritoSurtidoFijoV869');
+    if(!panel){ panel=document.createElement('div'); panel.id='carritoSurtidoFijoV869'; rec.parentNode.insertBefore(panel,rec); }
+    return panel;
+  }
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const panel=ensurePanel(); if(!panel) return;
+    const active=document.activeElement;
+    const activeId=active?.id||'';
+    const activePos=active?.selectionStart;
+    const oldSearch=$('buscarCarritoV8610')?.value||'';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+
+    const rows=c.map(x=>{
+      const sid=safe(x.id);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV878_${sid}">${money(subtotal(x))}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV878_${sid}" data-cart-v878="1" type="number" step="0.1" value="${num(x.cantidad)}" placeholder="Cantidad" oninput="actualizarCarritoV878('${esc(x.id)}','cantidad',this.value)">
+          <input id="costoCartV878_${sid}" data-cart-v878="1" type="number" step="0.01" value="${num(x.costo_unitario)}" placeholder="$ unitario" oninput="actualizarCarritoV878('${esc(x.id)}','costo_unitario',this.value)">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869('${esc(x.id)}')">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1;
+      if(ta!==tb) return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+    const q=norm(oldSearch);
+    const filtrados=(q?items.filter(i=>norm(i.nombre).includes(q)):items).slice(0,45);
+    const lista=filtrados.map(i=>{
+      const t=tipo(i), color=t==='red'?'🔴':'🟡', ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610('${esc(i.id)}')">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    panel.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Edita <b>cantidad</b> y <b>precio unitario</b>. El subtotal y total cambian al momento. No sube inventario hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v878="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v878="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV878">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+
+    if(activeId){
+      const el=$(activeId);
+      if(el){ el.focus(); try{el.setSelectionRange(activePos??el.value.length, activePos??el.value.length)}catch(e){} }
+    }
+    pintarTotalesV878();
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},700));
+})();
+</script>
+
+
+<script id="js-v8710-carrito-final-limpio">
+/* ===== V8.7.10 FINAL LIMPIO: Carrito aislado con totales vivos =====
+   Este script va al final para ganarle a los parches anteriores.
+   No repinta el carrito mientras editas cantidad/precio/proveedor/nota. */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_NOTA='cecy_ultima_nota_compra_v8710';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.')); return Number.isFinite(n)?n:0;};
+  const money=v=>'$'+num(v).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const safe=s=>'x_'+String(s).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const js=s=>JSON.stringify(String(s));
+  function cart(){try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]));}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}));}
+  function allIng(){try{return Array.isArray(ingredientes)?ingredientes:[]}catch(e){return []}}
+  function ingById(id){return allIng().find(i=>String(i.id)===String(id));}
+  function tipo(i){const c=num(i.cantidad),m=num(i.minimo); if(m<=0)return'green'; if(c<=m)return'red'; if(c<=m*2)return'yellow'; return'green';}
+  function subtotal(x){return num(x.cantidad)*num(x.costo_unitario);}
+  function totalCart(){return cart().reduce((s,x)=>s+subtotal(x),0);}
+  function sugerido(i){return Math.max(1, Math.ceil(Math.max(num(i.minimo)-num(i.cantidad),1)));}
+
+  function panel(){
+    const rec=$('recomendacionCompra'); if(!rec)return null;
+    let p=$('carritoSurtidoFijoV869');
+    if(!p){p=document.createElement('div');p.id='carritoSurtidoFijoV869';rec.parentNode.insertBefore(p,rec);}
+    return p;
+  }
+
+  function pintarTotales(){
+    let total=0;
+    cart().forEach(x=>{
+      const st=subtotal(x); total+=st;
+      const el=$('subtotalCartV8710_'+safe(x.id));
+      if(el) el.textContent=money(st);
+    });
+    const t=$('totalCarritoV8710');
+    if(t) t.textContent=money(total);
+  }
+
+  window.carritoFinalInputV8710=function(ev,id,campo,valor){
+    if(ev){ev.stopPropagation();}
+    const c=cart();
+    const it=c.find(x=>String(x.id)===String(id));
+    if(!it)return false;
+    it[campo]=num(valor);
+    it.costo_total=subtotal(it);
+    if(campo==='costo_unitario'){
+      const l=last(); l[String(id)]=num(valor); saveLast(l);
+    }
+    saveCart(c);
+    pintarTotales();
+    return false;
+  };
+
+  window.actualizarCarritoV8710=window.carritoFinalInputV8710;
+  window.actualizarCarritoV879=function(id,campo,valor){return window.carritoFinalInputV8710(null,id,campo,valor)};
+  window.actualizarCarritoV878=window.actualizarCarritoV879;
+  window.actualizarCarritoV876=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV863=window.actualizarCarritoV879;
+
+  window.quitarCarritoSurtidoV869=function(id){
+    saveCart(cart().filter(x=>String(x.id)!==String(id)));
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+
+  window.limpiarCarritoSurtidoV869=function(){
+    if(confirm('¿Vaciar carrito de surtido?')){saveCart([]);window.renderCarritoFijoSurtidoV869(true);}
+  };
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.agregarCarritoOrdenadoV8610=function(id){
+    const ing=ingById(id); if(!ing)return alert('No encontré el producto.');
+    const c=cart();
+    if(c.some(x=>String(x.id)===String(id)))return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    const cant=sugerido(ing);
+    const cu=num(l[String(id)] ?? ing.costo_unitario ?? 0);
+    c.push({id:String(ing.id),nombre:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:cant*cu});
+    saveCart(c);
+    window.renderCarritoFijoSurtidoV869(true);
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  window.renderCarritoFijoSurtidoV869=function(force){
+    const p=panel(); if(!p)return;
+    const active=document.activeElement;
+    // Regla principal: si estás escribiendo dentro del carrito, NO reconstruir.
+    if(active && p.contains(active) && active.matches('input[data-cart-v8710="1"]')){
+      pintarTotales();
+      return;
+    }
+    const oldSearch=$('buscarCarritoV8610')?.value || '';
+    const oldProv=$('proveedorCompraV87')?.value ?? localStorage.getItem(LS_PROV) ?? '';
+    const oldNota=$('notaCompraV87')?.value ?? localStorage.getItem(LS_NOTA) ?? '';
+    const c=cart();
+    const ids=new Set(c.map(x=>String(x.id)));
+
+    const rows=c.map(x=>{
+      const sid=safe(x.id);
+      const idjs=js(x.id);
+      return `<div class="v8610-cart-row">
+        <b>${esc(x.nombre)}</b><br>
+        <small>Subtotal: <b id="subtotalCartV8710_${sid}">${money(subtotal(x))}</b></small>
+        <div class="v8610-cart-inputs">
+          <input id="cantCartV8710_${sid}" data-cart-v8710="1" type="number" inputmode="decimal" step="0.1" value="${num(x.cantidad)}" placeholder="Cantidad" oninput="return carritoFinalInputV8710(event,${idjs},'cantidad',this.value)">
+          <input id="costoCartV8710_${sid}" data-cart-v8710="1" type="number" inputmode="decimal" step="0.01" value="${num(x.costo_unitario)}" placeholder="$ unitario" oninput="return carritoFinalInputV8710(event,${idjs},'costo_unitario',this.value)">
+        </div>
+        <button class="v8610-quitar" onclick="quitarCarritoSurtidoV869(${idjs})">Quitar</button>
+      </div>`;
+    }).join('');
+
+    const items=allIng().filter(i=>tipo(i)!=='green').sort((a,b)=>{
+      const ta=tipo(a)==='red'?0:1, tb=tipo(b)==='red'?0:1;
+      if(ta!==tb)return ta-tb;
+      return String(a.nombre||'').localeCompare(String(b.nombre||''),'es');
+    });
+    const q=norm(oldSearch);
+    const lista=items.filter(i=>!q||norm(i.nombre).includes(q)).slice(0,45).map(i=>{
+      const color=tipo(i)==='red'?'🔴':'🟡';
+      const ya=ids.has(String(i.id));
+      return `<div class="v8610-item"><div><div class="v8610-name">${color} ${esc(i.nombre)}</div><div class="v8610-meta">Quedan ${num(i.cantidad).toFixed(1)} · mín ${num(i.minimo).toFixed(1)} · costo ${money(i.costo_unitario)}</div></div><button class="v8610-add ${ya?'v869-ya':''}" onclick="agregarCarritoOrdenadoV8610(${js(i.id)})">${ya?'✓ En carrito':'Agregar'}</button></div>`;
+    }).join('') || '<div class="warn">No hay rojos/amarillos para mostrar.</div>';
+
+    p.innerHTML=`<h3>🛒 Carrito de surtido</h3>
+      <div class="v869-ayuda">Edita <b>cantidad</b> y <b>precio unitario</b>. El subtotal y total cambian al momento. No sube inventario hasta presionar Carrito pagado.</div>
+      ${c.length?rows:'<div class="warn">Carrito vacío.</div>'}
+      <div class="v87-cart-extra">
+        <label>📍 Lugar / proveedor<input id="proveedorCompraV87" data-cart-v8710="1" placeholder="Ejemplo: Smart Anapra, La Económica, Dulcería del Centro" value="${esc(oldProv)}" oninput="event.stopPropagation();localStorage.setItem('${LS_PROV}',this.value)"></label>
+        <label>📝 Nota<input id="notaCompraV87" data-cart-v8710="1" placeholder="Ejemplo: surtido sábado, oferta semanal, compra urgente" value="${esc(oldNota)}" oninput="event.stopPropagation();localStorage.setItem('${LS_NOTA}',this.value)"></label>
+      </div>
+      <div class="v869-total">Total carrito: <span id="totalCarritoV8710">${money(totalCart())}</span></div>
+      <div class="v869-actions"><button class="btn-verde" onclick="carritoPagadoSurtidoV869(this)">✅ Carrito pagado / aplicar al inventario</button><button class="btn-gris" onclick="limpiarCarritoSurtidoV869()">🧹 Vaciar carrito</button></div>
+      <hr><b>Agregar producto</b>
+      <input id="buscarCarritoV8610" class="v8610-search" style="direction:ltr;text-align:left;" placeholder="Buscar rojo o amarillo..." value="${esc(oldSearch)}" oninput="event.stopPropagation();window.renderCarritoFijoSurtidoV869(true)">
+      <div class="v8610-lista">${lista}</div>`;
+    pintarTotales();
+  };
+
+  // Event delegation extra: aunque Android o un listener viejo interfiera, actualiza totales por el DOM final.
+  document.addEventListener('input',function(e){
+    const p=$('carritoSurtidoFijoV869');
+    if(!p || !p.contains(e.target))return;
+    if(e.target.matches('input[data-cart-v8710="1"]')){
+      e.stopPropagation();
+      const id=e.target.id||'';
+      const m=id.match(/^(cant|costo)CartV8710_(.+)$/);
+      if(m){
+        const safeId=m[2];
+        const item=cart().find(x=>safe(x.id)===safeId);
+        if(item){
+          window.carritoFinalInputV8710(null,item.id,m[1]==='cant'?'cantidad':'costo_unitario',e.target.value);
+        }
+      }else{
+        pintarTotales();
+      }
+    }
+  },true);
+
+  // Si una función vieja intenta repintar cada 120 ms mientras editas, esta versión solo recalcula y no reconstruye.
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},800));
+  setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},500);
 })();
 </script>
