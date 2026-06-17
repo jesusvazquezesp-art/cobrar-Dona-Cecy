@@ -10941,3 +10941,250 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   if(typeof oldTab==='function')window.verTab=function(id,btn){const r=oldTab.apply(this,arguments); if(id==='reportes')setTimeout(()=>renderPanel(true),160); return r;};
 })();
 </script>
+
+<style id="css-v881-supabase-carrito">
+.v881-mini-btn{background:#ef5350!important;color:white!important;margin-top:8px!important}
+.v881-sync{font-size:12px;color:#0d47a1;background:#e3f2fd;border-radius:10px;padding:7px;margin:7px 0}
+</style>
+<script id="js-v881-carrito-supabase-compartido">
+/* ===== V8.8.1 FINAL: carrito de compras compartido en Supabase + historial global + limpiar local ===== */
+(function(){
+  const LS_CART='cecy_carrito_surtido_v866';
+  const LS_PROV='cecy_ultimo_proveedor_v87';
+  const LS_NOTA='cecy_ultima_nota_compra_v87';
+  const LS_LAST='cecy_ultimo_costo_surtido_v866';
+  const $=id=>document.getElementById(id);
+  const num=v=>{const n=Number(String(v??'').replace(',','.'));return isFinite(n)?n:0;};
+  const money=v=>'$'+num(v).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const allIng=()=>Array.isArray(window.ingredientes)?window.ingredientes:(typeof ingredientes!=='undefined'&&Array.isArray(ingredientes)?ingredientes:[]);
+  const cart=()=>{try{const a=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const saveCart=c=>localStorage.setItem(LS_CART,JSON.stringify(c||[]));
+  const ingById=id=>allIng().find(i=>String(i.id)===String(id));
+  const last=()=>{try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}};
+  const saveLast=o=>localStorage.setItem(LS_LAST,JSON.stringify(o||{}));
+  const tipo=i=>{const c=num(i.cantidad),m=num(i.minimo);if(c<=m)return'red';if(c<=m*2)return'yellow';return'green';};
+  const subtotal=x=>num(x.cantidad)*num(x.costo_unitario);
+  let cargando=false;
+
+  async function asegurarDB(){
+    if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase();
+    return !!window.db;
+  }
+
+  async function tablaCarritoOK(){
+    if(!await asegurarDB()) return false;
+    const r=await db.from('carrito_compras').select('id').limit(1);
+    if(r.error){
+      console.warn('Falta carrito_compras:',r.error.message);
+      const p=$('carritoSurtidoV88')||$('carritoSurtidoFijoV869');
+      if(p && !p.querySelector('.v881-sync')) p.insertAdjacentHTML('afterbegin',`<div class="alerta v881-sync">⚠️ Falta crear la tabla <b>carrito_compras</b> en Supabase. El carrito seguirá local hasta crearla.</div>`);
+      return false;
+    }
+    return true;
+  }
+
+  async function cargarCarritoSupabaseV881(){
+    if(cargando) return cart();
+    cargando=true;
+    try{
+      if(!await tablaCarritoOK()) return cart();
+      const r=await db.from('carrito_compras').select('*').order('fecha_creacion',{ascending:true});
+      if(r.error) throw r.error;
+      const c=(r.data||[]).map(x=>{
+        const ing=ingById(x.ingrediente_id)||{};
+        return {
+          carrito_id:x.id,
+          id:String(x.ingrediente_id),
+          nombre:ing.nombre||x.nombre||'Ingrediente',
+          cantidad:num(x.cantidad),
+          costo_unitario:num(x.costo_unitario),
+          costo_total:num(x.costo_total)||num(x.cantidad)*num(x.costo_unitario),
+          tienda:x.tienda||'',
+          nota:x.nota||''
+        };
+      });
+      saveCart(c);
+      return c;
+    }catch(e){ console.warn('cargarCarritoSupabaseV881',e); return cart(); }
+    finally{cargando=false;}
+  }
+
+  async function guardarLineaSupabase(item){
+    if(!await tablaCarritoOK()) return false;
+    const payload={
+      usuario_id:window.usuarioLogueado?.id||null,
+      ingrediente_id:item.id,
+      cantidad:num(item.cantidad),
+      costo_unitario:num(item.costo_unitario),
+      costo_total:subtotal(item),
+      tienda:($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||''),
+      nota:($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'')
+    };
+    let r;
+    if(item.carrito_id){
+      r=await db.from('carrito_compras').update(payload).eq('id',item.carrito_id).select().maybeSingle();
+    }else{
+      await db.from('carrito_compras').delete().eq('ingrediente_id',item.id);
+      r=await db.from('carrito_compras').insert(payload).select().maybeSingle();
+    }
+    if(r.error) throw r.error;
+    if(r.data) item.carrito_id=r.data.id;
+    return true;
+  }
+
+  function renderBasico(){
+    if(typeof window.renderCarritoSurtidoV88==='function') window.renderCarritoSurtidoV88(true);
+    else if(typeof window.renderCarritoFijoSurtidoV869==='function') window.renderCarritoFijoSurtidoV869(true);
+  }
+
+  window.sincronizarCarritoSupabaseV881=async function(){
+    await cargarCarritoSupabaseV881();
+    renderBasico();
+  };
+
+  window.agregarCarritoOrdenadoV8610=async function(id){
+    const ing=ingById(id); if(!ing) return alert('No encontré el ingrediente.');
+    let c=cart();
+    if(c.some(x=>String(x.id)===String(id))) return alert('Ese producto ya está en el carrito.');
+    const l=last();
+    const cantidad=Math.max(1,Math.ceil(Math.max(num(ing.minimo)-num(ing.cantidad),1)));
+    const item={id:String(ing.id),nombre:ing.nombre,cantidad,costo_unitario:num(l[String(id)]??ing.costo_unitario),costo_total:0};
+    item.costo_total=subtotal(item);
+    c.push(item); saveCart(c); renderBasico();
+    try{ await guardarLineaSupabase(item); saveCart(c); await cargarCarritoSupabaseV881(); renderBasico(); }
+    catch(e){ alert('No se pudo guardar el carrito en Supabase: '+(e.message||e)); }
+  };
+  window.agregarAlCarritoSurtidoV869=window.agregarCarritoOrdenadoV8610;
+  window.agregarAlCarritoSurtidoV866=window.agregarCarritoOrdenadoV8610;
+
+  window.actualizarCarritoV879=function(id,campo,valor){
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id)); if(!it) return;
+    it[campo]=num(valor); it.costo_total=subtotal(it); saveCart(c);
+    if(campo==='costo_unitario'){const l=last();l[String(id)]=num(valor);saveLast(l);}
+    const sub=document.querySelector(`[id^="subtotalCartV"][id$="${String(id).replace(/[^a-zA-Z0-9_-]/g,'_')}"]`);
+    if(sub) sub.textContent=money(it.costo_total);
+    const tot=['totalCarritoV879','totalCarritoV88'].map($).find(Boolean); if(tot) tot.textContent=money(c.reduce((s,x)=>s+subtotal(x),0));
+    clearTimeout(window.__timerCartSupabaseV881);
+    window.__timerCartSupabaseV881=setTimeout(async()=>{try{await guardarLineaSupabase(it);}catch(e){console.warn(e)}},600);
+  };
+  window.actualizarCarritoSurtidoV869=window.actualizarCarritoV879;
+  window.actualizarCarritoSurtidoV866=window.actualizarCarritoV879;
+
+  window.quitarCarritoSurtidoV869=async function(id){
+    const c=cart(); const it=c.find(x=>String(x.id)===String(id)); saveCart(c.filter(x=>String(x.id)!==String(id))); renderBasico();
+    try{
+      if(await tablaCarritoOK()){
+        if(it?.carrito_id) await db.from('carrito_compras').delete().eq('id',it.carrito_id);
+        else await db.from('carrito_compras').delete().eq('ingrediente_id',id);
+      }
+    }catch(e){console.warn(e)}
+    await cargarCarritoSupabaseV881(); renderBasico();
+  };
+  window.quitarCarritoSurtidoV866=window.quitarCarritoSurtidoV869;
+
+  window.limpiarCarritoSurtidoV869=async function(){
+    if(!confirm('¿Vaciar carrito de surtido para todos?')) return;
+    saveCart([]); renderBasico();
+    try{ if(await tablaCarritoOK()){ const r=await db.from('carrito_compras').select('id'); const ids=(r.data||[]).map(x=>x.id); if(ids.length) await db.from('carrito_compras').delete().in('id',ids); } }catch(e){console.warn(e)}
+    renderBasico();
+  };
+  window.limpiarCarritoSurtidoV866=window.limpiarCarritoSurtidoV869;
+
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function'&&!validarPermiso('compras','Necesitas permiso de compras.'))return;
+    const u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.');
+    const proveedor=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    const nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    await cargarCarritoSupabaseV881();
+    const c=cart(); if(!c.length) return alert('El carrito está vacío.');
+    for(const x of c){ if(num(x.cantidad)<=0)return alert('Revisa cantidad en '+x.nombre); if(num(x.costo_unitario)<=0)return alert('Revisa precio unitario en '+x.nombre); }
+    if(!confirm('¿Carrito pagado? Se agregará al inventario, compras e historial para todos.')) return;
+    if(btn){btn.disabled=true;btn.textContent='Aplicando...';}
+    try{
+      if(!await asegurarDB()) throw new Error('Supabase no inicializado');
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      const idsBorrar=[]; const ult=last();
+      for(const x of c){
+        const ing=ingById(x.id); if(!ing) continue;
+        const cant=num(x.cantidad), cu=num(x.costo_unitario), costo=cant*cu;
+        const nueva=num(ing.cantidad)+cant;
+        const up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',x.id);
+        if(up.error) throw new Error((ing.nombre||x.nombre)+': '+up.error.message);
+        let ins=await db.from('compras').insert({usuario_id:u.id,ingrediente_id:x.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:proveedor,nota,fecha_compra:new Date().toISOString()});
+        if(ins.error){
+          ins=await db.from('compras').insert({usuario_id:u.id,ingrediente_id:x.id,cantidad:cant,costo_total:costo,costo_unitario:cu});
+          if(ins.error) console.warn('compras:',ins.error.message);
+        }
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:x.id,tipo:'compra',cantidad:cant,motivo:(proveedor?('Compra en '+proveedor):'Compra desde carrito')+(nota?(' · '+nota):''),referencia:'carrito_supabase'});}catch(e){}
+        if(x.carrito_id) idsBorrar.push(x.carrito_id);
+        ult[String(x.id)]=cu;
+      }
+      saveLast(ult);
+      if(await tablaCarritoOK()){
+        if(idsBorrar.length) await db.from('carrito_compras').delete().in('id',idsBorrar);
+        else { const r=await db.from('carrito_compras').select('id'); const ids=(r.data||[]).map(x=>x.id); if(ids.length) await db.from('carrito_compras').delete().in('id',ids); }
+      }
+      saveCart([]); localStorage.setItem(LS_PROV,proveedor); localStorage.setItem(LS_NOTA,'');
+      try{if(typeof auditoria==='function') await auditoria('CARRITO_COMPRA_PAGADO',`${u.nombre} registró compra por ${money(c.reduce((s,x)=>s+subtotal(x),0))}${proveedor?' en '+proveedor:''}`,{proveedor,nota,items:c});}catch(e){}
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      if(typeof render==='function') render();
+      if(typeof cargarReporteHoy==='function') await cargarReporteHoy();
+      if(typeof renderHistorialComprasV881==='function') await renderHistorialComprasV881();
+      renderBasico();
+      if(typeof notificar==='function') notificar('✅ Compra registrada','Inventario, compras e historial guardados en Supabase.','ok'); else alert('Compra registrada.');
+    }catch(e){ alert('Error aplicando carrito: '+(e.message||e)); }
+    finally{ if(btn){btn.disabled=false;btn.textContent='✅ Carrito pagado / aplicar al inventario';} }
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+
+  window.renderHistorialComprasV881=async function(){
+    const card=$('historialComprasV87Card'); if(!card) return;
+    if(!await asegurarDB()){ card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Sin conexión a Supabase.</div>'; return; }
+    const qOld=$('buscarHistorialComprasV87')?.value||'';
+    let r=await db.from('compras').select('*, ingredientes(nombre), usuarios(nombre)').order('fecha_compra',{ascending:false}).limit(250);
+    if(r.error) r=await db.from('compras').select('*, ingredientes(nombre), usuarios(nombre)').order('fecha_creacion',{ascending:false}).limit(250);
+    if(r.error){ card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>'; return; }
+    let rows=(r.data||[]).map(x=>({
+      fecha:x.fecha_compra||x.fecha_creacion,
+      usuario:x.usuarios?.nombre||'Usuario',
+      proveedor:x.tienda||x.proveedor||'',
+      nota:x.nota||'',
+      nombre:x.ingredientes?.nombre||'Ingrediente',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }));
+    const q=norm(qOld);
+    if(q) rows=rows.filter(x=>norm([x.fecha,x.usuario,x.proveedor,x.nota,x.nombre].join(' ')).includes(q));
+    const totalMes=rows.filter(x=>{const d=new Date(x.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();}).reduce((s,x)=>s+x.costo_total,0);
+    card.innerHTML=`<h2>📋 Historial de compras</h2>
+      <div class="info">Este historial ya se lee desde <b>Supabase / tabla compras</b>, así lo ven todos.</div>
+      <div><span class="v87-chip">Registros: ${rows.length}</span><span class="v87-chip">Este mes: ${money(totalMes)}</span></div>
+      <input id="buscarHistorialComprasV87" class="v87-search" placeholder="🔍 Buscar compra, producto o tienda..." value="${esc(qOld)}" oninput="renderHistorialComprasV881()">
+      <div>${rows.length?rows.slice(0,80).map(x=>{const f=new Date(x.fecha);const ft=isNaN(f)?esc(x.fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f);return `<div class="v87-compra"><b>${ft}</b><br>📍 ${esc(x.proveedor||'Sin lugar')}<br>👤 ${esc(x.usuario)}${x.nota?`<br>📝 ${esc(x.nota)}`:''}<div class="v87-detalle">• ${esc(x.nombre)}: ${x.cantidad} x ${money(x.costo_unitario)} = <b>${money(x.costo_total)}</b></div><div class="v87-compra-total">${money(x.costo_total)}</div></div>`}).join(''):'<div class="warn">No hay compras guardadas en Supabase.</div>'}</div>`;
+    const inp=$('buscarHistorialComprasV87'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  };
+  window.renderHistorialComprasV87=window.renderHistorialComprasV881;
+
+  window.limpiarDatosLocalesPruebaReal=function(){
+    if(!confirm('Esto borrará datos guardados SOLO en este celular: carrito local, borrador, caché, sesión y pendientes. No borra Supabase. ¿Continuar?')) return;
+    Object.keys(localStorage).forEach(k=>{ if(k.includes('cecy_')||k.includes('dona_cecy')||k.includes('pos_')||k.includes('ultimo_respaldo')) localStorage.removeItem(k); });
+    saveCart([]);
+    alert('Listo. Datos locales borrados de este celular. Ahora presiona Actualizar datos.');
+    location.reload();
+  };
+
+  function agregarBotonLimpiarLocal(){
+    const admin=$('admin'); if(!admin||$('btnLimpiarLocalV881')) return;
+    const card=admin.querySelector('.card')||admin;
+    const b=document.createElement('button'); b.id='btnLimpiarLocalV881'; b.className='v881-mini-btn'; b.textContent='🧹 Borrar datos locales de este celular'; b.onclick=window.limpiarDatosLocalesPruebaReal;
+    card.appendChild(b);
+  }
+
+  const oldVerTab=window.verTab;
+  if(typeof oldVerTab==='function') window.verTab=function(id,btn){const r=oldVerTab.apply(this,arguments); if(id==='reportes')setTimeout(()=>{cargarCarritoSupabaseV881().then(renderBasico);renderHistorialComprasV881();},200); if(id==='admin')setTimeout(agregarBotonLimpiarLocal,150); return r;};
+  window.addEventListener('load',()=>setTimeout(async()=>{agregarBotonLimpiarLocal(); await cargarCarritoSupabaseV881(); renderBasico(); if($('historialComprasV87Card')) renderHistorialComprasV881();},1800));
+})();
+</script>
