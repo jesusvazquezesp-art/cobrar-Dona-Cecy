@@ -4145,7 +4145,7 @@ if (window.caches) { caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)))
 
 <script>
 /* ===== V7.31 Preparaciones / Subprocesos ===== */
-const LS_PREP_PRESETS_V731="cecy_preparaciones_presets_v731";
+var LS_PREP_PRESETS_V731="cecy_preparaciones_presets_v731";
 
 function prepMsgV731(txt,clase="info"){
   const el=document.getElementById("prepMensaje");
@@ -4626,7 +4626,7 @@ window.addEventListener("load",()=>{
 
 <script>
 /* ===== V8.5 Meta diaria editable Doña Cecy ===== */
-const LS_META_DIA_V85 = "cecy_metas_dia_v85";
+var LS_META_DIA_V85 = "cecy_metas_dia_v85";
 const LS_META_HOY_V85 = "cecy_meta_hoy_v85";
 
 function fechaJuarezSimpleV85(d=new Date()){
@@ -4917,7 +4917,7 @@ function renderMetaV85(total=0,cantidad=0){
   const b=document.getElementById('metaDiariaReportesContenidoV85'); if(b) b.innerHTML=editor;
 }
 
-const cargarReporteHoyBaseV86 = window.cargarReporteHoy;
+var cargarReporteHoyBaseV86 = window.cargarReporteHoy;
 if(typeof cargarReporteHoyBaseV86==='function'){
   window.cargarReporteHoy = async function(){
     const r=await cargarReporteHoyBaseV86.apply(this,arguments);
@@ -5068,7 +5068,7 @@ window.addEventListener('load',()=>{
 
 <script>
 /* ===== V8.6.3 Inventario inteligente estable + carrito de surtido ===== */
-const LS_CARRITO_SURTIDO_V863="cecy_carrito_surtido_v863";
+var LS_CARRITO_SURTIDO_V863="cecy_carrito_surtido_v863";
 const SUBPROCESOS_V863=["cóctel de frutas","coctel de frutas","kit arizona","preparación para carlota","preparacion para carlota","mezcla para waffles"];
 
 function moneyV863(n){ return "$"+Number(n||0).toFixed(2); }
@@ -7275,7 +7275,7 @@ async function guardarRecargaIngrediente(){
 
 <script>
 /* ===== V7.31 Preparaciones / Subprocesos ===== */
-const LS_PREP_PRESETS_V731="cecy_preparaciones_presets_v731";
+var LS_PREP_PRESETS_V731="cecy_preparaciones_presets_v731";
 
 function prepMsgV731(txt,clase="info"){
   const el=document.getElementById("prepMensaje");
@@ -7878,7 +7878,7 @@ window.addEventListener('load',()=>{
 
 <script>
 /* ===== V8.5 Meta diaria editable Doña Cecy ===== */
-const LS_META_DIA_V85 = "cecy_metas_dia_v85";
+var LS_META_DIA_V85 = "cecy_metas_dia_v85";
 const LS_META_HOY_V85 = "cecy_meta_hoy_v85";
 
 function fechaJuarezSimpleV85(d=new Date()){
@@ -8169,7 +8169,7 @@ function renderMetaV85(total=0,cantidad=0){
   const b=document.getElementById('metaDiariaReportesContenidoV85'); if(b) b.innerHTML=editor;
 }
 
-const cargarReporteHoyBaseV86 = window.cargarReporteHoy;
+var cargarReporteHoyBaseV86 = window.cargarReporteHoy;
 if(typeof cargarReporteHoyBaseV86==='function'){
   window.cargarReporteHoy = async function(){
     const r=await cargarReporteHoyBaseV86.apply(this,arguments);
@@ -8415,7 +8415,7 @@ window.addEventListener('load',()=>{
 
 <script>
 /* ===== V8.6.3 Inventario inteligente estable + carrito de surtido ===== */
-const LS_CARRITO_SURTIDO_V863="cecy_carrito_surtido_v863";
+var LS_CARRITO_SURTIDO_V863="cecy_carrito_surtido_v863";
 const SUBPROCESOS_V863=["cóctel de frutas","coctel de frutas","kit arizona","preparación para carlota","preparacion para carlota","mezcla para waffles"];
 
 function moneyV863(n){ return "$"+Number(n||0).toFixed(2); }
