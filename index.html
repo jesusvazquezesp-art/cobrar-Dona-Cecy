@@ -1551,7 +1551,7 @@ function iniciarSupabase(){
     return false;
   }
   db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY.trim());
-  db = db;
+  window.db = db;
   return true;
 }
 
@@ -10969,8 +10969,9 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   var cargando=false;
 
   async function asegurarDB(){
-    if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase();
-    return !!window.db;
+    if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+    if(db) window.db = db;
+    return !!db;
   }
 
   async function tablaCarritoOK(){
