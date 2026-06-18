@@ -6271,6 +6271,131 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 })();
 </script>
 
+
+
+<script id="fix-v882-sync-carrito-completo">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  var timerSyncCart=null;
+  var sincronizandoCart=false;
+
+  function $(id){ return document.getElementById(id); }
+  function num(v){ return Number(v||0); }
+  function leerCartV882(){
+    try{ return JSON.parse(localStorage.getItem(LS_CART)||'[]') || []; }
+    catch(e){ return []; }
+  }
+  function guardarCartV882(c){
+    localStorage.setItem(LS_CART, JSON.stringify(c||[]));
+  }
+  function asegurarDBV882(){
+    try{
+      if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();
+      return !!window.db;
+    }catch(e){ return false; }
+  }
+  function renderCartV882(){
+    try{
+      if(typeof window.renderCarritoSurtidoV88==='function') window.renderCarritoSurtidoV88(true);
+      else if(typeof window.renderCarritoFijoSurtidoV869==='function') window.renderCarritoFijoSurtidoV869(true);
+      else if(typeof window.render==='function') window.render();
+    }catch(e){}
+  }
+
+  async function borrarCarritoServidorV882(){
+    var r=await db.from('carrito_compras').select('id').limit(1000);
+    if(r.error) throw r.error;
+    var ids=(r.data||[]).map(function(x){return x.id;}).filter(Boolean);
+    if(ids.length){
+      var d=await db.from('carrito_compras').delete().in('id',ids);
+      if(d.error) throw d.error;
+    }
+  }
+
+  window.subirCarritoCompletoSupabaseV882 = async function(){
+    if(sincronizandoCart) return false;
+    if(!asegurarDBV882()) return false;
+    var c=leerCartV882();
+    sincronizandoCart=true;
+    try{
+      await borrarCarritoServidorV882();
+      if(!c.length){ return true; }
+      var proveedor=($('proveedorCompraV87')&&$('proveedorCompraV87').value) || localStorage.getItem(LS_PROV) || '';
+      var nota=($('notaCompraV87')&&$('notaCompraV87').value) || localStorage.getItem(LS_NOTA) || '';
+      var payload=c.map(function(item){
+        var cantidad=num(item.cantidad);
+        var cu=num(item.costo_unitario);
+        return {
+          usuario_id:(window.usuarioLogueado && window.usuarioLogueado.id) || null,
+          ingrediente_id:item.id,
+          cantidad:cantidad,
+          costo_unitario:cu,
+          costo_total:num(item.costo_total) || cantidad*cu,
+          tienda:proveedor,
+          nota:nota
+        };
+      }).filter(function(x){return x.ingrediente_id;});
+      if(payload.length){
+        var ins=await db.from('carrito_compras').insert(payload).select();
+        if(ins.error) throw ins.error;
+        var datos=ins.data||[];
+        c=c.map(function(item){
+          var row=datos.find(function(r){ return String(r.ingrediente_id)===String(item.id); });
+          return row ? Object.assign({}, item, {carrito_id:row.id}) : item;
+        });
+        guardarCartV882(c);
+      }
+      if(typeof window.notificar==='function') window.notificar('☁️ Carrito sincronizado','Se subió completo a Supabase.','sync',false);
+      return true;
+    }catch(e){
+      console.warn('subirCarritoCompletoSupabaseV882', e);
+      var msg='No se pudo sincronizar carrito: '+(e.message||e);
+      try{
+        var p=$('carritoSurtidoV88')||$('carritoSurtidoFijoV869')||$('tablaInventario');
+        if(p && !p.querySelector('.sync-v882-error')) p.insertAdjacentHTML('afterbegin','<div class="alerta sync-v882-error">⚠️ '+msg+'</div>');
+      }catch(_e){}
+      return false;
+    }finally{
+      sincronizandoCart=false;
+    }
+  };
+
+  window.programarSyncCarritoV882=function(ms){
+    clearTimeout(timerSyncCart);
+    timerSyncCart=setTimeout(function(){ window.subirCarritoCompletoSupabaseV882(); }, ms||700);
+  };
+
+  function envolver(nombre, espera){
+    var anterior=window[nombre];
+    if(typeof anterior!=='function') return;
+    window[nombre]=async function(){
+      var r;
+      try{ r=anterior.apply(this, arguments); if(r && typeof r.then==='function') await r; }
+      finally{ window.programarSyncCarritoV882(espera||800); }
+      return r;
+    };
+  }
+
+  // Todas estas versiones terminan usando el mismo carrito local v866.
+  envolver('agregarCarritoOrdenadoV8610',500);
+  envolver('agregarAlCarritoSurtidoV869',500);
+  envolver('agregarAlCarritoSurtidoV866',500);
+  envolver('actualizarCarritoV879',900);
+  envolver('actualizarCarritoSurtidoV869',900);
+  envolver('actualizarCarritoSurtidoV866',900);
+  envolver('quitarCarritoSurtidoV869',500);
+  envolver('quitarCarritoSurtidoV866',500);
+  envolver('limpiarCarritoSurtidoV869',500);
+  envolver('limpiarCarritoSurtidoV866',500);
+
+  window.addEventListener('load', function(){
+    setTimeout(function(){ window.subirCarritoCompletoSupabaseV882(); }, 3500);
+  });
+})();
+</script>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
