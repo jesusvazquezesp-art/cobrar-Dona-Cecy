@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.8.7 - Carrito seguro</title>
+<title>Puesto Doña Cecy V8.8.6 - Carrito seguro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -6396,6 +6396,51 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 })();
 </script>
 
+
+
+<!-- ===== V8.8.8 UN SOLO CARRITO VISIBLE =====
+Oculta el carrito viejo V8.6.8/V868 que reaparecía debajo.
+La sincronización real sigue usando el carrito V866/V8.8.7.
+-->
+<style id="css-v888-un-solo-carrito-visible">
+  .v868-sentinel,
+  .v868-cart{
+    display:none!important;
+  }
+</style>
+<script id="js-v888-un-solo-carrito-visible">
+(function(){
+  function ocultarCarritoViejoV868(){
+    try{
+      document.querySelectorAll('.v868-sentinel,.v868-cart').forEach(function(el){
+        el.style.setProperty('display','none','important');
+        el.setAttribute('data-v888-oculto','1');
+      });
+    }catch(e){}
+  }
+
+  // Evita que el render viejo V868 vuelva a mostrar el carrito duplicado.
+  var oldRenderV868 = window.renderInventarioSurtidoV868;
+  if(typeof oldRenderV868 === 'function'){
+    window.renderInventarioSurtidoV868 = function(){
+      var r = oldRenderV868.apply(this, arguments);
+      setTimeout(ocultarCarritoViejoV868, 0);
+      return r;
+    };
+  }
+
+  window.addEventListener('load', function(){
+    ocultarCarritoViejoV868();
+    setInterval(ocultarCarritoViejoV868, 2000);
+  });
+
+  document.addEventListener('DOMContentLoaded', ocultarCarritoViejoV868);
+  setTimeout(ocultarCarritoViejoV868, 500);
+  setTimeout(ocultarCarritoViejoV868, 2000);
+  console.log('✅ V8.8.8 instalado: oculto carrito viejo V868, queda un solo carrito visible.');
+})();
+</script>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
@@ -10329,6 +10374,51 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
     console.log('✅ V8.8.6 instalado: INICIO=BAJAR, ACCIONES=SUBIR, PAGADO=VACIAR GLOBAL.');
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',instalar); else instalar();
+})();
+</script>
+
+
+
+<!-- ===== V8.8.8 UN SOLO CARRITO VISIBLE =====
+Oculta el carrito viejo V8.6.8/V868 que reaparecía debajo.
+La sincronización real sigue usando el carrito V866/V8.8.7.
+-->
+<style id="css-v888-un-solo-carrito-visible">
+  .v868-sentinel,
+  .v868-cart{
+    display:none!important;
+  }
+</style>
+<script id="js-v888-un-solo-carrito-visible">
+(function(){
+  function ocultarCarritoViejoV868(){
+    try{
+      document.querySelectorAll('.v868-sentinel,.v868-cart').forEach(function(el){
+        el.style.setProperty('display','none','important');
+        el.setAttribute('data-v888-oculto','1');
+      });
+    }catch(e){}
+  }
+
+  // Evita que el render viejo V868 vuelva a mostrar el carrito duplicado.
+  var oldRenderV868 = window.renderInventarioSurtidoV868;
+  if(typeof oldRenderV868 === 'function'){
+    window.renderInventarioSurtidoV868 = function(){
+      var r = oldRenderV868.apply(this, arguments);
+      setTimeout(ocultarCarritoViejoV868, 0);
+      return r;
+    };
+  }
+
+  window.addEventListener('load', function(){
+    ocultarCarritoViejoV868();
+    setInterval(ocultarCarritoViejoV868, 2000);
+  });
+
+  document.addEventListener('DOMContentLoaded', ocultarCarritoViejoV868);
+  setTimeout(ocultarCarritoViejoV868, 500);
+  setTimeout(ocultarCarritoViejoV868, 2000);
+  console.log('✅ V8.8.8 instalado: oculto carrito viejo V868, queda un solo carrito visible.');
 })();
 </script>
 
