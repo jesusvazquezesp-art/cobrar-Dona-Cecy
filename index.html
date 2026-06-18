@@ -11314,3 +11314,90 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   window.addEventListener('load',()=>setTimeout(async()=>{agregarBotonLimpiarLocal(); await cargarCarritoSupabaseV881(); renderBasico(); if($('historialComprasV87Card')) renderHistorialComprasV881();},1800));
 })();
 </script>
+
+
+<script id="fix-v883-carrito-auto-final">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  var timer=null;
+  var syncing=false;
+
+  function $(id){return document.getElementById(id);}
+  function n(v){return Number(v||0);}
+  function cart(){try{return JSON.parse(localStorage.getItem(LS_CART)||'[]')||[]}catch(e){return []}}
+  function save(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]));}
+  function render(){try{ if(typeof renderCarritoSurtidoV88==='function') renderCarritoSurtidoV88(true); else if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true); }catch(e){}}
+  function ensureDB(){try{ if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db; }catch(e){return false}}
+
+  window.subirCarritoCompletoSupabaseV883=async function(){
+    if(syncing) return false;
+    if(!ensureDB()) return false;
+    var c=cart();
+    syncing=true;
+    try{
+      var actuales=await db.from('carrito_compras').select('id').limit(1000);
+      if(actuales.error) throw actuales.error;
+      var ids=(actuales.data||[]).map(function(x){return x.id}).filter(Boolean);
+      if(ids.length){
+        var del=await db.from('carrito_compras').delete().in('id',ids);
+        if(del.error) throw del.error;
+      }
+      if(c.length){
+        var proveedor=($('proveedorCompraV87')?.value)||localStorage.getItem(LS_PROV)||'';
+        var nota=($('notaCompraV87')?.value)||localStorage.getItem(LS_NOTA)||'';
+        var payload=c.map(function(item){
+          var cant=n(item.cantidad), cu=n(item.costo_unitario);
+          return {usuario_id:(window.usuarioLogueado?.id)||null, ingrediente_id:item.id, cantidad:cant, costo_unitario:cu, costo_total:n(item.costo_total)||(cant*cu), tienda:proveedor, nota:nota};
+        }).filter(function(x){return x.ingrediente_id});
+        if(payload.length){
+          var ins=await db.from('carrito_compras').insert(payload).select();
+          if(ins.error) throw ins.error;
+          var rows=ins.data||[];
+          c=c.map(function(item){
+            var row=rows.find(function(r){return String(r.ingrediente_id)===String(item.id)});
+            return row?Object.assign({},item,{carrito_id:row.id}):item;
+          });
+          save(c);
+        }
+      }
+      return true;
+    }catch(e){
+      console.warn('V8.8.3 no pudo subir carrito completo',e);
+      return false;
+    }finally{ syncing=false; }
+  };
+
+  window.programarSyncCarritoV883=function(ms){
+    clearTimeout(timer);
+    timer=setTimeout(function(){window.subirCarritoCompletoSupabaseV883()},ms||600);
+  };
+
+  function wrap(nombre,ms){
+    var fn=window[nombre];
+    if(typeof fn!=='function') return;
+    window[nombre]=async function(){
+      var r;
+      try{ r=fn.apply(this,arguments); if(r&&typeof r.then==='function') await r; }
+      finally{ window.programarSyncCarritoV883(ms||700); }
+      return r;
+    };
+  }
+
+  function instalar(){
+    ['agregarCarritoOrdenadoV8610','agregarAlCarritoSurtidoV869','agregarAlCarritoSurtidoV866','actualizarCarritoV879','actualizarCarritoSurtidoV869','actualizarCarritoSurtidoV866','quitarCarritoSurtidoV869','quitarCarritoSurtidoV866','limpiarCarritoSurtidoV869','limpiarCarritoSurtidoV866'].forEach(function(nm){wrap(nm,700)});
+    var inv=$('inventario')||document.body;
+    inv.addEventListener('click',function(e){
+      if(e.target && e.target.tagName==='BUTTON') window.programarSyncCarritoV883(900);
+    },true);
+    inv.addEventListener('input',function(e){
+      var id=e.target&&e.target.id||'';
+      if(id.includes('cantCart')||id.includes('costoCart')||id==='proveedorCompraV87'||id==='notaCompraV87') window.programarSyncCarritoV883(900);
+    },true);
+    setTimeout(function(){window.subirCarritoCompletoSupabaseV883()},2000);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',instalar); else instalar();
+})();
+</script>
