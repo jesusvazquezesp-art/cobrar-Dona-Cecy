@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.7.9.1 - Buscador estable</title>
+<title>Puesto Doña Cecy V8.8.6 - Carrito seguro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1085,8 +1085,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.7.9.1</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.7.1 · Historial + buscador estable</p>
+  <h1>🥤 Puesto Doña Cecy V8.8.6</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.8.6 · Carrito seguro</p>
 </header>
 
 <div class="tabs">
@@ -10130,6 +10130,205 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 
   window.addEventListener('load',()=>setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},900));
   setTimeout(()=>{try{window.renderCarritoFijoSurtidoV869(true)}catch(e){}},300);
+})();
+</script>
+
+
+
+<script id="fix-v886-carrito-inicio-baja-acciones-suben">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  var timer=null;
+  var syncing=false;
+  var bajando=false;
+  var iniciado=false;
+  var instalado=false;
+  var ultimaFirma='';
+
+  function $(id){return document.getElementById(id);}
+  function num(v){return Number(v||0);}
+  function leerLocal(){
+    try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]'); return Array.isArray(x)?x:[];}catch(e){return []}
+  }
+  function guardarLocal(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]));}
+  function firma(c){
+    return JSON.stringify((c||[]).map(function(x){return {
+      id:String(x.id||x.ingrediente_id||''),
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }}));
+  }
+  function asegurarDB(){
+    try{
+      if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();
+      return !!window.db;
+    }catch(e){return false;}
+  }
+  function ingPorId(id){
+    try{return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)});}catch(e){return null;}
+  }
+  function renderCarrito(){
+    try{ if(typeof window.renderCarritoSurtidoV88==='function') window.renderCarritoSurtidoV88(true); }catch(e){}
+    try{ if(typeof window.renderCarritoFijoSurtidoV869==='function') window.renderCarritoFijoSurtidoV869(true); }catch(e){}
+    try{ if(typeof window.renderInventarioInteligenteV863==='function') window.renderInventarioInteligenteV863(); }catch(e){}
+    try{ if(typeof window.render==='function') window.render(); }catch(e){}
+  }
+  async function borrarCarritoSupabase(){
+    var r=await db.from('carrito_compras').select('id').limit(3000);
+    if(r.error) throw r.error;
+    var ids=(r.data||[]).map(function(x){return x.id}).filter(Boolean);
+    if(ids.length){
+      var d=await db.from('carrito_compras').delete().in('id',ids);
+      if(d.error) throw d.error;
+    }
+  }
+
+  window.bajarCarritoSeguro=function(){return window.bajarCarritoSupabaseV886('manual')};
+
+  window.bajarCarritoSupabaseV886=async function(motivo){
+    if(!asegurarDB()){console.warn('V8.8.6: db no disponible al bajar carrito'); return false;}
+    bajando=true; syncing=true;
+    try{
+      var r=await db.from('carrito_compras').select('*').order('fecha_creacion',{ascending:true});
+      if(r.error) throw r.error;
+      var rows=r.data||[];
+      var nuevo=rows.map(function(x){
+        var ing=ingPorId(x.ingrediente_id)||{};
+        return {
+          carrito_id:x.id,
+          id:String(x.ingrediente_id),
+          nombre:ing.nombre||x.nombre||'Ingrediente',
+          cantidad:num(x.cantidad),
+          costo_unitario:num(x.costo_unitario),
+          costo_total:num(x.costo_total)||(num(x.cantidad)*num(x.costo_unitario)),
+          tienda:x.tienda||'',
+          nota:x.nota||''
+        };
+      });
+      guardarLocal(nuevo);
+      ultimaFirma=firma(nuevo);
+      iniciado=true;
+      renderCarrito();
+      console.log('✅ V8.8.6 inicio: carrito BAJADO de Supabase:', nuevo.length, 'motivo:', motivo||'auto');
+      return true;
+    }catch(e){
+      iniciado=true;
+      console.error('❌ V8.8.6 error bajando carrito:', e);
+      return false;
+    }finally{
+      bajando=false; syncing=false;
+    }
+  };
+
+  window.subirCarritoCompletoSupabaseV886=async function(motivo){
+    if(bajando || syncing) return false;
+    if(!iniciado){ console.warn('V8.8.6 protegido: todavía no termina la primera descarga, no subo local viejo.', motivo||''); return false; }
+    if(!asegurarDB()){console.warn('V8.8.6: db no disponible al subir carrito'); return false;}
+    syncing=true;
+    try{
+      var c=leerLocal();
+      await borrarCarritoSupabase();
+      if(c.length){
+        var proveedor=($('proveedorCompraV87')&&$('proveedorCompraV87').value)||localStorage.getItem(LS_PROV)||'';
+        var nota=($('notaCompraV87')&&$('notaCompraV87').value)||localStorage.getItem(LS_NOTA)||'';
+        var payload=c.map(function(item){
+          var id=item.id||item.ingrediente_id;
+          var cant=num(item.cantidad), cu=num(item.costo_unitario);
+          return {
+            usuario_id:(window.usuarioLogueado&&window.usuarioLogueado.id)||null,
+            ingrediente_id:id,
+            cantidad:cant,
+            costo_unitario:cu,
+            costo_total:num(item.costo_total)||(cant*cu),
+            tienda:proveedor,
+            nota:nota
+          };
+        }).filter(function(x){return x.ingrediente_id;});
+        if(payload.length){
+          var ins=await db.from('carrito_compras').insert(payload).select();
+          if(ins.error) throw ins.error;
+          var rows=ins.data||[];
+          var actualizado=c.map(function(item){
+            var row=rows.find(function(r){return String(r.ingrediente_id)===String(item.id||item.ingrediente_id)});
+            return row ? Object.assign({},item,{id:String(item.id||item.ingrediente_id),carrito_id:row.id}) : item;
+          });
+          bajando=true;
+          guardarLocal(actualizado);
+          bajando=false;
+          c=actualizado;
+        }
+      }
+      ultimaFirma=firma(leerLocal());
+      console.log('✅ V8.8.6 acción: carrito SUBIDO a Supabase:', leerLocal().length, 'motivo:', motivo||'auto');
+      return true;
+    }catch(e){
+      console.error('❌ V8.8.6 error subiendo carrito:', e);
+      return false;
+    }finally{syncing=false; bajando=false;}
+  };
+
+  window.programarSyncCarritoV886=function(motivo,ms){
+    if(bajando) return;
+    clearTimeout(timer);
+    timer=setTimeout(function(){window.subirCarritoCompletoSupabaseV886(motivo)}, ms||800);
+  };
+
+  function anularParcheViejo(){
+    window.subirCarritoCompletoSupabaseV883=function(){return window.subirCarritoCompletoSupabaseV886('redir V883')};
+    window.subirCarritoCompletoSupabaseV884=function(){return window.subirCarritoCompletoSupabaseV886('redir V884')};
+    window.programarSyncCarritoV883=function(ms){ if(!bajando) window.programarSyncCarritoV886('redir V883',ms||900); };
+    window.programarSyncCarritoV884=function(motivo,ms){ if(!bajando) window.programarSyncCarritoV886(motivo||'redir V884',ms||900); };
+    window.syncCarritoAhora=function(){return window.subirCarritoCompletoSupabaseV886('manual')};
+  }
+
+  function instalarEventosAccion(){
+    document.addEventListener('click',function(e){
+      var t=e.target; if(!t) return;
+      var txt=(t.textContent||'').toLowerCase();
+      var id=(t.id||'').toLowerCase();
+      var cls=(t.className||'').toString().toLowerCase();
+      if(txt.includes('carrito pagado')||txt.includes('aplicar al inventario')){
+        setTimeout(function(){ window.subirCarritoCompletoSupabaseV886('carrito pagado / vaciar global'); },1200);
+        return;
+      }
+      if(txt.includes('agregar')||txt.includes('quitar')||txt.includes('carrito')||id.includes('carrito')||cls.includes('carrito')||cls.includes('cart')){
+        window.programarSyncCarritoV886('click acción carrito',1000);
+      }
+    },true);
+    document.addEventListener('input',function(e){
+      var id=(e.target&&e.target.id||'').toLowerCase();
+      if(id.includes('cart')||id.includes('carrito')||id.includes('proveedor')||id.includes('nota')||id.includes('costo')||id.includes('cant')){
+        window.programarSyncCarritoV886('input acción carrito',1000);
+      }
+    },true);
+  }
+
+  function instalarVigilante(){
+    ultimaFirma=firma(leerLocal());
+    setInterval(function(){
+      var f=firma(leerLocal());
+      if(f!==ultimaFirma && !bajando && !syncing){
+        ultimaFirma=f;
+        window.programarSyncCarritoV886('vigilante cambio local',700);
+      }
+    },1200);
+  }
+
+  async function instalar(){
+    if(instalado) return; instalado=true;
+    anularParcheViejo();
+    instalarEventosAccion();
+    instalarVigilante();
+    // Regla principal: al abrir/refrescar, primero baja desde Supabase. Nunca empuja el carrito local viejo al inicio.
+    setTimeout(function(){ window.bajarCarritoSupabaseV886('inicio / refresh'); },700);
+    // Segundo intento por si Supabase/ingredientes tarda en iniciar.
+    setTimeout(function(){ if(!iniciado) window.bajarCarritoSupabaseV886('inicio segundo intento'); },2500);
+    console.log('✅ V8.8.6 instalado: INICIO=BAJAR, ACCIONES=SUBIR, PAGADO=VACIAR GLOBAL.');
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',instalar); else instalar();
 })();
 </script>
 
