@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.8.6 - Carrito seguro</title>
+<title>Puesto Doña Cecy V8.8.7 - Carrito seguro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -5484,8 +5484,33 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
     var ids=new Set(cart().map(x=>String(x.id)));
     document.querySelectorAll('[data-cart-v869]').forEach(b=>{const id=b.getAttribute('data-cart-v869'); if(ids.has(String(id))){b.textContent='✓ Ya está en carrito'; b.classList.add('v869-ya');}else{b.textContent='🛒 Añadir al carrito'; b.classList.remove('v869-ya');}});
   }
-  
-  
+  window.inyectarBotonesCarritoV869=function(){
+    var rec=document.getElementById('recomendacionCompra'); if(!rec)return;
+    var c=cart(); const ids=new Set(c.map(x=>String(x.id)));
+    var items=allIng().filter(i=>tipo(i)!=='green');
+    var cards=[...rec.querySelectorAll('.v868-card,.v866-card,.inv-card,.alerta')];
+    for(const cardEl of cards){
+      if(cardEl.querySelector('[data-cart-v869]'))continue;
+      var txt=cardEl.textContent||'';
+      var ing=items.find(i=>txt.includes(i.nombre));
+      if(!ing)continue;
+      var b=document.createElement('button');
+      b.className='btn-azul v869-btn-add'+(ids.has(String(ing.id))?' v869-ya':'');
+      b.setAttribute('data-cart-v869',ing.id);
+      b.textContent=ids.has(String(ing.id))?'✓ Ya está en carrito':'🛒 Añadir al carrito';
+      b.onclick=()=>add(ing.id);
+      cardEl.appendChild(b);
+    }
+  };
+  var oldTab=window.verTab;
+  if(typeof oldTab==='function')window.verTab=function(id,btn){const r=oldTab.apply(this,arguments); if(id==='reportes')setTimeout(()=>{renderCarritoFijoSurtidoV869(true); inyectarBotonesCarritoV869();},120); return r;};
+  var oldCRH=window.cargarReporteHoy;
+  if(typeof oldCRH==='function')window.cargarReporteHoy=async function(){const y=window.scrollY; const r=await oldCRH.apply(this,arguments); setTimeout(()=>{renderCarritoFijoSurtidoV869(); inyectarBotonesCarritoV869(); try{window.scrollTo(0,y)}catch(e){}},80); return r;};
+  function tick(){renderCarritoFijoSurtidoV869(); inyectarBotonesCarritoV869();}
+  window.addEventListener('load',()=>{setTimeout(tick,900); setTimeout(tick,2200);});
+  document.addEventListener('input',e=>{if(document.getElementById('carritoSurtidoFijoV869')?.contains(e.target))setTimeout(()=>renderCarritoFijoSurtidoV869(),120);});
+  setInterval(()=>{if(document.getElementById('reportes')?.classList.contains('activa') && !document.getElementById('carritoSurtidoFijoV869')?.contains(document.activeElement))tick();},120000);
+})();
 </script>
 
 
