@@ -7898,10 +7898,10 @@ function fechaJuarezPartesV84(fecha=new Date()){
 
 function horarioPuestoV84(weekday){
   var mapa={
-    Thu:{abre:17*60,cierra:22*60, dia:'Jueves'},
+    
     Fri:{abre:17*60,cierra:22*60, dia:'Viernes'},
-    Sat:{abre:18*60,cierra:22*60, dia:'Sábado'},
-    Sun:{abre:14*60,cierra:22*60, dia:'Domingo'}
+    Sat:{abre:17*60,cierra:22*60, dia:'Sábado'},
+    Sun:{abre:17*60,cierra:21*60, dia:'Domingo'}
   };
   return mapa[weekday]||null;
 }
@@ -7915,16 +7915,31 @@ function formatoMinutosV84(min){
 
 function proximaAperturaV84(weekday,minutos){
   var orden=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  var nombres={Thu:'Jueves 5:00 PM',Fri:'Viernes 5:00 PM',Sat:'Sábado 6:00 PM',Sun:'Domingo 2:00 PM'};
-  var horarios={Thu:17*60,Fri:17*60,Sat:18*60,Sun:14*60};
+
+  var nombres={
+    Fri:'Viernes 5:00 PM',
+    Sat:'Sábado 5:00 PM',
+    Sun:'Domingo 5:00 PM'
+  };
+
+  var horarios={
+    Fri:17*60,
+    Sat:17*60,
+    Sun:17*60
+  };
+
   var idx=orden.indexOf(weekday);
+
   for(let i=0;i<8;i++){
     var w=orden[(idx+i)%7];
+
     if(!horarios[w]) continue;
     if(i===0 && minutos>=horarios[w]) continue;
+
     return nombres[w];
   }
-  return 'Jueves 5:00 PM';
+
+  return 'Viernes 5:00 PM';
 }
 
 function actualizarEstadoPuestoV84(){
