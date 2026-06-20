@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.8.7 - Historial de compras visible</title>
+<title>Puesto Doña Cecy V8.9.2 - Historial de compras visible</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.8.7</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.8.7 · Historial de compras visible</p>
+  <h1>🥤 Puesto Doña Cecy V8.9.2</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.9.2 · Ganancia neta real</p>
 </header>
 
 <div class="tabs">
@@ -1229,6 +1229,13 @@ th{background:#fafafa}
     <div id="tablaInventario"></div>
   </div>
 
+  <div class="card" id="cardRecomendacionCompraInventario">
+    <h2>🛒 Carrito / Recomendación de compra</h2>
+    <div class="info">Este carrito queda solo en Inventario. Si quedó una compra vieja guardada en el celular, usa el botón para vaciarlo.</div>
+    <button class="btn-rojo" onclick="localStorage.removeItem('cecy_carrito_surtido_v866');localStorage.removeItem('cecy_carrito_surtido_v867');localStorage.removeItem('cecy_carrito_surtido_v868');localStorage.removeItem('cecy_carrito_surtido_v869'); if(typeof renderInventarioSurtidoV868==='function') renderInventarioSurtidoV868(true); alert('Carrito de surtido borrado de este celular.');">🧹 Borrar carrito guardado</button>
+    <div id="recomendacionCompra"></div>
+  </div>
+
   <div class="card">
     <h2>⚠️ Merma / regalo / ajuste</h2>
     <label>Ingrediente</label>
@@ -1261,10 +1268,6 @@ th{background:#fafafa}
   <div class="card">
     <h2>🧾 Corte por productos</h2>
     <div id="reporteProductos"></div>
-  </div>
-  <div class="card">
-    <h2>🛒 Recomendación de compra</h2>
-    <div id="recomendacionCompra"></div>
   </div>
   <div class="card" id="historialComprasV87Card">
     <h2>📋 Historial de compras</h2>
@@ -10490,6 +10493,116 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 })();
 </script>
 
+
+
+<style id="css-v889-historial-agrupado">
+.v889-grupo{border:2px solid #1e88e5;border-left:7px solid #1e88e5;border-radius:18px;background:#fff;padding:12px;margin:12px 0;color:#3e2723;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.v889-grupo h3{margin:0 0 6px;font-size:18px;color:#3e2723}
+.v889-meta{font-size:15px;line-height:1.45;color:#4e342e;margin-bottom:8px}
+.v889-detalle{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:8px;margin:6px 0;font-size:14px}
+.v889-linea{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #eee;padding:6px 0}
+.v889-linea:last-child{border-bottom:none}
+.v889-total{font-size:24px;font-weight:bold;color:#1b5e20;text-align:right;margin:8px 0}
+.v889-actions{display:flex;gap:6px;flex-wrap:wrap}.v889-actions button{flex:1;min-width:140px}
+.v889-chip{display:inline-block;background:#f3e5f5;color:#6a1b9a;border-radius:999px;padding:4px 9px;margin:2px;font-size:12px;font-weight:bold}
+</style>
+<script id="js-v889-historial-agrupado">
+(function(){
+  var $=id=>document.getElementById(id);
+  var num=v=>Number(v||0);
+  var money=v=>'$'+num(v).toFixed(2);
+  var esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  var norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  function fechaBase(f){
+    var d=new Date(f);
+    if(isNaN(d)) return String(f||'');
+    d.setSeconds(0,0); // agrupa compras hechas en el mismo minuto
+    return d.toISOString().slice(0,16);
+  }
+  function safeParseIds(s){ try{return JSON.parse(decodeURIComponent(s))}catch(e){return []} }
+
+  window.editarGrupoCompraV889=async function(idsEncoded, tiendaActual, notaActual){
+    var ids=safeParseIds(idsEncoded);
+    if(!ids.length) return alert('No encontré los productos de este carrito.');
+    var tienda=prompt('Tienda para TODO este carrito:', tiendaActual||'') ?? tiendaActual ?? '';
+    var nota=prompt('Nota / observación para TODO este carrito:', notaActual||'') ?? notaActual ?? '';
+    try{
+      if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+      var r=await db.from('compras').update({tienda:tienda, nota:nota}).in('id', ids);
+      if(r.error) throw r.error;
+      alert('✅ Carrito actualizado.');
+      await window.renderHistorialComprasV887();
+    }catch(e){
+      alert('No se pudo editar el carrito. Revisa que existan las columnas tienda y nota en compras.\n\n'+(e.message||e));
+    }
+  };
+
+  window.renderHistorialComprasV887=async function(){
+    var card=$('historialComprasV87Card')||$('historialComprasV887Card')||$('historialComprasV890Card');
+    if(!card) return;
+    var qOld=$('buscarHistorialComprasV887')?.value || $('buscarHistorialComprasV87')?.value || '';
+    if(!db && typeof iniciarSupabase==='function') iniciarSupabase();
+    if(!db){ card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Sin conexión a Supabase.</div>'; return; }
+
+    var r=await db.from('compras')
+      .select('id,fecha_compra,fecha_creacion,tienda,nota,cantidad,costo_total,costo_unitario,ingredientes(nombre),usuarios(nombre)')
+      .order('fecha_compra',{ascending:false})
+      .order('fecha_creacion',{ascending:false})
+      .limit(300);
+    if(r.error){
+      card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';
+      return;
+    }
+
+    var rows=(r.data||[]).map(x=>({
+      id:x.id,
+      fecha:x.fecha_compra||x.fecha_creacion,
+      usuario:x.usuarios?.nombre||'Usuario',
+      tienda:x.tienda||'',
+      nota:x.nota||'',
+      nombre:x.ingredientes?.nombre||'Producto',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }));
+
+    var grupos={};
+    rows.forEach(x=>{
+      var key=[fechaBase(x.fecha), norm(x.usuario), norm(x.tienda), norm(x.nota)].join('|');
+      if(!grupos[key]) grupos[key]={fecha:x.fecha, usuario:x.usuario, tienda:x.tienda, nota:x.nota, ids:[], items:[], total:0};
+      grupos[key].ids.push(x.id);
+      grupos[key].items.push(x);
+      grupos[key].total+=x.costo_total;
+    });
+    var data=Object.values(grupos).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+    var q=norm(qOld);
+    if(q) data=data.filter(g=>norm([g.fecha,g.usuario,g.tienda,g.nota,g.items.map(i=>i.nombre).join(' ')].join(' ')).includes(q));
+    var totalMes=data.filter(g=>{var d=new Date(g.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();}).reduce((s,g)=>s+g.total,0);
+
+    card.innerHTML='<h2>📋 Historial de compras</h2>'+ 
+      '<div class="info">Ahora las compras se agrupan como <b>un solo carrito</b> cuando tienen la misma hora, tienda, nota y usuario.</div>'+ 
+      '<div><span class="v889-chip">Carritos: '+data.length+'</span><span class="v889-chip">Este mes: '+money(totalMes)+'</span></div>'+ 
+      '<input id="buscarHistorialComprasV887" class="v890-search v87-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div>'+(data.length?data.slice(0,120).map(g=>{
+        var f=new Date(g.fecha); var ft=isNaN(f)?esc(g.fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f);
+        var ids=encodeURIComponent(JSON.stringify(g.ids));
+        var tiendaJS=String(g.tienda||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var notaJS=String(g.nota||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div class="v889-grupo"><h3>'+ft+'</h3>'+ 
+          '<div class="v889-meta">📍 '+esc(g.tienda||'Sin tienda')+'<br>👤 '+esc(g.usuario)+(g.nota?'<br>📝 '+esc(g.nota):'')+'</div>'+ 
+          '<div class="v889-detalle">'+g.items.map(i=>'<div class="v889-linea"><span>• '+esc(i.nombre)+': '+i.cantidad+' x '+money(i.costo_unitario)+'</span><b>'+money(i.costo_total)+'</b></div>').join('')+'</div>'+ 
+          '<div class="v889-total">'+money(g.total)+'</div>'+ 
+          '<div class="v889-actions"><button class="btn-azul" onclick="editarGrupoCompraV889(\''+ids+'\',\''+esc(tiendaJS)+'\',\''+esc(notaJS)+'\')">✏️ Editar tienda / nota del carrito</button></div></div>';
+      }).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+  };
+
+  window.renderHistorialComprasV881=window.renderHistorialComprasV887;
+  window.renderHistorialComprasV87=window.renderHistorialComprasV887;
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},900);
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},2500);
+})();
+</script>
 </body>
 </html>
 
@@ -11897,5 +12010,610 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
     console.log('✅ V8.8.4 instalado. Prueba manual: await syncCarritoAhora()');
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',instalar); else instalar();
+})();
+</script>
+
+<!-- ===== V8.9.0 Historial de compras por tienda + edición ===== -->
+<style id="css-v890-compras-tiendas">
+.v890-resumen-tiendas{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.v890-tienda-box{background:#f3e5f5;color:#4a1249;border:1px solid #e1bee7;border-radius:14px;padding:10px;font-weight:bold;text-align:center}
+.v890-tienda-box b{display:block;font-size:18px;color:#1b5e20;margin-top:3px}
+.v890-compra{border:1px solid #eee;border-left:6px solid #1e88e5;border-radius:14px;background:#fafafa;padding:10px;margin:9px 0;color:#3e2723}
+.v890-compra .meta{font-size:13px;line-height:1.45}
+.v890-detalle{background:white;border-radius:10px;padding:8px;margin-top:7px;border:1px solid #eee;font-size:13px}
+.v890-total{font-size:19px;font-weight:bold;color:#1b5e20;text-align:right;margin-top:5px}
+.v890-search{border:2px solid #e1bee7!important;border-radius:14px!important;font-size:16px!important}
+.v890-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.v890-actions button{width:auto!important;padding:7px 10px!important;font-size:12px!important;margin:0!important}
+@media(max-width:520px){.v890-resumen-tiendas{grid-template-columns:1fr}.v890-actions button{width:100%!important}}
+</style>
+<script id="js-v890-compras-tiendas">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_LAST='cecy_ultimo_costo_surtido_v866';
+  var LS_HIST='cecy_historial_compras_v87';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+  function leerCart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function guardarCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function leerLast(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function guardarLast(x){localStorage.setItem(LS_LAST,JSON.stringify(x||{}))}
+  function leerHistLocal(){try{var x=JSON.parse(localStorage.getItem(LS_HIST)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function guardarHistLocal(x){localStorage.setItem(LS_HIST,JSON.stringify((x||[]).slice(0,300)))}
+  function usuarioNombre(){try{return (window.usuarioLogueado&&window.usuarioLogueado.nombre)||($("usuarioSelect")?.selectedOptions?.[0]?.textContent)||'Usuario'}catch(e){return 'Usuario'}}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingredientePorId(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||{id:id,nombre:'Producto',cantidad:0}}
+
+  async function insertarCompraSupabase(payload){
+    // Primero intenta guardar tienda/proveedor/nota. Si la tabla aún no tiene esas columnas, avisa y guarda lo básico para no perder inventario.
+    var r=await db.from('compras').insert(payload).select('id').maybeSingle();
+    if(!r.error) return r;
+    var msg=String(r.error.message||'');
+    if(msg.includes('tienda')||msg.includes('proveedor')||msg.includes('lugar')||msg.includes('nota')||msg.includes('fecha_compra')){
+      console.warn('La tabla compras necesita columnas de tienda/nota:',msg);
+      var basico={usuario_id:payload.usuario_id,ingrediente_id:payload.ingrediente_id,cantidad:payload.cantidad,costo_total:payload.costo_total,costo_unitario:payload.costo_unitario};
+      var r2=await db.from('compras').insert(basico).select('id').maybeSingle();
+      if(!r2.error){
+        setTimeout(function(){alert('La compra se guardó, pero Supabase todavía no tiene las columnas tienda/nota. Ejecuta el SQL que te dejé para que el historial pueda separar por tienda.')},300);
+      }
+      return r2;
+    }
+    return r;
+  }
+
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.');
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=leerCart(); if(!c.length) return alert('El carrito está vacío.');
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste tienda/proveedor. ¿Continuar sin tienda?')) return;
+    localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota);
+    if(btn){btn.disabled=true;btn.textContent='Guardando compra...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      var fecha=new Date().toISOString();
+      var total=0, items=[], ult=leerLast();
+      for(const x of c){
+        var ing=ingredientePorId(x.id||x.ingrediente_id);
+        var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=num(x.costo_total)||(cant*cu);
+        if(!ing.id||cant<=0) continue;
+        total+=costo;
+        var nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id);
+        if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var payload={usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha};
+        var ins=await insertarCompraSupabase(payload);
+        if(ins.error) throw ins.error;
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:(tienda?('Compra en '+tienda):'Compra')+(nota?(' · '+nota):''),referencia:'compra_tienda_v890'});}catch(e){}
+        items.push({id:ins.data?.id||'',nombre:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:costo,tienda:tienda,nota:nota});
+        ult[ing.id]=cu;
+      }
+      guardarLast(ult);
+      guardarHistLocal([{id:'compra_'+Date.now(),fecha:fecha,usuario:usuarioNombre(),usuario_id:u.id,proveedor:tienda,nota:nota,total:total,items:items}].concat(leerHistLocal()));
+      try{if(typeof auditoria==='function') await auditoria('COMPRA_TIENDA',usuarioNombre()+' registró compra por '+money(total)+(tienda?' en '+tienda:''),{tienda:tienda,nota:nota,total:total,items:items});}catch(e){}
+      guardarCart([]);
+      if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      if(typeof render==='function') render();
+      if(typeof renderHistorialComprasV887==='function') renderHistorialComprasV887();
+      if(typeof notificar==='function') notificar('✅ Compra guardada',tienda?('Tienda: '+tienda):'Sin tienda','ok'); else alert('Compra guardada.');
+    }catch(e){alert('Error guardando compra: '+(e.message||e));}
+    finally{if(btn){btn.disabled=false;btn.textContent='✅ Carrito pagado / aplicar al inventario'}}
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+
+  window.editarCompraTiendaV890=async function(id,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var tienda=prompt('Tienda / proveedor de esta compra:',tiendaActual||'');
+    if(tienda===null) return;
+    var nota=prompt('Nota u observación:',notaActual||'');
+    if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).eq('id',id);
+    if(r.error){
+      alert('No se pudo editar. Revisa que existan las columnas tienda y nota en compras.\n\n'+r.error.message);
+      return;
+    }
+    await renderHistorialComprasV887();
+  };
+
+  window.renderHistorialComprasV887=async function(){
+    var card=$('historialComprasV87Card')||$('historialComprasReportesV887');
+    if(!card) return;
+    if(!asegurarDB()){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Sin conexión a Supabase.</div>';return;}
+    var qOld=$('buscarHistorialComprasV887')?.value||'';
+    var r=await db.from('compras').select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,proveedor,lugar,nota,fecha_compra,fecha_creacion,ingredientes(nombre),usuarios(nombre)').order('fecha_compra',{ascending:false}).limit(500);
+    if(r.error) r=await db.from('compras').select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,proveedor,lugar,nota,fecha_creacion,ingredientes(nombre),usuarios(nombre)').order('fecha_creacion',{ascending:false}).limit(500);
+    if(r.error) r=await db.from('compras').select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,fecha_creacion,ingredientes(nombre),usuarios(nombre)').order('fecha_creacion',{ascending:false}).limit(500);
+    if(r.error){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';return;}
+    var rows=(r.data||[]).map(function(x){return {
+      id:x.id, fecha:x.fecha_compra||x.fecha_creacion, usuario:x.usuarios?.nombre||'Usuario', tienda:x.tienda||x.proveedor||x.lugar||'', nota:x.nota||'', nombre:x.ingredientes?.nombre||'Ingrediente', cantidad:num(x.cantidad), costo_unitario:num(x.costo_unitario), costo_total:num(x.costo_total)
+    }});
+    var q=norm(qOld); if(q) rows=rows.filter(function(x){return norm([x.fecha,x.usuario,x.tienda,x.nota,x.nombre,x.cantidad,x.costo_total].join(' ')).includes(q)});
+    var porTienda={}; rows.forEach(function(x){var t=x.tienda||'Sin tienda'; if(!porTienda[t]) porTienda[t]={count:0,total:0}; porTienda[t].count++; porTienda[t].total+=x.costo_total;});
+    var tiendas=Object.keys(porTienda).sort(function(a,b){return porTienda[b].total-porTienda[a].total});
+    var totalMes=rows.filter(function(x){var d=new Date(x.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce(function(s,x){return s+x.costo_total},0);
+    card.innerHTML='<h2>📋 Historial de compras por tienda</h2>'+
+      '<div class="info">Ahora el historial separa por <b>tienda/proveedor</b>. También puedes editar la tienda o nota de cada compra.</div>'+
+      '<div><span class="v87-chip">Registros: '+rows.length+'</span><span class="v87-chip">Este mes: '+money(totalMes)+'</span><span class="v87-chip">Tiendas: '+tiendas.length+'</span></div>'+
+      '<input id="buscarHistorialComprasV887" class="v890-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div class="v890-resumen-tiendas">'+(tiendas.length?tiendas.slice(0,8).map(function(t){return '<div class="v890-tienda-box">'+esc(t)+' <small>('+porTienda[t].count+')</small><b>'+money(porTienda[t].total)+'</b></div>'}).join(''):'<div class="warn">No hay tiendas registradas todavía.</div>')+'</div>'+
+      '<div>'+(rows.length?rows.slice(0,120).map(function(x){var f=new Date(x.fecha);var ft=isNaN(f)?esc(x.fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f);return '<div class="v890-compra"><b>'+ft+'</b><div class="meta">📍 '+esc(x.tienda||'Sin tienda')+'<br>👤 '+esc(x.usuario)+(x.nota?'<br>📝 '+esc(x.nota):'')+'</div><div class="v890-detalle">• '+esc(x.nombre)+': '+x.cantidad+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b></div><div class="v890-total">'+money(x.costo_total)+'</div><div class="v890-actions"><button class="btn-azul" onclick="editarCompraTiendaV890(\''+esc(x.id)+'\',\''+esc(String(x.tienda).replace(/\\/g,'\\\\').replace(/'/g,"\\'"))+'\',\''+esc(String(x.nota).replace(/\\/g,'\\\\').replace(/'/g,"\\'"))+'\')">✏️ Editar tienda / nota</button></div></div>'}).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+    var inp=$('buscarHistorialComprasV887'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){try{renderHistorialComprasV887()}catch(e){}},1200)});
+})();
+</script>
+
+
+<!-- ===== V8.9.2 Corrección: carrito solo en Inventario + compras sin columna lugar ===== -->
+<style id="css-v891-fix-carrito-reportes">
+#reportes #recomendacionCompra,
+#reportes #cardRecomendacionCompraInventario{display:none!important}
+#cardRecomendacionCompraInventario{border:2px solid #ae56ac;background:#fff;border-radius:18px;padding:14px;margin-bottom:14px}
+</style>
+<script id="js-v891-fix-carrito-reportes">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  var LS_LAST='cecy_ultimo_costo_surtido_v866';
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function leerCart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function guardarCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function leerLast(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function guardarLast(x){localStorage.setItem(LS_LAST,JSON.stringify(x||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function usuarioNombre(){try{return (window.usuarioLogueado&&window.usuarioLogueado.nombre)||($('usuarioSelect')?.selectedOptions?.[0]?.textContent)||'Usuario'}catch(e){return 'Usuario'}}
+
+  function moverCarritoAInventarioV891(){
+    var inv=$('inventario'); if(!inv) return;
+    var card=$('cardRecomendacionCompraInventario');
+    var rec=$('recomendacionCompra');
+    if(!card){
+      card=document.createElement('div');
+      card.className='card';
+      card.id='cardRecomendacionCompraInventario';
+      card.innerHTML='<h2>🛒 Carrito / Recomendación de compra</h2><div class="info">Este carrito queda solo en Inventario.</div><button class="btn-rojo" onclick="borrarCarritoSurtidoV891()">🧹 Borrar carrito guardado</button><div id="recomendacionCompra"></div>';
+      var ref=$('tablaInventario')?.closest('.card');
+      if(ref && ref.nextSibling) inv.insertBefore(card,ref.nextSibling); else inv.insertBefore(card,inv.firstChild);
+    }else if(card.parentElement!==inv){
+      inv.insertBefore(card, $('tablaInventario')?.closest('.card')?.nextSibling || inv.firstChild);
+    }
+    rec=$('recomendacionCompra');
+    if(rec && rec.parentElement!==card){ card.appendChild(rec); }
+    var rep=$('reportes');
+    if(rep){
+      Array.from(rep.querySelectorAll('.card')).forEach(function(c){
+        if(c.querySelector && c.querySelector('#recomendacionCompra')) c.style.display='none';
+      });
+    }
+  }
+
+  window.borrarCarritoSurtidoV891=function(){
+    ['cecy_carrito_surtido_v866','cecy_carrito_surtido_v867','cecy_carrito_surtido_v868','cecy_carrito_surtido_v869','cecy_carrito_surtido_v865'].forEach(function(k){localStorage.removeItem(k)});
+    guardarCart([]);
+    try{ if(typeof window.renderInventarioSurtidoV868==='function') window.renderInventarioSurtidoV868(true); }catch(e){}
+    alert('Carrito de surtido borrado de este celular.');
+  };
+
+  // Editar compras usando solo columnas que sí tienes: tienda y nota. No usa lugar.
+  window.editarCompraTiendaV890=async function(id,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var tienda=prompt('Tienda / proveedor de esta compra:',tiendaActual||''); if(tienda===null) return;
+    var nota=prompt('Nota u observación:',notaActual||''); if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).eq('id',id);
+    if(r.error){ alert('No se pudo editar. Revisa que existan las columnas tienda y nota en compras.\n\n'+r.error.message); return; }
+    try{ if(typeof window.renderHistorialComprasV887==='function') await window.renderHistorialComprasV887(); }catch(e){}
+  };
+
+  // Guardar carrito pagado con tienda/nota, sin mandar lugar/proveedor para evitar el error de schema cache.
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.');
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=leerCart(); if(!c.length) return alert('El carrito está vacío.');
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste tienda/proveedor. ¿Continuar sin tienda?')) return;
+    localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota);
+    if(btn){btn.disabled=true;btn.textContent='Guardando compra...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      var fecha=new Date().toISOString(), total=0, ult=leerLast();
+      for(const x of c){
+        var ing=ingById(x.id||x.ingrediente_id); if(!ing) continue;
+        var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=num(x.costo_total)||(cant*cu);
+        if(cant<=0 || cu<=0) throw new Error('Revisa cantidad/costo de '+(ing.nombre||'producto'));
+        var nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id);
+        if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var payload={usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha};
+        var ins=await db.from('compras').insert(payload).select('id').maybeSingle();
+        if(ins.error) throw ins.error;
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:(tienda?('Compra en '+tienda):'Compra')+(nota?(' · '+nota):''),referencia:'compra_tienda_v891'});}catch(e){}
+        ult[ing.id]=cu; total+=costo;
+      }
+      guardarLast(ult); guardarCart([]);
+      if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      if(typeof render==='function') render();
+      if(typeof renderHistorialComprasV887==='function') renderHistorialComprasV887();
+      if(typeof notificar==='function') notificar('✅ Compra guardada',tienda?('Tienda: '+tienda):'Sin tienda','ok'); else alert('Compra guardada: '+money(total));
+    }catch(e){alert('Error guardando compra: '+(e.message||e));}
+    finally{if(btn){btn.disabled=false;btn.textContent='✅ Carrito pagado / aplicar al inventario'}}
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+  window.carritoPagadoSurtidoV868=window.carritoPagadoSurtidoV869;
+
+  var oldVerTab=window.verTab;
+  if(typeof oldVerTab==='function'){
+    window.verTab=function(id,btn){
+      var r=oldVerTab.apply(this,arguments);
+      setTimeout(function(){
+        moverCarritoAInventarioV891();
+        if(id==='inventario'){
+          try{ if(typeof window.renderInventarioSurtidoV868==='function') window.renderInventarioSurtidoV868(true); }catch(e){}
+        }
+      },120);
+      return r;
+    };
+  }
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(moverCarritoAInventarioV891,500);setTimeout(moverCarritoAInventarioV891,1800)});
+  window.addEventListener('load',function(){setTimeout(moverCarritoAInventarioV891,700);setTimeout(moverCarritoAInventarioV891,2200)});
+})();
+</script>
+
+
+<script id="js-v892-fix-tiendas-solo-columnas-existentes">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+
+  // Esta versión NO usa proveedor ni lugar. Solo usa las columnas que ya tienes: tienda y nota.
+  window.editarCompraTiendaV890=async function(id,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var tienda=prompt('Tienda de esta compra:',tiendaActual||'');
+    if(tienda===null) return;
+    var nota=prompt('Nota u observación:',notaActual||'');
+    if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).eq('id',id);
+    if(r.error){
+      alert('No se pudo editar. Supabase solo debe tener columnas tienda y nota. Error:\n\n'+r.error.message);
+      return;
+    }
+    if(typeof window.renderHistorialComprasV887==='function') await window.renderHistorialComprasV887();
+  };
+
+  window.renderHistorialComprasV887=async function(){
+    var card=$('historialComprasV87Card')||$('historialComprasReportesV887');
+    if(!card) return;
+    if(!asegurarDB()){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Sin conexión a Supabase.</div>';return;}
+    var qOld=$('buscarHistorialComprasV887')?.value||$('buscarHistorialComprasV87')?.value||'';
+
+    // No seleccionar proveedor ni lugar para evitar errores de schema cache.
+    var r=await db.from('compras')
+      .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_compra,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+      .order('fecha_compra',{ascending:false})
+      .limit(500);
+    if(r.error){
+      r=await db.from('compras')
+        .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+        .order('fecha_creacion',{ascending:false})
+        .limit(500);
+    }
+    if(r.error){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';return;}
+
+    var rows=(r.data||[]).map(function(x){return {
+      id:x.id,
+      fecha:x.fecha_compra||x.fecha_creacion,
+      usuario:x.usuarios?.nombre||'Usuario',
+      tienda:x.tienda||'',
+      nota:x.nota||'',
+      nombre:x.ingredientes?.nombre||'Ingrediente',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }});
+    var q=norm(qOld);
+    if(q) rows=rows.filter(function(x){return norm([x.fecha,x.usuario,x.tienda,x.nota,x.nombre,x.cantidad,x.costo_total].join(' ')).includes(q)});
+    var porTienda={};
+    rows.forEach(function(x){var t=x.tienda||'Sin tienda'; if(!porTienda[t]) porTienda[t]={count:0,total:0}; porTienda[t].count++; porTienda[t].total+=x.costo_total;});
+    var tiendas=Object.keys(porTienda).sort(function(a,b){return porTienda[b].total-porTienda[a].total});
+    var totalMes=rows.filter(function(x){var d=new Date(x.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce(function(s,x){return s+x.costo_total},0);
+
+    card.innerHTML='<h2>📋 Historial de compras por tienda</h2>'+
+      '<div class="info">Corregido: usa solamente las columnas <b>tienda</b> y <b>nota</b> de Supabase.</div>'+
+      '<div><span class="v87-chip">Registros: '+rows.length+'</span><span class="v87-chip">Este mes: '+money(totalMes)+'</span><span class="v87-chip">Tiendas: '+tiendas.length+'</span></div>'+
+      '<input id="buscarHistorialComprasV887" class="v890-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div class="v890-resumen-tiendas">'+(tiendas.length?tiendas.slice(0,10).map(function(t){return '<div class="v890-tienda-box">'+esc(t)+' <small>('+porTienda[t].count+')</small><b>'+money(porTienda[t].total)+'</b></div>'}).join(''):'<div class="warn">No hay tiendas registradas todavía.</div>')+'</div>'+
+      '<div>'+(rows.length?rows.slice(0,150).map(function(x){
+        var f=new Date(x.fecha); var ft=isNaN(f)?esc(x.fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f);
+        var tiendaJS=String(x.tienda||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var notaJS=String(x.nota||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div class="v890-compra"><b>'+ft+'</b><div class="meta">📍 '+esc(x.tienda||'Sin tienda')+'<br>👤 '+esc(x.usuario)+(x.nota?'<br>📝 '+esc(x.nota):'')+'</div><div class="v890-detalle">• '+esc(x.nombre)+': '+x.cantidad+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b></div><div class="v890-total">'+money(x.costo_total)+'</div><div class="v890-actions"><button class="btn-azul" onclick="editarCompraTiendaV890(\''+esc(x.id)+'\',\''+esc(tiendaJS)+'\',\''+esc(notaJS)+'\')">✏️ Editar tienda / nota</button></div></div>'
+      }).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+    var inp=$('buscarHistorialComprasV887'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  };
+
+  // Forzar refresco del historial al cargar.
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},800);
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},2200);
+})();
+</script>
+
+
+<!-- ===== V8.9.0 FINAL: historial agrupado por carrito usando tienda+nota+usuario+minuto ===== -->
+<style id="css-v890-final-carrito-agrupado">
+.v890-carrito-card{border:2px solid #90caf9;border-left:7px solid #1e88e5;border-radius:18px;background:#fff;padding:12px;margin:12px 0;color:#3e2723;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.v890-carrito-card .v890-meta{font-size:15px;line-height:1.35;margin:5px 0 8px;color:#4b2a2a}
+.v890-carrito-card .v890-item{background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin:6px 0;font-size:14px}
+.v890-carrito-card .v890-total{font-size:24px;font-weight:bold;color:#1b5e20;text-align:right;margin-top:8px}
+.v890-carrito-card .v890-actions{margin-top:8px}
+.v890-resumen-tiendas{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:10px 0}
+.v890-tienda-box{background:#f3e5f5;color:#4a1249;border:1px solid #e1bee7;border-radius:14px;padding:8px;font-weight:bold}.v890-tienda-box b{display:block;color:#1b5e20;font-size:18px;margin-top:3px}.v890-tienda-box small{font-size:11px;color:#666}
+@media(max-width:520px){.v890-resumen-tiendas{grid-template-columns:1fr}.v890-carrito-card{padding:10px}.v890-carrito-card .v890-total{font-size:22px}}
+</style>
+<script id="js-v890-final-carrito-agrupado">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function minutoKey(fecha){
+    var d=new Date(fecha||Date.now());
+    if(isNaN(d)) return String(fecha||'sin_fecha').slice(0,16);
+    d.setSeconds(0,0);
+    return d.toISOString().slice(0,16);
+  }
+  function fechaBonita(fecha){var f=new Date(fecha);return isNaN(f)?esc(fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f)}
+
+  window.editarCarritoComprasV890=async function(idsCSV,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var ids=String(idsCSV||'').split(',').filter(Boolean);
+    if(!ids.length) return alert('No encontré compras para editar.');
+    var tienda=prompt('Tienda para TODO este carrito:',tiendaActual||''); if(tienda===null) return;
+    var nota=prompt('Nota u observación para TODO este carrito:',notaActual||''); if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).in('id',ids);
+    if(r.error){alert('No se pudo editar el carrito. Error:\n\n'+r.error.message);return;}
+    await window.renderHistorialComprasV887();
+  };
+
+  // Mantengo este botón individual por compatibilidad, pero ahora refresca el carrito agrupado.
+  window.editarCompraTiendaV890=async function(id,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var tienda=prompt('Tienda de esta compra:',tiendaActual||''); if(tienda===null) return;
+    var nota=prompt('Nota u observación:',notaActual||''); if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).eq('id',id);
+    if(r.error){alert('No se pudo editar. Error:\n\n'+r.error.message);return;}
+    await window.renderHistorialComprasV887();
+  };
+
+  window.renderHistorialComprasV887=async function(){
+    var card=$('historialComprasV87Card')||$('historialComprasReportesV887');
+    if(!card) return;
+    if(!asegurarDB()){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Sin conexión a Supabase.</div>';return;}
+    var qOld=$('buscarHistorialComprasV887')?.value||$('buscarHistorialComprasV87')?.value||'';
+
+    var r=await db.from('compras')
+      .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_compra,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+      .order('fecha_compra',{ascending:false})
+      .limit(800);
+    if(r.error){
+      r=await db.from('compras')
+        .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+        .order('fecha_creacion',{ascending:false})
+        .limit(800);
+    }
+    if(r.error){card.innerHTML='<h2>📋 Historial de compras</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';return;}
+
+    var rows=(r.data||[]).map(function(x){return {
+      id:String(x.id),
+      fecha:x.fecha_compra||x.fecha_creacion,
+      usuario_id:x.usuario_id||'',
+      usuario:x.usuarios?.nombre||'Usuario',
+      tienda:x.tienda||'',
+      nota:x.nota||'',
+      nombre:x.ingredientes?.nombre||'Ingrediente',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }});
+
+    var grupos={};
+    rows.forEach(function(x){
+      // Aquí está la corrección: se agrupa por el minuto, no por la fecha exacta con segundos/milisegundos.
+      var key=[minutoKey(x.fecha), x.usuario_id||x.usuario, norm(x.tienda||'Sin tienda'), norm(x.nota||'')].join('|');
+      if(!grupos[key]) grupos[key]={fecha:x.fecha,usuario:x.usuario,usuario_id:x.usuario_id,tienda:x.tienda,nota:x.nota,items:[],ids:[],total:0};
+      grupos[key].items.push(x); grupos[key].ids.push(x.id); grupos[key].total+=x.costo_total;
+      if(new Date(x.fecha)>new Date(grupos[key].fecha)) grupos[key].fecha=x.fecha;
+    });
+    var carts=Object.values(grupos).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
+
+    var q=norm(qOld);
+    if(q) carts=carts.filter(function(g){return norm([g.fecha,g.usuario,g.tienda,g.nota,g.total,g.items.map(function(i){return i.nombre+' '+i.cantidad+' '+i.costo_total}).join(' ')].join(' ')).includes(q)});
+
+    var porTienda={};
+    carts.forEach(function(g){var t=g.tienda||'Sin tienda'; if(!porTienda[t]) porTienda[t]={count:0,total:0}; porTienda[t].count++; porTienda[t].total+=g.total;});
+    var tiendas=Object.keys(porTienda).sort(function(a,b){return porTienda[b].total-porTienda[a].total});
+    var totalMes=carts.filter(function(g){var d=new Date(g.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce(function(s,g){return s+g.total},0);
+    var totalRegistros=carts.reduce(function(s,g){return s+g.items.length},0);
+
+    card.innerHTML='<h2>📋 Historial de compras por carrito</h2>'+ 
+      '<div class="info">Corregido: ahora agrupa productos por <b>tienda + nota + usuario + mismo minuto</b>. Así popotes y agua quedan en el mismo carrito si se guardaron juntos.</div>'+ 
+      '<div><span class="v87-chip">Carritos: '+carts.length+'</span><span class="v87-chip">Productos: '+totalRegistros+'</span><span class="v87-chip">Este mes: '+money(totalMes)+'</span><span class="v87-chip">Tiendas: '+tiendas.length+'</span></div>'+ 
+      '<input id="buscarHistorialComprasV887" class="v890-search v87-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div class="v890-resumen-tiendas">'+(tiendas.length?tiendas.slice(0,10).map(function(t){return '<div class="v890-tienda-box">'+esc(t)+' <small>('+porTienda[t].count+' carritos)</small><b>'+money(porTienda[t].total)+'</b></div>'}).join(''):'<div class="warn">No hay tiendas registradas todavía.</div>')+'</div>'+
+      '<div>'+(carts.length?carts.slice(0,150).map(function(g){
+        var idsCSV=g.ids.join(',');
+        var tiendaJS=String(g.tienda||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var notaJS=String(g.nota||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var items=g.items.map(function(x){return '<div class="v890-item">• '+esc(x.nombre)+': '+x.cantidad+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b></div>'}).join('');
+        return '<div class="v890-carrito-card"><b>'+fechaBonita(g.fecha)+'</b><div class="v890-meta">📍 '+esc(g.tienda||'Sin tienda')+'<br>👤 '+esc(g.usuario)+(g.nota?'<br>📝 '+esc(g.nota):'')+'</div>'+items+'<div class="v890-total">'+money(g.total)+'</div><div class="v890-actions"><button class="btn-azul" onclick="editarCarritoComprasV890(\''+idsCSV+'\',\''+esc(tiendaJS)+'\',\''+esc(notaJS)+'\')">✏️ Editar tienda / nota del carrito</button></div></div>';
+      }).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+    var inp=$('buscarHistorialComprasV887'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  };
+
+  // Forzar que esta sea la última versión, aunque scripts anteriores intenten pintar el historial.
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},300);
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},1200);
+  setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},3000);
+})();
+</script>
+
+
+<style id="css-v892-resumen-ganancia-real">
+/* ===== V8.9.2 Resumen correcto: reinversión solo de productos vendidos ===== */
+.resumen-v891{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin:8px 0 12px;
+}
+.resumen-v891-card{
+  background:#fff;
+  border:1px solid #eee;
+  border-radius:18px;
+  padding:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.resumen-v891-card h3{margin:0 0 8px;text-align:center;color:#3e2723;font-size:19px}
+.resumen-v891-linea{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.resumen-v891-linea:last-child{border-bottom:none}
+.resumen-v891-label{color:#555;font-weight:bold}
+.resumen-v891-venta{color:#ae56ac;font-weight:bold}
+.resumen-v891-reinv{color:#0d47a1;font-weight:bold}
+.resumen-v891-ganancia{color:#1b5e20;font-weight:bold;font-size:17px}
+.resumen-v891-negativo{color:#b71c1c!important;background:#ffebee;padding:2px 6px;border-radius:8px}
+.resumen-v891-nota{background:#e8f5e9;color:#1b5e20;padding:10px;border-radius:14px;margin-top:8px}
+@media(max-width:520px){.resumen-v891{grid-template-columns:1fr}.resumen-v891-card{padding:12px 14px}.resumen-v891-linea{font-size:15px}}
+</style>
+
+<script id="js-v892-resumen-ganancia-real">
+/* ===== V8.9.2 Reemplazo final: ventas - costo de materia prima vendida ===== */
+(function(){
+  function mx(v){ return '$'+Number(v||0).toFixed(2); }
+  function sumar(arr,campo){ return (arr||[]).reduce((s,x)=>s+Number(x[campo]||0),0); }
+  function estadoValido(v){
+    var estado=String(v?.pedidos?.estado||'vendido').toLowerCase();
+    return estado!=='anulada' && estado!=='cancelado';
+  }
+  function bloquePeriodo(titulo, ventas, costoMateria){
+    var totalVentas=sumar(ventas,'total');
+    // Regla importante: si no hubo ventas, no hay reinversión recuperada ni ganancia.
+    if(totalVentas<=0){ costoMateria=0; }
+    var ganancia=totalVentas-costoMateria;
+    var clsGan=ganancia<0?'resumen-v891-ganancia resumen-v891-negativo':'resumen-v891-ganancia';
+    return `<div class="resumen-v891-card">
+      <h3>${titulo}</h3>
+      <div class="resumen-v891-linea"><span class="resumen-v891-label">💰 Ventas</span><span class="resumen-v891-venta">${mx(totalVentas)}</span></div>
+      <div class="resumen-v891-linea"><span class="resumen-v891-label">📦 Materia prima usada</span><span class="resumen-v891-reinv">${mx(costoMateria)}</span></div>
+      <div class="resumen-v891-linea"><span class="resumen-v891-label">📈 Ganancia neta</span><span class="${clsGan}">${mx(ganancia)}</span></div>
+      <div class="resumen-v891-linea"><span class="resumen-v891-label">🧾 Movimientos</span><span>${(ventas||[]).length} ventas</span></div>
+    </div>`;
+  }
+  function costoPorProductoDesdeRecetas(recetasRows){
+    var mapa={};
+    (recetasRows||[]).forEach(function(r){
+      var pid=r.producto_id;
+      var cu=Number(r.ingredientes?.costo_unitario||0);
+      mapa[pid]=(mapa[pid]||0)+(Number(r.cantidad||0)*cu);
+    });
+    return mapa;
+  }
+  function costoVentas(ventas, detalles, costoProd){
+    var pedidos=new Set((ventas||[]).map(v=>String(v.pedido_id||'')));
+    return (detalles||[]).filter(d=>pedidos.has(String(d.pedido_id||''))).reduce(function(s,d){
+      return s + Number(d.cantidad||0) * Number(costoProd[d.producto_id]||0);
+    },0);
+  }
+
+  window.cargarReporteHoy = async function(){
+    if(!db) return;
+    var desde=new Date(); desde.setDate(desde.getDate()-40);
+
+    var rv = await db.from('ventas')
+      .select('id,pedido_id,total,fecha_creacion,pedidos(estado)')
+      .gte('fecha_creacion',desde.toISOString())
+      .order('fecha_creacion',{ascending:false});
+
+    if(rv.error){
+      if(window.reporteGeneral) reporteGeneral.innerHTML='<div class="alerta">No se pudo cargar ventas: '+rv.error.message+'</div>';
+      return;
+    }
+
+    var ventas=(rv.data||[]).filter(estadoValido);
+    var pedidoIds=ventas.map(v=>v.pedido_id).filter(Boolean);
+    var detalles=[];
+    if(pedidoIds.length){
+      var rd=await db.from('pedido_detalle').select('pedido_id,producto_id,cantidad,subtotal').in('pedido_id',pedidoIds);
+      if(!rd.error) detalles=rd.data||[];
+    }
+
+    var rr=await db.from('recetas').select('producto_id,cantidad,ingredientes(costo_unitario)').limit(2000);
+    var costoProd=costoPorProductoDesdeRecetas(rr.data||[]);
+
+    var rm = await db.from('movimientos_inventario')
+      .select('tipo,fecha_creacion')
+      .gte('fecha_creacion',desde.toISOString());
+    var movs=(rm.data||[]);
+
+    var hoy=fechaJuarezKey(new Date());
+    var semana=semanaJuarezKey(new Date());
+    var mes=mesJuarezKey(new Date());
+
+    var ventasHoy=ventas.filter(v=>fechaJuarezKey(v.fecha_creacion)===hoy);
+    var ventasSemana=ventas.filter(v=>semanaJuarezKey(v.fecha_creacion)===semana);
+    var ventasMes=ventas.filter(v=>mesJuarezKey(v.fecha_creacion)===mes);
+
+    var costoHoy=costoVentas(ventasHoy,detalles,costoProd);
+    var costoSemana=costoVentas(ventasSemana,detalles,costoProd);
+    var costoMes=costoVentas(ventasMes,detalles,costoProd);
+
+    var mHoy=movs.filter(x=>fechaJuarezKey(x.fecha_creacion)===hoy && (x.tipo==='merma'||x.tipo==='regalo')).length;
+    var anuladasHoy=(rv.data||[]).filter(v=>{
+      var estado=String(v.pedidos?.estado||'').toLowerCase();
+      return fechaJuarezKey(v.fecha_creacion)===hoy && (estado==='anulada'||estado==='cancelado');
+    }).length;
+
+    var html=`<div class="resumen-v891">
+      ${bloquePeriodo('Hoy',ventasHoy,costoHoy)}
+      ${bloquePeriodo('Semana',ventasSemana,costoSemana)}
+      ${bloquePeriodo('Mes',ventasMes,costoMes)}
+    </div>
+    <div class="resumen-v891-nota">Horario usado para reportes: <b>Ciudad Juárez</b>. Corte sugerido: <b>10:00 p.m.</b><br><small>La materia prima usada se calcula solo con los productos vendidos. Las compras de surtido quedan como inventario hasta que se vendan.</small></div>
+    <div class="warn">Mermas/regalos de hoy: <b>${mHoy}</b>${anuladasHoy?`<br>Ventas anuladas/canceladas hoy: <b>${anuladasHoy}</b>`:''}${rr.error?`<br><b>Nota:</b> no se pudieron leer recetas/costos: ${rr.error.message}`:''}</div>`;
+
+    if(window.resumenHoy) resumenHoy.innerHTML=html;
+    if(window.reporteGeneral) reporteGeneral.innerHTML=html;
+
+    try{ if(typeof cargarReporteProductos==='function') await cargarReporteProductos(ventasHoy,ventasSemana,ventasMes); }catch(e){}
+    try{
+      if(window.recomendacionCompra){
+        recomendacionCompra.innerHTML=(ingredientes||[]).filter(i=>Number(i.cantidad)<=Number(i.minimo||10)).map(i=>`<div class="alerta"><b>${i.nombre}</b><br>Quedan ${Number(i.cantidad).toFixed(1)}. Mínimo: ${Number(i.minimo||10).toFixed(0)}.</div>`).join('')||"<div class='ok'>Todo está arriba del mínimo.</div>";
+      }
+    }catch(e){}
+    try{ if(typeof renderInventarioSurtidoV863==='function') renderInventarioSurtidoV863(); }catch(e){}
+    try{ if(typeof renderMetaDiariaV85==='function') renderMetaDiariaV85(); }catch(e){}
+    try{ if(typeof renderUltimasVentasV82==='function') renderUltimasVentasV82(); }catch(e){}
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{window.cargarReporteHoy()}catch(e){}},2600));
 })();
 </script>
