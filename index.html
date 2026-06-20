@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.8.6 - Carrito seguro</title>
+<title>Puesto Doña Cecy V8.8.7 - Historial de compras visible</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1077,6 +1077,17 @@ th{background:#fafafa}
 @media(max-width:520px){.inv863-resumen{grid-template-columns:1fr 1fr}.inv863-row{grid-template-columns:1fr 64px 75px 32px;font-size:12px}.inv863-row input{font-size:12px!important}}
 </style>
 
+
+<style id="css-v887-historial-compras-visible">
+#historialComprasV87Card{border:2px solid #e1bee7;background:#fff;border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+#historialComprasV87Card h2{margin:0 0 10px;color:#4a1249}
+.v887-toolbar{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 0}
+.v887-search{border:2px solid #e1bee7!important;border-radius:14px!important;font-size:16px!important;margin:6px 0!important}
+.v887-chip{display:inline-block;background:#f3e5f5;color:#6a1b9a;border-radius:999px;padding:4px 9px;margin:3px;font-size:12px;font-weight:bold}
+.v887-compra{border:1px solid #eee;border-left:6px solid #ae56ac;border-radius:14px;background:#fafafa;padding:10px;margin:9px 0;color:#3e2723}
+.v887-compra b{color:#4a1249}.v887-total{font-size:20px;font-weight:bold;color:#1b5e20;text-align:right}.v887-detalle{background:white;border-radius:10px;padding:8px;margin-top:7px;border:1px solid #eee;font-size:13px;line-height:1.35}
+@media(max-width:520px){#historialComprasV87Card{padding:12px}.v887-compra{font-size:14px}.v887-total{font-size:18px}}
+</style>
 </head>
 <body>
 
@@ -1085,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.8.6</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.8.6 · Carrito seguro</p>
+  <h1>🥤 Puesto Doña Cecy V8.8.7</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.8.7 · Historial de compras visible</p>
 </header>
 
 <div class="tabs">
@@ -1254,6 +1265,12 @@ th{background:#fafafa}
   <div class="card">
     <h2>🛒 Recomendación de compra</h2>
     <div id="recomendacionCompra"></div>
+  </div>
+  <div class="card" id="historialComprasV87Card">
+    <h2>📋 Historial de compras</h2>
+    <div class="info">Aquí aparecen las compras guardadas en Supabase. Puedes buscar por producto, tienda, usuario, nota o fecha.</div>
+    <button class="btn-morado" onclick="renderHistorialComprasV887()">🔄 Actualizar historial de compras</button>
+    <div id="historialComprasV887Contenido" class="warn">Presiona actualizar historial de compras.</div>
   </div>
   <div class="card">
     <h2>📋 Historial / Auditoría</h2>
@@ -6392,6 +6409,132 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 
   window.addEventListener('load', function(){
     setTimeout(function(){ window.subirCarritoCompletoSupabaseV882(); }, 3500);
+  });
+})();
+</script>
+
+
+<script id="fix-v887-historial-compras-visible">
+(function(){
+  var $=id=>document.getElementById(id);
+  var money=v=>'$'+Number(v||0).toFixed(2);
+  var esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  var norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+
+  function asegurarCardHistorialV887(){
+    var rep=$('reportes');
+    if(!rep) return null;
+    var card=$('historialComprasV87Card');
+    if(!card){
+      card=document.createElement('div');
+      card.className='card';
+      card.id='historialComprasV87Card';
+      var ref=$('historial')?.closest('.card');
+      if(ref) rep.insertBefore(card,ref); else rep.appendChild(card);
+    }
+    if(!$('historialComprasV887Contenido')){
+      card.innerHTML='<h2>📋 Historial de compras</h2><div class="info">Aquí aparecen las compras guardadas en Supabase. Puedes buscar por producto, tienda, usuario, nota o fecha.</div><button class="btn-morado" onclick="renderHistorialComprasV887()">🔄 Actualizar historial de compras</button><div id="historialComprasV887Contenido" class="warn">Presiona actualizar historial de compras.</div>';
+    }
+    return card;
+  }
+
+  async function asegurarDBV887(){
+    try{
+      if(window.db) return true;
+      if(typeof window.iniciarSupabase==='function') return !!window.iniciarSupabase();
+      if(typeof iniciarSupabase==='function') return !!iniciarSupabase();
+    }catch(e){}
+    return !!window.db;
+  }
+
+  window.renderHistorialComprasV887=async function(){
+    var card=asegurarCardHistorialV887();
+    if(!card) return;
+    var cont=$('historialComprasV887Contenido');
+    var qOld=$('buscarHistorialComprasV887')?.value || $('buscarHistorialComprasV87')?.value || '';
+    cont.className='warn';
+    cont.innerHTML='⏳ Leyendo historial de compras desde Supabase...';
+
+    if(!await asegurarDBV887()){
+      cont.className='alerta';
+      cont.innerHTML='No se pudo conectar a Supabase. Revisa internet y vuelve a presionar actualizar.';
+      return;
+    }
+
+    var r;
+    try{
+      r=await db.from('compras')
+        .select('*, ingredientes(nombre), usuarios(nombre)')
+        .order('fecha_compra',{ascending:false})
+        .limit(250);
+      if(r.error){
+        r=await db.from('compras')
+          .select('*, ingredientes(nombre), usuarios(nombre)')
+          .order('fecha_creacion',{ascending:false})
+          .limit(250);
+      }
+    }catch(e){
+      cont.className='alerta';
+      cont.innerHTML='Error leyendo compras: '+esc(e.message||e);
+      return;
+    }
+
+    if(r.error){
+      cont.className='alerta';
+      cont.innerHTML='Error leyendo compras: '+esc(r.error.message);
+      return;
+    }
+
+    var rows=(r.data||[]).map(x=>({
+      fecha:x.fecha_compra||x.fecha_creacion||x.created_at||'',
+      usuario:x.usuarios?.nombre||x.usuario_nombre||'Usuario',
+      proveedor:x.tienda||x.proveedor||x.lugar||'',
+      nota:x.nota||x.observaciones||'',
+      nombre:x.ingredientes?.nombre||x.ingrediente_nombre||x.producto||'Producto',
+      cantidad:Number(x.cantidad||0),
+      costo_unitario:Number(x.costo_unitario||0),
+      costo_total:Number(x.costo_total||x.total||0)
+    }));
+
+    var q=norm(qOld);
+    var filtradas=q?rows.filter(x=>norm([x.fecha,x.usuario,x.proveedor,x.nota,x.nombre,x.cantidad,x.costo_total].join(' ')).includes(q)):rows;
+    var now=new Date();
+    var totalMes=filtradas.filter(x=>{var d=new Date(x.fecha);return !isNaN(d)&&d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();}).reduce((s,x)=>s+x.costo_total,0);
+    var totalMostrado=filtradas.reduce((s,x)=>s+x.costo_total,0);
+
+    cont.className='';
+    cont.innerHTML=`
+      <div class="v887-toolbar">
+        <input id="buscarHistorialComprasV887" class="v887-search" placeholder="🔍 Buscar compra, producto, tienda, usuario o fecha..." value="${esc(qOld)}" oninput="renderHistorialComprasV887()">
+        <div><span class="v887-chip">Registros: ${filtradas.length}</span><span class="v887-chip">Este mes: ${money(totalMes)}</span><span class="v887-chip">Mostrado: ${money(totalMostrado)}</span></div>
+      </div>
+      <div>${filtradas.length?filtradas.slice(0,120).map(x=>{
+        var f=new Date(x.fecha);
+        var ft=isNaN(f)?esc(x.fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f);
+        return `<div class="v887-compra"><b>${ft}</b><br>📍 ${esc(x.proveedor||'Sin lugar')}<br>👤 ${esc(x.usuario)}${x.nota?`<br>📝 ${esc(x.nota)}`:''}<div class="v887-detalle">• ${esc(x.nombre)}: ${x.cantidad} x ${money(x.costo_unitario)} = <b>${money(x.costo_total)}</b></div><div class="v887-total">${money(x.costo_total)}</div></div>`;
+      }).join(''):'<div class="warn">No hay compras guardadas en Supabase.</div>'}</div>`;
+
+    var inp=$('buscarHistorialComprasV887');
+    if(inp && qOld){ inp.focus(); try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){} }
+  };
+
+  // Compatibilidad con nombres anteriores.
+  window.renderHistorialComprasV881=window.renderHistorialComprasV887;
+  window.renderHistorialComprasV87=window.renderHistorialComprasV887;
+
+  var verTabOriginal=window.verTab;
+  if(typeof verTabOriginal==='function' && !window.verTabV887Envuelta){
+    window.verTab=function(id,btn){
+      var r=verTabOriginal.apply(this,arguments);
+      if(id==='reportes') setTimeout(()=>window.renderHistorialComprasV887(),250);
+      return r;
+    };
+    window.verTabV887Envuelta=true;
+  }
+
+  window.addEventListener('load',()=>{
+    asegurarCardHistorialV887();
+    setTimeout(()=>{ if($('reportes')?.classList.contains('activa')) window.renderHistorialComprasV887(); },1200);
   });
 })();
 </script>
