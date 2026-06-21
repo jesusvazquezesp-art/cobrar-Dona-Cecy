@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.9.2 - Historial de compras visible</title>
+<title>Puesto Doña Cecy V8.9.3 - Historial de compras visible</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.9.2</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.9.2 · Ganancia neta real</p>
+  <h1>🥤 Puesto Doña Cecy V8.9.3</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.9.3 · Inversión mensual y acumulada</p>
 </header>
 
 <div class="tabs">
@@ -10603,6 +10603,14 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   setTimeout(function(){try{window.renderHistorialComprasV887()}catch(e){}},2500);
 })();
 </script>
+
+<style id="css-v893-inversion-acumulada">
+.v893-inversion-boxes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 12px}
+.v893-inversion-boxes>div{background:#f3e5f5;border:2px solid #e1bee7;border-radius:18px;padding:12px;text-align:center;color:#4a1249;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.v893-inversion-boxes span{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.v893-inversion-boxes b{display:block;font-size:24px;color:#1b5e20}
+@media(max-width:520px){.v893-inversion-boxes{grid-template-columns:1fr}.v893-inversion-boxes b{font-size:22px}}
+</style>
 </body>
 </html>
 
@@ -12446,18 +12454,24 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
     });
     var carts=Object.values(grupos).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
 
+    // Totales generales ANTES del buscador: sirven para saber inversión real del negocio.
+    var totalAcumulado=carts.reduce(function(s,g){return s+g.total},0);
+    var totalMes=carts.filter(function(g){var d=new Date(g.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce(function(s,g){return s+g.total},0);
+    var totalRegistrosGeneral=carts.reduce(function(s,g){return s+g.items.length},0);
+    var totalCarritosGeneral=carts.length;
+
     var q=norm(qOld);
     if(q) carts=carts.filter(function(g){return norm([g.fecha,g.usuario,g.tienda,g.nota,g.total,g.items.map(function(i){return i.nombre+' '+i.cantidad+' '+i.costo_total}).join(' ')].join(' ')).includes(q)});
 
     var porTienda={};
     carts.forEach(function(g){var t=g.tienda||'Sin tienda'; if(!porTienda[t]) porTienda[t]={count:0,total:0}; porTienda[t].count++; porTienda[t].total+=g.total;});
     var tiendas=Object.keys(porTienda).sort(function(a,b){return porTienda[b].total-porTienda[a].total});
-    var totalMes=carts.filter(function(g){var d=new Date(g.fecha),n=new Date();return !isNaN(d)&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce(function(s,g){return s+g.total},0);
     var totalRegistros=carts.reduce(function(s,g){return s+g.items.length},0);
 
     card.innerHTML='<h2>📋 Historial de compras por carrito</h2>'+ 
-      '<div class="info">Corregido: ahora agrupa productos por <b>tienda + nota + usuario + mismo minuto</b>. Así popotes y agua quedan en el mismo carrito si se guardaron juntos.</div>'+ 
-      '<div><span class="v87-chip">Carritos: '+carts.length+'</span><span class="v87-chip">Productos: '+totalRegistros+'</span><span class="v87-chip">Este mes: '+money(totalMes)+'</span><span class="v87-chip">Tiendas: '+tiendas.length+'</span></div>'+ 
+      '<div class="info">Aquí puedes ver cuánto se ha invertido en surtido. <b>Este mes</b> solo cuenta el mes actual y <b>Acumulado</b> suma todo lo registrado.</div>'+ 
+      '<div class="v893-inversion-boxes"><div><span>📅 Inversión este mes</span><b>'+money(totalMes)+'</b></div><div><span>🏦 Inversión acumulada</span><b>'+money(totalAcumulado)+'</b></div></div>'+ 
+      '<div><span class="v87-chip">Carritos: '+totalCarritosGeneral+'</span><span class="v87-chip">Productos: '+totalRegistrosGeneral+'</span><span class="v87-chip">Tiendas mostradas: '+tiendas.length+'</span></div>'+ 
       '<input id="buscarHistorialComprasV887" class="v890-search v87-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
       '<div class="v890-resumen-tiendas">'+(tiendas.length?tiendas.slice(0,10).map(function(t){return '<div class="v890-tienda-box">'+esc(t)+' <small>('+porTienda[t].count+' carritos)</small><b>'+money(porTienda[t].total)+'</b></div>'}).join(''):'<div class="warn">No hay tiendas registradas todavía.</div>')+'</div>'+
       '<div>'+(carts.length?carts.slice(0,150).map(function(g){
