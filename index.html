@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.9.3 - Historial de compras visible</title>
+<title>Puesto Doña Cecy V8.9.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -6542,6 +6542,103 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 })();
 </script>
 
+
+
+<!-- ===== FIX V8.9.4: ocultar por completo botones/carritos de surtido ===== -->
+<style id="fix-v894-ocultar-carrito-surtido-total">
+/* Oculta cualquier caja de carrito guardado/fijo */
+#carritoSurtidoFijoV869,
+#recomendacionCompra .v868-cart,
+#recomendacionCompra .v866-cart,
+#recomendacionCompra .v865-cart,
+#recomendacionCompra .inv863-cart,
+#recomendacionCompra .inv864-cart{
+  display:none!important;
+}
+
+/* Oculta botones que dicen Añadir al carrito dentro de inventario */
+#recomendacionCompra button[onclick*="CarritoSurtido"],
+#recomendacionCompra button[onclick*="carritoSurtido"],
+#recomendacionCompra button[onclick*="agregarCarrito"],
+#recomendacionCompra button[data-cart-v869],
+#recomendacionCompra .v868-card button,
+#recomendacionCompra .v866-card button,
+#recomendacionCompra .v865-card button,
+#recomendacionCompra .inv864-card button{
+  display:none!important;
+}
+
+/* Quita textos que mencionan carrito dentro de la recomendación */
+#recomendacionCompra .v868-help small,
+#recomendacionCompra .v866-help small{
+  display:none!important;
+}
+</style>
+
+<script id="fix-v894-ocultar-carrito-surtido-total-js">
+(function(){
+  function ocultarCarritoSurtidoV894(){
+    try{
+      var rec=document.getElementById('recomendacionCompra');
+      if(!rec) return;
+
+      // Oculta cajas de carrito que se vuelvan a pintar después.
+      rec.querySelectorAll('.v868-cart,.v866-cart,.v865-cart,.inv863-cart,.inv864-cart,#carritoSurtidoFijoV869').forEach(function(el){
+        el.style.setProperty('display','none','important');
+      });
+
+      // Oculta botones de añadir al carrito, aunque los regenere el render.
+      rec.querySelectorAll('button').forEach(function(b){
+        var txt=(b.textContent||'').toLowerCase();
+        var on=(b.getAttribute('onclick')||'').toLowerCase();
+        if(txt.includes('carrito') || on.includes('carritosurtido') || on.includes('agregarcarrito') || b.hasAttribute('data-cart-v869')){
+          b.style.setProperty('display','none','important');
+        }
+      });
+
+      var fijo=document.getElementById('carritoSurtidoFijoV869');
+      if(fijo) fijo.style.setProperty('display','none','important');
+    }catch(e){}
+  }
+
+  // Vacía carritos viejos del celular para que no regresen.
+  function borrarCarritosLocalesV894(){
+    try{
+      [
+        'cecy_carrito_surtido_v863','cecy_carrito_surtido_v864','cecy_carrito_surtido_v865',
+        'cecy_carrito_surtido_v866','cecy_carrito_surtido_v867','cecy_carrito_surtido_v868','cecy_carrito_surtido_v869'
+      ].forEach(function(k){ localStorage.removeItem(k); });
+    }catch(e){}
+  }
+
+  // Desactiva funciones de agregar para que no hagan nada aunque algo quede guardado.
+  ['agregarAlCarritoSurtidoV863','agregarAlCarritoSurtidoV864','agregarAlCarritoSurtidoV865','agregarAlCarritoSurtidoV866','agregarAlCarritoSurtidoV867','agregarAlCarritoSurtidoV868','agregarCarritoSurtidoV864'].forEach(function(fn){
+    try{ window[fn]=function(){ ocultarCarritoSurtidoV894(); return false; }; }catch(e){}
+  });
+
+  var baseRender=window.renderInventarioSurtidoV868;
+  if(typeof baseRender==='function'){
+    window.renderInventarioSurtidoV868=function(){
+      var r=baseRender.apply(this,arguments);
+      setTimeout(ocultarCarritoSurtidoV894,0);
+      setTimeout(ocultarCarritoSurtidoV894,250);
+      return r;
+    };
+  }
+
+  window.addEventListener('load',function(){
+    borrarCarritosLocalesV894();
+    ocultarCarritoSurtidoV894();
+    setTimeout(ocultarCarritoSurtidoV894,500);
+    setTimeout(ocultarCarritoSurtidoV894,1500);
+    try{
+      var obs=new MutationObserver(ocultarCarritoSurtidoV894);
+      obs.observe(document.body,{childList:true,subtree:true});
+    }catch(e){}
+  });
+})();
+</script>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
@@ -10611,6 +10708,317 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 .v893-inversion-boxes b{display:block;font-size:24px;color:#1b5e20}
 @media(max-width:520px){.v893-inversion-boxes{grid-template-columns:1fr}.v893-inversion-boxes b{font-size:22px}}
 </style>
+
+
+<!-- ===== V8.9.4 Reporte de merma + ocultar carrito de surtido ===== -->
+<style id="css-v894-merma-sin-carrito">
+/* Oculta el carrito de surtido que confundía dentro de Inventario/Reportes */
+#recomendacionCompra .v868-cart,
+#recomendacionCompra .inv863-cart,
+#recomendacionCompra .v869-cart,
+#carritoSurtidoFijoV869,
+.v868-wrap > .v868-cart,
+.inv863-cart{
+  display:none!important;
+}
+
+.merma894-resumen{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin:10px 0;
+}
+.merma894-box{
+  text-align:center;
+  background:#fff8e1;
+  color:#e65100;
+  border:1px solid #ffe0b2;
+  border-radius:14px;
+  padding:10px;
+  font-weight:bold;
+}
+.merma894-box b{
+  display:block;
+  font-size:20px;
+  color:#b71c1c;
+  margin-top:4px;
+}
+.merma894-box small{color:#6d4c41;}
+.merma894-tabla-wrap{overflow-x:auto;margin-top:8px;}
+.merma894-top{
+  background:#ffebee;
+  color:#b71c1c;
+  border-radius:12px;
+  padding:9px;
+  margin-top:8px;
+  font-weight:bold;
+}
+@media(max-width:520px){
+  .merma894-resumen{grid-template-columns:1fr;}
+}
+</style>
+
+<script id="js-v894-merma-sin-carrito">
+/* ===== V8.9.4 Reporte de merma semanal / mensual / acumulado ===== */
+(function(){
+  function money894(n){ return "$" + Number(n || 0).toFixed(2); }
+  function abs894(n){ return Math.abs(Number(n || 0)); }
+
+  function fechaKey894(f){
+    try{ if(typeof fechaJuarezKey === "function") return fechaJuarezKey(f); }catch(e){}
+    return new Date(f).toISOString().slice(0,10);
+  }
+  function semanaKey894(f){
+    try{ if(typeof semanaJuarezKey === "function") return semanaJuarezKey(f); }catch(e){}
+    var d=new Date(f), onejan=new Date(d.getFullYear(),0,1);
+    return d.getFullYear()+"-S"+Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
+  }
+  function mesKey894(f){
+    try{ if(typeof mesJuarezKey === "function") return mesJuarezKey(f); }catch(e){}
+    return new Date(f).toISOString().slice(0,7);
+  }
+
+  window.insertarReporteMermaV894=function(){
+    var reportes=document.getElementById("reportes");
+    if(!reportes || document.getElementById("reporteMermaV894")) return;
+
+    var card=document.createElement("div");
+    card.className="card";
+    card.id="cardReporteMermaV894";
+    card.innerHTML=`
+      <h2>⚠️ Reporte de merma</h2>
+      <div class="info">Muestra cuánto se tiró o regaló por semana, mes y acumulado.</div>
+      <button class="btn-naranja" onclick="cargarReporteMermaV894()">🔄 Actualizar merma</button>
+      <div id="reporteMermaV894" class="warn">Presiona actualizar merma.</div>
+    `;
+
+    var historial=document.getElementById("historialComprasV87Card");
+    if(historial && historial.parentNode===reportes) reportes.insertBefore(card,historial);
+    else reportes.appendChild(card);
+  };
+
+  window.cargarReporteMermaV894=async function(){
+    var cont=document.getElementById("reporteMermaV894");
+    if(!cont) return;
+    if(!window.db){ cont.innerHTML="<div class='alerta'>No hay conexión con Supabase.</div>"; return; }
+
+    cont.innerHTML="<div class='warn'>⏳ Cargando reporte de merma...</div>";
+
+    try{
+      if((!window.ingredientes || !window.ingredientes.length) && typeof cargarIngredientes === "function"){
+        await cargarIngredientes();
+      }
+
+      var mapaIng={};
+      (window.ingredientes || []).forEach(i=>{ mapaIng[String(i.id)] = i; });
+
+      const {data,error}=await db
+        .from("movimientos_inventario")
+        .select("id,ingrediente_id,tipo,cantidad,motivo,fecha_creacion")
+        .in("tipo",["merma","regalo","ajuste"])
+        .order("fecha_creacion",{ascending:false})
+        .limit(5000);
+
+      if(error){
+        cont.innerHTML="<div class='alerta'>No se pudo cargar merma: "+error.message+"</div>";
+        return;
+      }
+
+      var movs=data || [];
+      var ahora=new Date();
+      var semanaActual=semanaKey894(ahora);
+      var mesActual=mesKey894(ahora);
+
+      function costoMov(m){
+        var ing=mapaIng[String(m.ingrediente_id)] || {};
+        return abs894(m.cantidad) * Number(ing.costo_unitario || 0);
+      }
+      function resumen(arr){
+        return {
+          cantidad: arr.reduce((s,m)=>s+abs894(m.cantidad),0),
+          costo: arr.reduce((s,m)=>s+costoMov(m),0),
+          movimientos: arr.length
+        };
+      }
+
+      var semana=movs.filter(m=>semanaKey894(m.fecha_creacion)===semanaActual);
+      var mes=movs.filter(m=>mesKey894(m.fecha_creacion)===mesActual);
+      var rSemana=resumen(semana), rMes=resumen(mes), rAcum=resumen(movs);
+
+      var porIng={};
+      movs.forEach(m=>{
+        var ing=mapaIng[String(m.ingrediente_id)] || {};
+        var nombre=ing.nombre || "Ingrediente";
+        if(!porIng[nombre]) porIng[nombre]={nombre,semana:0,mes:0,acum:0,costo:0,movs:0};
+        var cant=abs894(m.cantidad);
+        if(semanaKey894(m.fecha_creacion)===semanaActual) porIng[nombre].semana += cant;
+        if(mesKey894(m.fecha_creacion)===mesActual) porIng[nombre].mes += cant;
+        porIng[nombre].acum += cant;
+        porIng[nombre].costo += costoMov(m);
+        porIng[nombre].movs += 1;
+      });
+
+      var lista=Object.values(porIng).sort((a,b)=>b.costo-a.costo);
+      var top=lista[0];
+      var filas=lista.slice(0,30).map(x=>`
+        <tr>
+          <td>${x.nombre}</td>
+          <td>${x.semana.toFixed(1)}</td>
+          <td>${x.mes.toFixed(1)}</td>
+          <td>${x.acum.toFixed(1)}</td>
+          <td>${money894(x.costo)}</td>
+        </tr>
+      `).join("");
+
+      cont.innerHTML=`
+        <div class="merma894-resumen">
+          <div class="merma894-box">Semana<b>${rSemana.cantidad.toFixed(1)}</b><small>${money894(rSemana.costo)} · ${rSemana.movimientos} mov.</small></div>
+          <div class="merma894-box">Mes<b>${rMes.cantidad.toFixed(1)}</b><small>${money894(rMes.costo)} · ${rMes.movimientos} mov.</small></div>
+          <div class="merma894-box">Acumulado<b>${rAcum.cantidad.toFixed(1)}</b><small>${money894(rAcum.costo)} · ${rAcum.movimientos} mov.</small></div>
+        </div>
+        ${top?`<div class="merma894-top">⚠️ Más merma acumulada: ${top.nombre} · ${money894(top.costo)}</div>`:""}
+        <h3>📦 Merma por ingrediente</h3>
+        <div class="merma894-tabla-wrap">
+          <table>
+            <thead><tr><th>Ingrediente</th><th>Semana</th><th>Mes</th><th>Acum.</th><th>Costo</th></tr></thead>
+            <tbody>${filas || "<tr><td colspan='5'>Sin merma registrada.</td></tr>"}</tbody>
+          </table>
+        </div>
+        <div class="info"><small>El costo se calcula con el costo unitario actual del inventario. Incluye merma, regalo y ajuste.</small></div>
+      `;
+    }catch(e){
+      cont.innerHTML="<div class='alerta'>Error reporte merma: "+(e.message || e)+"</div>";
+    }
+  };
+
+  function ocultarCarritosSurtidoV894(){
+    document.querySelectorAll('#recomendacionCompra .v868-cart,#recomendacionCompra .inv863-cart,#recomendacionCompra .v869-cart,#carritoSurtidoFijoV869,.v868-wrap > .v868-cart,.inv863-cart')
+      .forEach(el=>{ el.style.display='none'; });
+  }
+  window.ocultarCarritosSurtidoV894=ocultarCarritosSurtidoV894;
+
+  var baseReporte=window.cargarReporteHoy;
+  window.cargarReporteHoy=async function(){
+    var r=baseReporte ? await baseReporte.apply(this,arguments) : undefined;
+    try{ insertarReporteMermaV894(); }catch(e){}
+    try{ await cargarReporteMermaV894(); }catch(e){}
+    try{ ocultarCarritosSurtidoV894(); }catch(e){}
+    return r;
+  };
+
+  var baseRender868=window.renderInventarioSurtidoV868;
+  if(typeof baseRender868 === 'function'){
+    window.renderInventarioSurtidoV868=function(){
+      var r=baseRender868.apply(this,arguments);
+      setTimeout(ocultarCarritosSurtidoV894,30);
+      return r;
+    };
+  }
+
+  window.addEventListener('load',()=>{
+    setTimeout(()=>{ try{ insertarReporteMermaV894(); ocultarCarritosSurtidoV894(); }catch(e){} },600);
+    setTimeout(()=>{ try{ insertarReporteMermaV894(); cargarReporteMermaV894(); ocultarCarritosSurtidoV894(); }catch(e){} },2800);
+  });
+})();
+</script>
+
+
+
+<!-- ===== FIX V8.9.4: ocultar por completo botones/carritos de surtido ===== -->
+<style id="fix-v894-ocultar-carrito-surtido-total">
+/* Oculta cualquier caja de carrito guardado/fijo */
+#carritoSurtidoFijoV869,
+#recomendacionCompra .v868-cart,
+#recomendacionCompra .v866-cart,
+#recomendacionCompra .v865-cart,
+#recomendacionCompra .inv863-cart,
+#recomendacionCompra .inv864-cart{
+  display:none!important;
+}
+
+/* Oculta botones que dicen Añadir al carrito dentro de inventario */
+#recomendacionCompra button[onclick*="CarritoSurtido"],
+#recomendacionCompra button[onclick*="carritoSurtido"],
+#recomendacionCompra button[onclick*="agregarCarrito"],
+#recomendacionCompra button[data-cart-v869],
+#recomendacionCompra .v868-card button,
+#recomendacionCompra .v866-card button,
+#recomendacionCompra .v865-card button,
+#recomendacionCompra .inv864-card button{
+  display:none!important;
+}
+
+/* Quita textos que mencionan carrito dentro de la recomendación */
+#recomendacionCompra .v868-help small,
+#recomendacionCompra .v866-help small{
+  display:none!important;
+}
+</style>
+
+<script id="fix-v894-ocultar-carrito-surtido-total-js">
+(function(){
+  function ocultarCarritoSurtidoV894(){
+    try{
+      var rec=document.getElementById('recomendacionCompra');
+      if(!rec) return;
+
+      // Oculta cajas de carrito que se vuelvan a pintar después.
+      rec.querySelectorAll('.v868-cart,.v866-cart,.v865-cart,.inv863-cart,.inv864-cart,#carritoSurtidoFijoV869').forEach(function(el){
+        el.style.setProperty('display','none','important');
+      });
+
+      // Oculta botones de añadir al carrito, aunque los regenere el render.
+      rec.querySelectorAll('button').forEach(function(b){
+        var txt=(b.textContent||'').toLowerCase();
+        var on=(b.getAttribute('onclick')||'').toLowerCase();
+        if(txt.includes('carrito') || on.includes('carritosurtido') || on.includes('agregarcarrito') || b.hasAttribute('data-cart-v869')){
+          b.style.setProperty('display','none','important');
+        }
+      });
+
+      var fijo=document.getElementById('carritoSurtidoFijoV869');
+      if(fijo) fijo.style.setProperty('display','none','important');
+    }catch(e){}
+  }
+
+  // Vacía carritos viejos del celular para que no regresen.
+  function borrarCarritosLocalesV894(){
+    try{
+      [
+        'cecy_carrito_surtido_v863','cecy_carrito_surtido_v864','cecy_carrito_surtido_v865',
+        'cecy_carrito_surtido_v866','cecy_carrito_surtido_v867','cecy_carrito_surtido_v868','cecy_carrito_surtido_v869'
+      ].forEach(function(k){ localStorage.removeItem(k); });
+    }catch(e){}
+  }
+
+  // Desactiva funciones de agregar para que no hagan nada aunque algo quede guardado.
+  ['agregarAlCarritoSurtidoV863','agregarAlCarritoSurtidoV864','agregarAlCarritoSurtidoV865','agregarAlCarritoSurtidoV866','agregarAlCarritoSurtidoV867','agregarAlCarritoSurtidoV868','agregarCarritoSurtidoV864'].forEach(function(fn){
+    try{ window[fn]=function(){ ocultarCarritoSurtidoV894(); return false; }; }catch(e){}
+  });
+
+  var baseRender=window.renderInventarioSurtidoV868;
+  if(typeof baseRender==='function'){
+    window.renderInventarioSurtidoV868=function(){
+      var r=baseRender.apply(this,arguments);
+      setTimeout(ocultarCarritoSurtidoV894,0);
+      setTimeout(ocultarCarritoSurtidoV894,250);
+      return r;
+    };
+  }
+
+  window.addEventListener('load',function(){
+    borrarCarritosLocalesV894();
+    ocultarCarritoSurtidoV894();
+    setTimeout(ocultarCarritoSurtidoV894,500);
+    setTimeout(ocultarCarritoSurtidoV894,1500);
+    try{
+      var obs=new MutationObserver(ocultarCarritoSurtidoV894);
+      obs.observe(document.body,{childList:true,subtree:true});
+    }catch(e){}
+  });
+})();
+</script>
+
 </body>
 </html>
 
@@ -12629,5 +13037,315 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   };
 
   window.addEventListener('load',()=>setTimeout(()=>{try{window.cargarReporteHoy()}catch(e){}},2600));
+})();
+</script>
+<style id="css-v895-historial-firme-sin-carrito">
+/* ===== V8.9.5 firme: sin carrito visible y compras unidas ===== */
+#recomendacionCompra .v868-cart,
+#recomendacionCompra .inv863-cart,
+#recomendacionCompra .v869-cart,
+#carritoSurtidoFijoV869,
+.v868-cart,
+.inv863-cart,
+.v869-cart{
+  display:none!important;
+}
+.v895-carrito-card{
+  border:1px solid #eee;
+  border-left:6px solid #ae56ac;
+  border-radius:16px;
+  background:white;
+  padding:12px;
+  margin:12px 0;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.v895-carrito-card b{color:#4a1249}
+.v895-meta{font-size:14px;line-height:1.45;margin:6px 0;color:#333}
+.v895-item{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:8px;margin:6px 0;font-size:14px}
+.v895-total{font-size:24px;font-weight:bold;color:#1b5e20;text-align:right;margin-top:8px}
+.v895-boxes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.v895-boxes div{background:#f3e5f5;color:#4a1249;border-radius:14px;padding:10px;text-align:center;font-weight:bold;border:1px solid #e1bee7}
+.v895-boxes b{display:block;color:#1b5e20;font-size:20px;margin-top:4px}
+@media(max-width:520px){.v895-boxes{grid-template-columns:1fr}.v895-total{font-size:22px}}
+</style>
+
+<script id="js-v895-historial-firme-sin-carrito">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function fechaBonita(fecha){var f=new Date(fecha);return isNaN(f)?esc(fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f)}
+  function minutoKey(fecha){var d=new Date(fecha||Date.now()); if(isNaN(d))return String(fecha||'sin_fecha').slice(0,16); d.setSeconds(0,0); return d.toISOString().slice(0,16)}
+  function mesKey(fecha){var d=new Date(fecha); if(isNaN(d))return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+  function ocultarCarritos(){
+    try{
+      document.querySelectorAll('#recomendacionCompra .v868-cart,#recomendacionCompra .inv863-cart,#recomendacionCompra .v869-cart,#carritoSurtidoFijoV869,.v868-cart,.inv863-cart,.v869-cart').forEach(function(e){e.style.display='none'});
+      document.querySelectorAll('#recomendacionCompra button').forEach(function(b){ if((b.textContent||'').toLowerCase().includes('carrito')) b.style.display='none'; });
+    }catch(e){}
+  }
+
+  window.editarCarritoComprasV895=async function(idsCSV,tiendaActual,notaActual){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var ids=String(idsCSV||'').split(',').filter(Boolean);
+    if(!ids.length) return alert('No encontré compras para editar.');
+    var tienda=prompt('Tienda para TODO este grupo:',tiendaActual||''); if(tienda===null) return;
+    var nota=prompt('Nota para TODO este grupo:',notaActual||''); if(nota===null) return;
+    var r=await db.from('compras').update({tienda:tienda.trim(),nota:nota.trim()}).in('id',ids);
+    if(r.error){alert('No se pudo editar. Error:\n\n'+r.error.message);return;}
+    await window.renderHistorialComprasV887();
+  };
+
+  async function renderHistorialComprasUnidoV895(){
+    var card=$('historialComprasV87Card')||$('historialComprasReportesV887')||$('historialComprasV887Card')||$('historialComprasV890Card');
+    if(!card) return;
+    if(!asegurarDB()){card.innerHTML='<h2>📋 Historial de compras unido</h2><div class="alerta">Sin conexión a Supabase.</div>';return;}
+    var qOld=$('buscarHistorialComprasV895')?.value||$('buscarHistorialComprasV887')?.value||$('buscarHistorialComprasV87')?.value||'';
+
+    var r=await db.from('compras')
+      .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_compra,fecha_creacion,referencia,ingredientes(nombre),usuarios(nombre)')
+      .order('fecha_creacion',{ascending:false})
+      .limit(1200);
+    if(r.error){
+      r=await db.from('compras')
+        .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+        .order('fecha_creacion',{ascending:false})
+        .limit(1200);
+    }
+    if(r.error){card.innerHTML='<h2>📋 Historial de compras unido</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';return;}
+
+    var rows=(r.data||[]).map(function(x){return {
+      id:String(x.id),
+      fecha:x.fecha_creacion||x.fecha_compra,
+      fecha_compra:x.fecha_compra||'',
+      usuario_id:x.usuario_id||'',
+      usuario:x.usuarios?.nombre||'Usuario',
+      tienda:x.tienda||'',
+      nota:x.nota||'',
+      referencia:x.referencia||'',
+      nombre:x.ingredientes?.nombre||'Ingrediente',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }});
+
+    var grupos={};
+    rows.forEach(function(x){
+      /* Agrupa todo lo capturado en el mismo minuto, mismo usuario y misma tienda.
+         Ya NO separa por producto ni por nota, para que el surtido quede como un solo bloque. */
+      var key=[minutoKey(x.fecha), x.usuario_id||x.usuario, norm(x.tienda||'Sin tienda')].join('|');
+      if(!grupos[key]) grupos[key]={fecha:x.fecha,usuario:x.usuario,tienda:x.tienda,nota:x.nota,items:[],ids:[],total:0};
+      grupos[key].items.push(x);
+      grupos[key].ids.push(x.id);
+      grupos[key].total+=x.costo_total;
+      if(new Date(x.fecha)>new Date(grupos[key].fecha)) grupos[key].fecha=x.fecha;
+      if(!grupos[key].nota && x.nota) grupos[key].nota=x.nota;
+    });
+
+    var carts=Object.values(grupos).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
+    var totalAcum=carts.reduce(function(s,g){return s+g.total},0);
+    var mk=mesKey(new Date());
+    var totalMes=carts.filter(function(g){return mesKey(g.fecha)===mk}).reduce(function(s,g){return s+g.total},0);
+    var productosTotal=carts.reduce(function(s,g){return s+g.items.length},0);
+
+    var q=norm(qOld);
+    if(q){
+      carts=carts.filter(function(g){return norm([g.fecha,g.usuario,g.tienda,g.nota,g.total,g.items.map(function(i){return i.nombre+' '+i.cantidad+' '+i.costo_total}).join(' ')].join(' ')).includes(q)});
+    }
+
+    card.innerHTML='<h2>📋 Historial de compras unido</h2>'+ 
+      '<div class="info">Ahora las compras capturadas juntas se muestran en <b>un solo bloque</b>, no producto por producto.</div>'+ 
+      '<div class="v895-boxes"><div>📅 Este mes<b>'+money(totalMes)+'</b></div><div>🏦 Acumulado<b>'+money(totalAcum)+'</b></div></div>'+ 
+      '<div><span class="v87-chip">Compras unidas: '+carts.length+'</span><span class="v87-chip">Productos: '+productosTotal+'</span></div>'+ 
+      '<input id="buscarHistorialComprasV895" class="v890-search v87-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div>'+(carts.length?carts.slice(0,180).map(function(g){
+        var items=g.items.map(function(x){return '<div class="v895-item">• '+esc(x.nombre)+': '+x.cantidad+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b></div>'}).join('');
+        var idsCSV=g.ids.join(',');
+        var tiendaJS=String(g.tienda||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var notaJS=String(g.nota||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div class="v895-carrito-card"><b>'+fechaBonita(g.fecha)+'</b><div class="v895-meta">📍 '+esc(g.tienda||'Sin tienda')+'<br>👤 '+esc(g.usuario)+(g.nota?'<br>📝 '+esc(g.nota):'')+'</div>'+items+'<div class="v895-total">'+money(g.total)+'</div><button class="btn-azul" onclick="editarCarritoComprasV895(\''+idsCSV+'\',\''+esc(tiendaJS)+'\',\''+esc(notaJS)+'\')">✏️ Editar tienda / nota del grupo</button></div>';
+      }).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+
+    var inp=$('buscarHistorialComprasV895'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  }
+
+  window.renderHistorialComprasV887=renderHistorialComprasUnidoV895;
+  window.renderHistorialComprasV881=renderHistorialComprasUnidoV895;
+  window.renderHistorialComprasV87=renderHistorialComprasUnidoV895;
+  window.renderHistorialComprasV890=renderHistorialComprasUnidoV895;
+  window.renderHistorialComprasUnidoV895=renderHistorialComprasUnidoV895;
+
+  var oldVerTab=window.verTab;
+  if(typeof oldVerTab==='function'){
+    window.verTab=function(id,btn){
+      var r=oldVerTab.apply(this,arguments);
+      ocultarCarritos();
+      if(id==='reportes') setTimeout(function(){try{renderHistorialComprasUnidoV895()}catch(e){}},200);
+      if(id==='inventario') setTimeout(ocultarCarritos,200);
+      return r;
+    };
+  }
+
+  setInterval(ocultarCarritos,1200);
+  window.addEventListener('load',function(){
+    setTimeout(ocultarCarritos,400);
+    setTimeout(function(){try{renderHistorialComprasUnidoV895()}catch(e){}},1400);
+    setTimeout(function(){try{renderHistorialComprasUnidoV895()}catch(e){}},3500);
+  });
+})();
+</script>
+
+<!-- ===== V8.9.6 Historial unido + Reporte por tienda restaurado ===== -->
+<style id="css-v896-historial-tienda">
+.v896-tiendas-wrap{background:#fff;border:2px solid #e1bee7;border-radius:18px;padding:12px;margin:12px 0}
+.v896-tiendas-title{font-size:20px;font-weight:bold;color:#4a1249;margin-bottom:6px}
+.v896-tiendas-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.v896-tienda-card{background:#f3e5f5;color:#4a1249;border:1px solid #e1bee7;border-radius:14px;padding:10px;font-weight:bold}
+.v896-tienda-card b{display:block;color:#1b5e20;font-size:20px;margin-top:4px}
+.v896-tienda-card small{display:block;color:#6a1b9a;margin-top:3px;font-weight:normal}
+.v896-tienda-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:9px;margin:7px 0}
+.v896-tienda-row b{color:#4a1249}.v896-tienda-row .monto{font-size:18px;font-weight:bold;color:#1b5e20;text-align:right}
+@media(max-width:520px){.v896-tiendas-grid{grid-template-columns:1fr}.v896-tienda-row{grid-template-columns:1fr}.v896-tienda-row .monto{text-align:left}}
+</style>
+
+<script id="js-v896-historial-tienda">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function num(v){return Number(String(v??'0').replace(',','.'))||0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function fechaBonita(fecha){var f=new Date(fecha);return isNaN(f)?esc(fecha):new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(f)}
+  function minutoKey(fecha){var d=new Date(fecha||Date.now()); if(isNaN(d))return String(fecha||'sin_fecha').slice(0,16); d.setSeconds(0,0); return d.toISOString().slice(0,16)}
+  function mesKey(fecha){var d=new Date(fecha); if(isNaN(d))return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+
+  async function renderHistorialConTiendasV896(){
+    var card=$('historialComprasV87Card')||$('historialComprasReportesV887')||$('historialComprasV887Card')||$('historialComprasV890Card');
+    if(!card) return;
+    if(!asegurarDB()){card.innerHTML='<h2>📋 Historial de compras unido</h2><div class="alerta">Sin conexión a Supabase.</div>';return;}
+
+    var qOld=$('buscarHistorialComprasV896')?.value||$('buscarHistorialComprasV895')?.value||$('buscarHistorialComprasV887')?.value||$('buscarHistorialComprasV87')?.value||'';
+
+    var r=await db.from('compras')
+      .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,proveedor,lugar,nota,fecha_compra,fecha_creacion,referencia,ingredientes(nombre),usuarios(nombre)')
+      .order('fecha_creacion',{ascending:false})
+      .limit(1500);
+    if(r.error){
+      r=await db.from('compras')
+        .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,tienda,nota,fecha_compra,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+        .order('fecha_creacion',{ascending:false})
+        .limit(1500);
+    }
+    if(r.error){
+      r=await db.from('compras')
+        .select('id,usuario_id,ingrediente_id,cantidad,costo_total,costo_unitario,fecha_creacion,ingredientes(nombre),usuarios(nombre)')
+        .order('fecha_creacion',{ascending:false})
+        .limit(1500);
+    }
+    if(r.error){card.innerHTML='<h2>📋 Historial de compras unido</h2><div class="alerta">Error leyendo compras: '+esc(r.error.message)+'</div>';return;}
+
+    var rows=(r.data||[]).map(function(x){return {
+      id:String(x.id),
+      fecha:x.fecha_creacion||x.fecha_compra,
+      usuario_id:x.usuario_id||'',
+      usuario:x.usuarios?.nombre||'Usuario',
+      tienda:x.tienda||x.proveedor||x.lugar||'',
+      nota:x.nota||'',
+      nombre:x.ingredientes?.nombre||'Ingrediente',
+      cantidad:num(x.cantidad),
+      costo_unitario:num(x.costo_unitario),
+      costo_total:num(x.costo_total)
+    }});
+
+    var mk=mesKey(new Date());
+    var tiendas={};
+    rows.forEach(function(x){
+      var t=x.tienda||'Sin tienda';
+      if(!tiendas[t]) tiendas[t]={tienda:t,total:0,mes:0,compras:0,productos:0,grupos:{}};
+      tiendas[t].total+=x.costo_total;
+      tiendas[t].productos+=1;
+      if(mesKey(x.fecha)===mk) tiendas[t].mes+=x.costo_total;
+      var gk=[minutoKey(x.fecha), x.usuario_id||x.usuario, norm(t)].join('|');
+      if(!tiendas[t].grupos[gk]){tiendas[t].grupos[gk]=true; tiendas[t].compras+=1;}
+    });
+    var tiendasArr=Object.values(tiendas).sort(function(a,b){return b.total-a.total});
+    var totalMesTiendas=tiendasArr.reduce(function(s,t){return s+t.mes},0);
+    var totalAcumTiendas=tiendasArr.reduce(function(s,t){return s+t.total},0);
+    var comprasTiendas=tiendasArr.reduce(function(s,t){return s+t.compras},0);
+    var ticketProm=comprasTiendas?totalAcumTiendas/comprasTiendas:0;
+
+    var grupos={};
+    rows.forEach(function(x){
+      var key=[minutoKey(x.fecha), x.usuario_id||x.usuario, norm(x.tienda||'Sin tienda')].join('|');
+      if(!grupos[key]) grupos[key]={fecha:x.fecha,usuario:x.usuario,tienda:x.tienda,nota:x.nota,items:[],ids:[],total:0};
+      grupos[key].items.push(x);
+      grupos[key].ids.push(x.id);
+      grupos[key].total+=x.costo_total;
+      if(new Date(x.fecha)>new Date(grupos[key].fecha)) grupos[key].fecha=x.fecha;
+      if(!grupos[key].nota && x.nota) grupos[key].nota=x.nota;
+    });
+
+    var carts=Object.values(grupos).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
+    var totalAcum=carts.reduce(function(s,g){return s+g.total},0);
+    var totalMes=carts.filter(function(g){return mesKey(g.fecha)===mk}).reduce(function(s,g){return s+g.total},0);
+    var productosTotal=carts.reduce(function(s,g){return s+g.items.length},0);
+
+    var q=norm(qOld);
+    var cartsFiltrados=carts;
+    if(q){
+      cartsFiltrados=carts.filter(function(g){return norm([g.fecha,g.usuario,g.tienda,g.nota,g.total,g.items.map(function(i){return i.nombre+' '+i.cantidad+' '+i.costo_total}).join(' ')].join(' ')).includes(q)});
+    }
+
+    var reporteTiendas='<div class="v896-tiendas-wrap">'+
+      '<div class="v896-tiendas-title">📍 Reporte por tienda</div>'+
+      '<div class="info">Resumen de cuánto se ha comprado en cada tienda/proveedor.</div>'+
+      '<div class="v896-tiendas-grid">'+
+        '<div class="v896-tienda-card">📅 Este mes<b>'+money(totalMesTiendas)+'</b></div>'+ 
+        '<div class="v896-tienda-card">🏦 Acumulado<b>'+money(totalAcumTiendas)+'</b></div>'+ 
+        '<div class="v896-tienda-card">🧾 Compras<b>'+comprasTiendas+'</b></div>'+ 
+        '<div class="v896-tienda-card">💰 Ticket promedio<b>'+money(ticketProm)+'</b></div>'+ 
+      '</div>'+
+      (tiendasArr.length?tiendasArr.slice(0,20).map(function(t){return '<div class="v896-tienda-row"><div><b>📍 '+esc(t.tienda)+'</b><br><small>Este mes: '+money(t.mes)+' · Compras: '+t.compras+' · Productos: '+t.productos+'</small></div><div class="monto">'+money(t.total)+'</div></div>'}).join(''):'<div class="warn">Sin tiendas registradas.</div>')+
+    '</div>';
+
+    card.innerHTML='<h2>📋 Historial de compras unido</h2>'+ 
+      reporteTiendas+
+      '<div class="info">Las compras capturadas juntas se muestran en <b>un solo bloque</b>, no producto por producto.</div>'+ 
+      '<div class="v895-boxes"><div>📅 Este mes<b>'+money(totalMes)+'</b></div><div>🏦 Acumulado<b>'+money(totalAcum)+'</b></div></div>'+ 
+      '<div><span class="v87-chip">Compras unidas: '+cartsFiltrados.length+'</span><span class="v87-chip">Productos: '+productosTotal+'</span></div>'+ 
+      '<input id="buscarHistorialComprasV896" class="v890-search v87-search" placeholder="🔍 Buscar producto, tienda, usuario, nota o fecha..." value="'+esc(qOld)+'" oninput="renderHistorialComprasV887()">'+
+      '<div>'+(cartsFiltrados.length?cartsFiltrados.slice(0,180).map(function(g){
+        var items=g.items.map(function(x){return '<div class="v895-item">• '+esc(x.nombre)+': '+x.cantidad+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b></div>'}).join('');
+        var idsCSV=g.ids.join(',');
+        var tiendaJS=String(g.tienda||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var notaJS=String(g.nota||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div class="v895-carrito-card"><b>'+fechaBonita(g.fecha)+'</b><div class="v895-meta">📍 '+esc(g.tienda||'Sin tienda')+'<br>👤 '+esc(g.usuario)+(g.nota?'<br>📝 '+esc(g.nota):'')+'</div>'+items+'<div class="v895-total">'+money(g.total)+'</div><button class="btn-azul" onclick="editarCarritoComprasV895(\''+idsCSV+'\',\''+esc(tiendaJS)+'\',\''+esc(notaJS)+'\')">✏️ Editar tienda / nota del grupo</button></div>';
+      }).join(''):'<div class="warn">No hay compras guardadas.</div>')+'</div>';
+
+    var inp=$('buscarHistorialComprasV896'); if(inp&&qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  }
+
+  window.renderHistorialComprasV887=renderHistorialConTiendasV896;
+  window.renderHistorialComprasV881=renderHistorialConTiendasV896;
+  window.renderHistorialComprasV87=renderHistorialConTiendasV896;
+  window.renderHistorialComprasV890=renderHistorialConTiendasV896;
+  window.renderHistorialComprasUnidoV895=renderHistorialConTiendasV896;
+  window.renderHistorialConTiendasV896=renderHistorialConTiendasV896;
+
+  var oldVerTab=window.verTab;
+  if(typeof oldVerTab==='function'){
+    window.verTab=function(id,btn){
+      var r=oldVerTab.apply(this,arguments);
+      if(id==='reportes') setTimeout(function(){try{renderHistorialConTiendasV896()}catch(e){}},250);
+      return r;
+    };
+  }
+  window.addEventListener('load',function(){
+    setTimeout(function(){try{renderHistorialConTiendasV896()}catch(e){}},1800);
+    setTimeout(function(){try{renderHistorialConTiendasV896()}catch(e){}},4000);
+  });
 })();
 </script>
