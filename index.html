@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.9.3</title>
+<title>Puesto Doña Cecy V9.0 Oficial - Lotes</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.9.3</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.9.3 · Inversión mensual y acumulada</p>
+  <h1>🥤 Puesto Doña Cecy V9.0 Oficial</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V9.0 · Lote 0000 + lotes por compra</p>
 </header>
 
 <div class="tabs">
@@ -6747,6 +6747,109 @@ function htmlTop10VendidosV9(){
 })();
 </script>
 
+
+
+<!-- ===== V9.2 LOTE ACTIVO + HISTORIAL COLAPSABLE ===== -->
+<style id="css-v92-lote-activo-historial">
+#lotesCompraV90Card{border:2px solid #e1bee7;background:#fff;border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.lote-v92-card{border:2px solid #e1bee7;border-radius:18px;background:#fff;padding:12px;margin:10px 0;box-shadow:0 3px 10px rgba(0,0,0,.10)}
+.lote-v92-card.activo{border-color:#fb8c00;background:#fff8e1}.lote-v92-card.cerrado{border-color:#43a047;background:#e8f5e9}.lote-v92-card.pendiente{border-color:#1e88e5;background:#e3f2fd}
+.lote-v92-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.lote-v92-folio{font-size:21px;font-weight:900;color:#4a1249}.lote-v92-chip{display:inline-block;border-radius:999px;padding:5px 10px;background:white;font-size:12px;font-weight:bold;color:#4a1249;border:1px solid rgba(0,0,0,.08)}
+.lote-v92-info{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:9px 0}.lote-v92-info div{background:white;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:8px;font-size:13px}.lote-v92-info b{display:block;color:#4a1249;margin-bottom:2px}
+.lote-v92-numeros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:9px 0}.lote-v92-box{background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:9px;text-align:center;font-weight:bold}.lote-v92-box b{display:block;font-size:18px;color:#1b5e20;margin-top:3px}
+.lote-v92-progreso{height:12px;background:white;border-radius:999px;overflow:hidden;border:1px solid rgba(0,0,0,.10);margin:6px 0}.lote-v92-barra{height:100%;background:#43a047;width:0%}
+.lote-v92-det{background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin-top:8px;font-size:13px;line-height:1.35}.lote-v92-nota{background:#f3e5f5;color:#4a1249;border-radius:12px;padding:8px;margin:8px 0;font-size:13px}
+.lote-v92-historial{margin-top:10px}.lote-v92-historial summary{cursor:pointer;font-weight:bold;background:#f3e5f5;color:#4a1249;border-radius:14px;padding:10px}.lote-v92-lista-mini{margin-top:8px}
+@media(max-width:520px){.lote-v92-info,.lote-v92-numeros{grid-template-columns:1fr}.lote-v92-top{display:block}}
+</style>
+<script id="js-v92-lote-activo-historial">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866', LS_LAST='cecy_ultimo_costo_surtido_v866', LS_PROV='cecy_ultimo_proveedor_v87', LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){var n=Number(String(v??'0').replace(',','.'));return isFinite(n)?n:0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function cart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function totalCart(){return cart().reduce(function(s,x){return s+(num(x.cantidad)*num(x.costo_unitario))},0)}
+  function fechaMX(v){try{return new Intl.DateTimeFormat('es-MX',{dateStyle:'medium'}).format(new Date(v))}catch(e){return ''}}
+  function horaMX(v){try{return new Intl.DateTimeFormat('es-MX',{timeStyle:'short'}).format(new Date(v))}catch(e){return ''}}
+  function esPerecedero(nombre){var n=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');return /(sandia|mango|melon|pepino|limon|fresa|fruta|jugo|congelado|boli|paleta|hielo|leche|crema|queso|chamoy preparado|liquido preparado)/.test(n)}
+  function usuarioNombre(){return window.usuarioLogueado?.nombre||$('usuarioSelect')?.selectedOptions?.[0]?.textContent||'Usuario'}
+  async function siguienteFolio(){try{var r=await db.from('lotes_compra').select('folio').limit(1000);var max=0;(r.data||[]).forEach(function(x){var m=String(x.folio||'').match(/LOTE-(\d+)/i); if(m) max=Math.max(max,parseInt(m[1],10)||0)});return 'LOTE-'+String(max+1).padStart(4,'0')}catch(e){return 'LOTE-'+Date.now()}}
+  function textoBotonLote(){document.querySelectorAll('button').forEach(function(b){var t=(b.textContent||'').toLowerCase(); if(t.includes('carrito pagado')||t.includes('aplicar al inventario')) b.textContent='📦 Guardar como lote y agregar inventario';});}
+  function asegurarPanelLotesV92(){
+    var inv=$('inventario'); if(!inv) return null;
+    var card=$('lotesCompraV90Card')||$('lotesCompraV91Card');
+    if(!card){card=document.createElement('div');card.className='card';card.id='lotesCompraV90Card';
+      var panelCarrito=$('panelCarritoSurtidoV869')||$('carritoSurtidoV869')||$('listaInventarioV863')||$('tablaInventario')?.closest('.card');
+      if(panelCarrito && panelCarrito.closest('.card') && panelCarrito.closest('.card').nextSibling) inv.insertBefore(card,panelCarrito.closest('.card').nextSibling); else inv.appendChild(card);
+    }
+    card.innerHTML='<h2>📦 Lote activo</h2><div class="info">Aquí se monitorea la compra más reciente/activa. El lote solo se puede <b>ver</b>, no editar.</div><div class="acciones"><button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Actualizar lote</button><button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button></div><div id="listaLotesCompraV90" class="warn">Cargando lote activo...</div>';
+    textoBotonLote(); return card;
+  }
+  function htmlLote(l,d,esActivo){
+    var inversion=num(l.inversion_total), rec=num(l.recuperado), gan=num(l.ganancia), pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0;
+    var estado=String(l.estado||'activo'), fecha=l.fecha_compra||l.created_at||new Date().toISOString();
+    return '<div class="lote-v92-card '+(estado==='cerrado'?'cerrado':(esActivo?'activo':'pendiente'))+'">'
+      +'<div class="lote-v92-top"><div><div class="lote-v92-folio">📦 '+esc(l.folio||l.id)+'</div><small>'+(esActivo?'Lote activo · ':'Historial · ')+'solo monitoreo</small></div><span class="lote-v92-chip">'+esc(estado.toUpperCase())+'</span></div>'
+      +'<div class="lote-v92-info"><div><b>📅 Fecha</b>'+esc(fechaMX(fecha))+'</div><div><b>⏰ Hora</b>'+esc(horaMX(fecha))+'</div><div><b>📍 Lugar</b>'+esc(l.proveedor||'Sin lugar')+'</div><div><b>👤 Registró</b>'+esc(l.usuario_nombre||usuarioNombre())+'</div></div>'
+      +(l.nota?'<div class="lote-v92-nota"><b>📝 Nota extra:</b><br>'+esc(l.nota)+'</div>':'<div class="lote-v92-nota"><b>📝 Nota extra:</b><br>Sin nota.</div>')
+      +'<div class="lote-v92-numeros"><div class="lote-v92-box">Inversión<b>'+money(inversion)+'</b></div><div class="lote-v92-box">Recuperado<b>'+money(rec)+'</b></div><div class="lote-v92-box">Ganancia<b>'+money(gan)+'</b></div></div>'
+      +'<small>Avance recuperación: <b>'+pct+'%</b></small><div class="lote-v92-progreso"><div class="lote-v92-barra" style="width:'+pct+'%"></div></div>'
+      +'<div class="lote-v92-det"><b>Detalle del lote:</b><br>'+(d.length?d.map(function(x){return '• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': '+num(x.cantidad_inicial).toFixed(1)+' comprado · '+num(x.cantidad_disponible).toFixed(1)+' disponible · costo '+money(x.costo_unitario)+' · total <b>'+money(x.costo_total)+'</b> · '+(x.caduca_rapido?'FEFO / caduca rápido':'FIFO / dura más')}).join('<br>'):'Sin detalle leído.')+'</div></div>';
+  }
+  window.renderLotesCompraV90=async function(){
+    var card=asegurarPanelLotesV92(); if(!card) return; var cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lote activo...';
+    if(!asegurarDB()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    var rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(80);
+    if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Ejecuta primero el SQL de lotes en Supabase.<br><br>'+esc(rl.error.message);return;}
+    var lotes=rl.data||[]; if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes guardados. Cuando guardes el carrito de surtido aparecerá aquí el lote activo.';return;}
+    var ids=lotes.map(function(x){return x.id}), det=[]; try{var rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(1000); if(!rd.error) det=rd.data||[]}catch(e){}
+    var activo=lotes.find(function(l){return String(l.estado||'activo')!=='cerrado'})||lotes[0];
+    var activosDet=det.filter(function(x){return String(x.lote_id)===String(activo.id)});
+    var historial=lotes.filter(function(l){return String(l.id)!==String(activo.id)});
+    cont.className='';
+    cont.innerHTML=htmlLote(activo,activosDet,true)+'<details class="lote-v92-historial"><summary>📚 Historial de lotes ('+historial.length+')</summary><div class="lote-v92-lista-mini">'+(historial.length?historial.map(function(l){var d=det.filter(function(x){return String(x.lote_id)===String(l.id)});return htmlLote(l,d,false)}).join(''):'<div class="warn">Aún no hay lotes anteriores.</div>')+'</div></details>';
+  };
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.'); if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=cart(); if(!c.length) return alert('El carrito está vacío.');
+    for(const x of c){ if(num(x.cantidad)<=0 || num(x.costo_unitario)<=0) return alert('Revisa cantidad y costo de '+(x.nombre||'producto')); }
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim(); var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?')) return; if(!confirm('¿Guardar este carrito como lote nuevo y agregarlo al inventario?')) return;
+    if(btn){btn.disabled=true;btn.textContent='Creando lote...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes(); var fecha=new Date().toISOString(), total=totalCart(), folio=await siguienteFolio(), ult=last();
+      var loteIns=await db.from('lotes_compra').insert({folio:folio,usuario_id:u.id,proveedor:tienda,nota:nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();
+      if(loteIns.error) throw new Error('No se pudo crear lote. Ejecuta el SQL de lotes en Supabase. Detalle: '+loteIns.error.message); var lote=loteIns.data;
+      for(const x of c){
+        var ing=ingById(x.id||x.ingrediente_id); if(!ing) continue; var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=cant*cu, nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id); if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var per=esPerecedero(ing.nombre||x.nombre); var di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'}); if(di.error) throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio});}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio});}catch(e){}
+        try{if(typeof auditoria==='function') await auditoria('LOTE_COMPRA',usuarioNombre()+' registró '+lote.folio+' por '+money(total),{lote_id:lote.id,folio:lote.folio,ingrediente:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:costo,estrategia:per?'FEFO':'FIFO',lugar:tienda,nota:nota});}catch(e){}
+        ult[ing.id]=cu;
+      }
+      saveLast(ult); saveCart([]); localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota); if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes(); if(typeof render==='function') render(); try{if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true)}catch(e){}
+      await renderLotesCompraV90(); if(typeof notificar==='function') notificar('📦 Lote creado',folio+' · '+money(total),'ok'); else alert('Lote creado: '+folio+' · '+money(total));
+    }catch(e){alert('Error guardando lote: '+(e.message||e))} finally{if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'}}
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869; window.carritoPagadoSurtidoV868=window.carritoPagadoSurtidoV869;
+  var oldRender=window.renderCarritoFijoSurtidoV869; if(typeof oldRender==='function'&&!window.renderCarritoV92Envuelto){window.renderCarritoFijoSurtidoV869=function(){var r=oldRender.apply(this,arguments);setTimeout(textoBotonLote,25);return r};window.renderCarritoV92Envuelto=true;}
+  var oldVer=window.verTab; if(typeof oldVer==='function'&&!window.verTabLotesV92Envuelto){window.verTab=function(id,btn){var r=oldVer.apply(this,arguments);setTimeout(function(){textoBotonLote(); if(id==='inventario'){asegurarPanelLotesV92();renderLotesCompraV90();}},180);return r};window.verTabLotesV92Envuelto=true;}
+  window.addEventListener('load',function(){setTimeout(function(){asegurarPanelLotesV92();textoBotonLote();if($('inventario'))renderLotesCompraV90()},2200)});
+})();
+</script>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
@@ -10816,6 +10919,241 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 .v893-inversion-boxes b{display:block;font-size:24px;color:#1b5e20}
 @media(max-width:520px){.v893-inversion-boxes{grid-template-columns:1fr}.v893-inversion-boxes b{font-size:22px}}
 </style>
+
+
+<!-- ===== V9.0 LOTES DE COMPRA: carrito -> lote -> inventario ===== -->
+<style id="css-v90-lotes-compra">
+.lote-v90-card{border:2px solid #e1bee7;border-radius:16px;background:#fff;padding:12px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.lote-v90-card.activo{border-color:#fb8c00;background:#fff8e1}.lote-v90-card.cerrado{border-color:#43a047;background:#e8f5e9}
+.lote-v90-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}.lote-v90-folio{font-size:18px;font-weight:800;color:#4a1249}.lote-v90-chip{display:inline-block;border-radius:999px;padding:4px 9px;background:white;font-size:12px;font-weight:bold;color:#4a1249}
+.lote-v90-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.lote-v90-box{background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:9px;text-align:center;font-weight:bold}.lote-v90-box b{display:block;font-size:18px;color:#1b5e20;margin-top:3px}.lote-v90-det{background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin-top:8px;font-size:13px;line-height:1.35}.lote-v90-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.lote-v90-actions button{width:auto!important;padding:8px 10px!important;font-size:12px!important;margin:0!important}
+@media(max-width:520px){.lote-v90-grid{grid-template-columns:1fr}.lote-v90-head{display:block}.lote-v90-actions button{width:100%!important}}
+</style>
+<script id="js-v90-lotes-compra">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_LAST='cecy_ultimo_costo_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){var n=Number(String(v??'0').replace(',','.'));return isFinite(n)?n:0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function cart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function totalCart(){return cart().reduce(function(s,x){return s+(num(x.cantidad)*num(x.costo_unitario))},0)}
+  function fechaCorta(){var d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')}
+  function folioLote(){return 'LOTE-'+fechaCorta()}
+  function esPerecedero(nombre){var n=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');return /(sandia|mango|melon|pepino|limon|fresa|fruta|jugo|congelado|boli|paleta|hielo|leche|crema|queso|chamoy preparado|liquido preparado)/.test(n)}
+  function textoBotonLote(){document.querySelectorAll('button').forEach(function(b){if((b.textContent||'').includes('Carrito pagado')) b.textContent='📦 Guardar como lote y agregar inventario'})}
+
+  function asegurarPanelLotes(){
+    var inv=$('inventario'); if(!inv) return null;
+    var card=$('lotesCompraV90Card');
+    if(!card){
+      card=document.createElement('div'); card.className='card'; card.id='lotesCompraV90Card';
+      card.innerHTML='<h2>📦 Lotes de compra V9</h2><div class="info">Cada carrito pagado se guardará como un lote separado. Así Diana podrá distinguir una compra de otra.</div><div class="acciones"><button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Ver lotes</button><button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button></div><div id="listaLotesCompraV90" class="warn">Presiona Ver lotes.</div>';
+      var ref=$('cardRecomendacionCompraInventario')||$('tablaInventario')?.closest('.card');
+      if(ref&&ref.nextSibling) inv.insertBefore(card,ref.nextSibling); else inv.appendChild(card);
+    }
+    return card;
+  }
+
+  window.crearIngredienteRapidoV90=async function(){
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var nombre=prompt('Nombre del producto/ingrediente nuevo:'); if(!nombre) return;
+    var minimo=prompt('Mínimo para alerta de compra:', '1'); if(minimo===null) return;
+    var payload={nombre:nombre.trim(),cantidad:0,minimo:num(minimo)||1,costo_unitario:0,activo:true};
+    var r=await db.from('ingredientes').insert(payload).select('id,nombre').maybeSingle();
+    if(r.error){alert('No se pudo crear. Revisa columnas obligatorias en ingredientes.\n\n'+r.error.message);return;}
+    try{if(typeof cargarIngredientes==='function') await cargarIngredientes(); if(typeof render==='function') render(); if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true)}catch(e){}
+    alert('Producto creado. Ahora aparecerá como rojo/urgente y podrás agregarlo al carrito de surtido.');
+  };
+
+  window.renderLotesCompraV90=async function(){
+    var card=asegurarPanelLotes(); if(!card) return;
+    var cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lotes...';
+    if(!asegurarDB()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    var rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(80);
+    if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Primero ejecuta el SQL <b>lotes_supabase_v90.sql</b> en Supabase.<br><br>'+esc(rl.error.message);return;}
+    var lotes=rl.data||[]; if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes guardados.';return;}
+    var ids=lotes.map(function(x){return x.id});
+    var det=[]; try{var rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(1000); if(!rd.error) det=rd.data||[]}catch(e){}
+    var html=lotes.map(function(l){
+      var d=det.filter(function(x){return String(x.lote_id)===String(l.id)});
+      var inversion=num(l.inversion_total), rec=num(l.recuperado), gan=num(l.ganancia);
+      var pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0;
+      var estado=String(l.estado||'activo');
+      return '<div class="lote-v90-card '+(estado==='cerrado'?'cerrado':'activo')+'"><div class="lote-v90-head"><div><div class="lote-v90-folio">📦 '+esc(l.folio||l.id)+'</div><small>'+esc(new Date(l.fecha_compra||l.created_at).toLocaleString('es-MX'))+' · '+esc(l.proveedor||'Sin proveedor')+'</small></div><span class="lote-v90-chip">'+esc(estado.toUpperCase())+'</span></div><div class="lote-v90-grid"><div class="lote-v90-box">Inversión<b>'+money(inversion)+'</b></div><div class="lote-v90-box">Recuperado<b>'+money(rec)+'</b></div><div class="lote-v90-box">Ganancia<b>'+money(gan)+'</b></div></div><small>Avance recuperación: <b>'+pct+'%</b>'+(l.nota?' · Nota: '+esc(l.nota):'')+'</small><div class="lote-v90-det">'+(d.length?d.map(function(x){return '• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': '+num(x.cantidad_inicial).toFixed(1)+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b> · '+(x.caduca_rapido?'FEFO/caduca rápido':'FIFO/dura más')}).join('<br>'):'Sin detalle leído.')+'</div></div>';
+    }).join('');
+    cont.className=''; cont.innerHTML=html;
+  };
+
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.');
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=cart(); if(!c.length) return alert('El carrito está vacío.');
+    for(const x of c){ if(num(x.cantidad)<=0 || num(x.costo_unitario)<=0) return alert('Revisa cantidad y costo de '+(x.nombre||'producto')); }
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste tienda/proveedor. ¿Continuar sin tienda?')) return;
+    if(!confirm('¿Guardar este carrito como LOTE nuevo y agregarlo al inventario?')) return;
+    if(btn){btn.disabled=true;btn.textContent='Creando lote...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      var fecha=new Date().toISOString(), total=totalCart(), folio=folioLote(), ult=last();
+      var loteIns=await db.from('lotes_compra').insert({folio:folio,usuario_id:u.id,proveedor:tienda,nota:nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();
+      if(loteIns.error) throw new Error('No se pudo crear lote. Ejecuta lotes_supabase_v90.sql en Supabase. Detalle: '+loteIns.error.message);
+      var lote=loteIns.data;
+      for(const x of c){
+        var ing=ingById(x.id||x.ingrediente_id); if(!ing) continue;
+        var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=cant*cu, nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id);
+        if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var per=esPerecedero(ing.nombre||x.nombre);
+        var det={lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'};
+        var di=await db.from('lote_detalle').insert(det);
+        if(di.error) throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio});}catch(e){console.warn('compras lote',e)}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio});}catch(e){}
+        try{if(typeof auditoria==='function') await auditoria('LOTE_COMPRA',u.nombre+' guardó '+cant+' de '+(ing.nombre||'producto')+' en '+lote.folio,{lote_id:lote.id,folio:lote.folio,ingrediente:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:costo,estrategia:per?'FEFO':'FIFO'});}catch(e){}
+        ult[ing.id]=cu;
+      }
+      saveLast(ult); saveCart([]); localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota); if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      if(typeof render==='function') render();
+      try{if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true)}catch(e){}
+      try{await renderLotesCompraV90()}catch(e){}
+      if(typeof renderHistorialComprasV887==='function') renderHistorialComprasV887();
+      if(typeof notificar==='function') notificar('📦 Lote guardado',folio+' · '+money(total),'ok'); else alert('Lote guardado: '+folio+' · '+money(total));
+    }catch(e){ alert('Error guardando lote: '+(e.message||e)); }
+    finally{ if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'} }
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+  window.carritoPagadoSurtidoV868=window.carritoPagadoSurtidoV869;
+
+  var oldRender=window.renderCarritoFijoSurtidoV869;
+  if(typeof oldRender==='function' && !window.renderCarritoV90Envuelto){
+    window.renderCarritoFijoSurtidoV869=function(){var r=oldRender.apply(this,arguments);setTimeout(textoBotonLote,20);return r};
+    window.renderCarritoV90Envuelto=true;
+  }
+  var oldVer=window.verTab;
+  if(typeof oldVer==='function' && !window.verTabLotesV90Envuelto){
+    window.verTab=function(id,btn){var r=oldVer.apply(this,arguments);setTimeout(function(){asegurarPanelLotes();textoBotonLote();if(id==='inventario') renderLotesCompraV90();},180);return r};
+    window.verTabLotesV90Envuelto=true;
+  }
+  window.addEventListener('load',function(){setTimeout(function(){asegurarPanelLotes();textoBotonLote()},1400);setTimeout(textoBotonLote,3000)});
+})();
+</script>
+
+
+
+<!-- ===== V9.2 LOTE ACTIVO + HISTORIAL COLAPSABLE ===== -->
+<style id="css-v92-lote-activo-historial">
+#lotesCompraV90Card{border:2px solid #e1bee7;background:#fff;border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.lote-v92-card{border:2px solid #e1bee7;border-radius:18px;background:#fff;padding:12px;margin:10px 0;box-shadow:0 3px 10px rgba(0,0,0,.10)}
+.lote-v92-card.activo{border-color:#fb8c00;background:#fff8e1}.lote-v92-card.cerrado{border-color:#43a047;background:#e8f5e9}.lote-v92-card.pendiente{border-color:#1e88e5;background:#e3f2fd}
+.lote-v92-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.lote-v92-folio{font-size:21px;font-weight:900;color:#4a1249}.lote-v92-chip{display:inline-block;border-radius:999px;padding:5px 10px;background:white;font-size:12px;font-weight:bold;color:#4a1249;border:1px solid rgba(0,0,0,.08)}
+.lote-v92-info{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:9px 0}.lote-v92-info div{background:white;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:8px;font-size:13px}.lote-v92-info b{display:block;color:#4a1249;margin-bottom:2px}
+.lote-v92-numeros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:9px 0}.lote-v92-box{background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:9px;text-align:center;font-weight:bold}.lote-v92-box b{display:block;font-size:18px;color:#1b5e20;margin-top:3px}
+.lote-v92-progreso{height:12px;background:white;border-radius:999px;overflow:hidden;border:1px solid rgba(0,0,0,.10);margin:6px 0}.lote-v92-barra{height:100%;background:#43a047;width:0%}
+.lote-v92-det{background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin-top:8px;font-size:13px;line-height:1.35}.lote-v92-nota{background:#f3e5f5;color:#4a1249;border-radius:12px;padding:8px;margin:8px 0;font-size:13px}
+.lote-v92-historial{margin-top:10px}.lote-v92-historial summary{cursor:pointer;font-weight:bold;background:#f3e5f5;color:#4a1249;border-radius:14px;padding:10px}.lote-v92-lista-mini{margin-top:8px}
+@media(max-width:520px){.lote-v92-info,.lote-v92-numeros{grid-template-columns:1fr}.lote-v92-top{display:block}}
+</style>
+<script id="js-v92-lote-activo-historial">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866', LS_LAST='cecy_ultimo_costo_surtido_v866', LS_PROV='cecy_ultimo_proveedor_v87', LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){var n=Number(String(v??'0').replace(',','.'));return isFinite(n)?n:0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function cart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function totalCart(){return cart().reduce(function(s,x){return s+(num(x.cantidad)*num(x.costo_unitario))},0)}
+  function fechaMX(v){try{return new Intl.DateTimeFormat('es-MX',{dateStyle:'medium'}).format(new Date(v))}catch(e){return ''}}
+  function horaMX(v){try{return new Intl.DateTimeFormat('es-MX',{timeStyle:'short'}).format(new Date(v))}catch(e){return ''}}
+  function esPerecedero(nombre){var n=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');return /(sandia|mango|melon|pepino|limon|fresa|fruta|jugo|congelado|boli|paleta|hielo|leche|crema|queso|chamoy preparado|liquido preparado)/.test(n)}
+  function usuarioNombre(){return window.usuarioLogueado?.nombre||$('usuarioSelect')?.selectedOptions?.[0]?.textContent||'Usuario'}
+  async function siguienteFolio(){try{var r=await db.from('lotes_compra').select('folio').limit(1000);var max=0;(r.data||[]).forEach(function(x){var m=String(x.folio||'').match(/LOTE-(\d+)/i); if(m) max=Math.max(max,parseInt(m[1],10)||0)});return 'LOTE-'+String(max+1).padStart(4,'0')}catch(e){return 'LOTE-'+Date.now()}}
+  function textoBotonLote(){document.querySelectorAll('button').forEach(function(b){var t=(b.textContent||'').toLowerCase(); if(t.includes('carrito pagado')||t.includes('aplicar al inventario')) b.textContent='📦 Guardar como lote y agregar inventario';});}
+  function asegurarPanelLotesV92(){
+    var inv=$('inventario'); if(!inv) return null;
+    var card=$('lotesCompraV90Card')||$('lotesCompraV91Card');
+    if(!card){card=document.createElement('div');card.className='card';card.id='lotesCompraV90Card';
+      var panelCarrito=$('panelCarritoSurtidoV869')||$('carritoSurtidoV869')||$('listaInventarioV863')||$('tablaInventario')?.closest('.card');
+      if(panelCarrito && panelCarrito.closest('.card') && panelCarrito.closest('.card').nextSibling) inv.insertBefore(card,panelCarrito.closest('.card').nextSibling); else inv.appendChild(card);
+    }
+    card.innerHTML='<h2>📦 Lote activo</h2><div class="info">Aquí se monitorea la compra más reciente/activa. El lote solo se puede <b>ver</b>, no editar.</div><div class="acciones"><button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Actualizar lote</button><button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button></div><div id="listaLotesCompraV90" class="warn">Cargando lote activo...</div>';
+    textoBotonLote(); return card;
+  }
+  function htmlLote(l,d,esActivo){
+    var inversion=num(l.inversion_total), rec=num(l.recuperado), gan=num(l.ganancia), pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0;
+    var estado=String(l.estado||'activo'), fecha=l.fecha_compra||l.created_at||new Date().toISOString();
+    return '<div class="lote-v92-card '+(estado==='cerrado'?'cerrado':(esActivo?'activo':'pendiente'))+'">'
+      +'<div class="lote-v92-top"><div><div class="lote-v92-folio">📦 '+esc(l.folio||l.id)+'</div><small>'+(esActivo?'Lote activo · ':'Historial · ')+'solo monitoreo</small></div><span class="lote-v92-chip">'+esc(estado.toUpperCase())+'</span></div>'
+      +'<div class="lote-v92-info"><div><b>📅 Fecha</b>'+esc(fechaMX(fecha))+'</div><div><b>⏰ Hora</b>'+esc(horaMX(fecha))+'</div><div><b>📍 Lugar</b>'+esc(l.proveedor||'Sin lugar')+'</div><div><b>👤 Registró</b>'+esc(l.usuario_nombre||usuarioNombre())+'</div></div>'
+      +(l.nota?'<div class="lote-v92-nota"><b>📝 Nota extra:</b><br>'+esc(l.nota)+'</div>':'<div class="lote-v92-nota"><b>📝 Nota extra:</b><br>Sin nota.</div>')
+      +'<div class="lote-v92-numeros"><div class="lote-v92-box">Inversión<b>'+money(inversion)+'</b></div><div class="lote-v92-box">Recuperado<b>'+money(rec)+'</b></div><div class="lote-v92-box">Ganancia<b>'+money(gan)+'</b></div></div>'
+      +'<small>Avance recuperación: <b>'+pct+'%</b></small><div class="lote-v92-progreso"><div class="lote-v92-barra" style="width:'+pct+'%"></div></div>'
+      +'<div class="lote-v92-det"><b>Detalle del lote:</b><br>'+(d.length?d.map(function(x){return '• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': '+num(x.cantidad_inicial).toFixed(1)+' comprado · '+num(x.cantidad_disponible).toFixed(1)+' disponible · costo '+money(x.costo_unitario)+' · total <b>'+money(x.costo_total)+'</b> · '+(x.caduca_rapido?'FEFO / caduca rápido':'FIFO / dura más')}).join('<br>'):'Sin detalle leído.')+'</div></div>';
+  }
+  window.renderLotesCompraV90=async function(){
+    var card=asegurarPanelLotesV92(); if(!card) return; var cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lote activo...';
+    if(!asegurarDB()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    var rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(80);
+    if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Ejecuta primero el SQL de lotes en Supabase.<br><br>'+esc(rl.error.message);return;}
+    var lotes=rl.data||[]; if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes guardados. Cuando guardes el carrito de surtido aparecerá aquí el lote activo.';return;}
+    var ids=lotes.map(function(x){return x.id}), det=[]; try{var rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(1000); if(!rd.error) det=rd.data||[]}catch(e){}
+    var activo=lotes.find(function(l){return String(l.estado||'activo')!=='cerrado'})||lotes[0];
+    var activosDet=det.filter(function(x){return String(x.lote_id)===String(activo.id)});
+    var historial=lotes.filter(function(l){return String(l.id)!==String(activo.id)});
+    cont.className='';
+    cont.innerHTML=htmlLote(activo,activosDet,true)+'<details class="lote-v92-historial"><summary>📚 Historial de lotes ('+historial.length+')</summary><div class="lote-v92-lista-mini">'+(historial.length?historial.map(function(l){var d=det.filter(function(x){return String(x.lote_id)===String(l.id)});return htmlLote(l,d,false)}).join(''):'<div class="warn">Aún no hay lotes anteriores.</div>')+'</div></details>';
+  };
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.'); if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=cart(); if(!c.length) return alert('El carrito está vacío.');
+    for(const x of c){ if(num(x.cantidad)<=0 || num(x.costo_unitario)<=0) return alert('Revisa cantidad y costo de '+(x.nombre||'producto')); }
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim(); var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?')) return; if(!confirm('¿Guardar este carrito como lote nuevo y agregarlo al inventario?')) return;
+    if(btn){btn.disabled=true;btn.textContent='Creando lote...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes(); var fecha=new Date().toISOString(), total=totalCart(), folio=await siguienteFolio(), ult=last();
+      var loteIns=await db.from('lotes_compra').insert({folio:folio,usuario_id:u.id,proveedor:tienda,nota:nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();
+      if(loteIns.error) throw new Error('No se pudo crear lote. Ejecuta el SQL de lotes en Supabase. Detalle: '+loteIns.error.message); var lote=loteIns.data;
+      for(const x of c){
+        var ing=ingById(x.id||x.ingrediente_id); if(!ing) continue; var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=cant*cu, nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id); if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var per=esPerecedero(ing.nombre||x.nombre); var di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'}); if(di.error) throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio});}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio});}catch(e){}
+        try{if(typeof auditoria==='function') await auditoria('LOTE_COMPRA',usuarioNombre()+' registró '+lote.folio+' por '+money(total),{lote_id:lote.id,folio:lote.folio,ingrediente:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:costo,estrategia:per?'FEFO':'FIFO',lugar:tienda,nota:nota});}catch(e){}
+        ult[ing.id]=cu;
+      }
+      saveLast(ult); saveCart([]); localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota); if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes(); if(typeof render==='function') render(); try{if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true)}catch(e){}
+      await renderLotesCompraV90(); if(typeof notificar==='function') notificar('📦 Lote creado',folio+' · '+money(total),'ok'); else alert('Lote creado: '+folio+' · '+money(total));
+    }catch(e){alert('Error guardando lote: '+(e.message||e))} finally{if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'}}
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869; window.carritoPagadoSurtidoV868=window.carritoPagadoSurtidoV869;
+  var oldRender=window.renderCarritoFijoSurtidoV869; if(typeof oldRender==='function'&&!window.renderCarritoV92Envuelto){window.renderCarritoFijoSurtidoV869=function(){var r=oldRender.apply(this,arguments);setTimeout(textoBotonLote,25);return r};window.renderCarritoV92Envuelto=true;}
+  var oldVer=window.verTab; if(typeof oldVer==='function'&&!window.verTabLotesV92Envuelto){window.verTab=function(id,btn){var r=oldVer.apply(this,arguments);setTimeout(function(){textoBotonLote(); if(id==='inventario'){asegurarPanelLotesV92();renderLotesCompraV90();}},180);return r};window.verTabLotesV92Envuelto=true;}
+  window.addEventListener('load',function(){setTimeout(function(){asegurarPanelLotesV92();textoBotonLote();if($('inventario'))renderLotesCompraV90()},2200)});
+})();
+</script>
+
 </body>
 </html>
 
@@ -12834,5 +13172,307 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   };
 
   window.addEventListener('load',()=>setTimeout(()=>{try{window.cargarReporteHoy()}catch(e){}},2600));
+})();
+</script>
+
+<script id="js-v90-lotes-compra-final-override">
+/* V9.0 override final: se coloca al final para ganar sobre scripts anteriores */
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866', LS_LAST='cecy_ultimo_costo_surtido_v866', LS_PROV='cecy_ultimo_proveedor_v87', LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){var n=Number(String(v??'0').replace(',','.'));return isFinite(n)?n:0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function cart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function totalCart(){return cart().reduce(function(s,x){return s+(num(x.cantidad)*num(x.costo_unitario))},0)}
+  function folioLote(){var d=new Date();return 'LOTE-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+String(d.getSeconds()).padStart(2,'0')}
+  function esPerecedero(nombre){var n=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');return /(sandia|mango|melon|pepino|limon|fresa|fruta|jugo|congelado|boli|paleta|hielo|leche|crema|queso|chamoy preparado|liquido preparado)/.test(n)}
+  function textoBotonLote(){document.querySelectorAll('button').forEach(function(b){if((b.textContent||'').includes('Carrito pagado')||(b.textContent||'').includes('aplicar al inventario')) b.textContent='📦 Guardar como lote y agregar inventario'})}
+  function asegurarPanelLotes(){var inv=$('inventario'); if(!inv)return null; var card=$('lotesCompraV90Card'); if(!card){card=document.createElement('div');card.className='card';card.id='lotesCompraV90Card';card.innerHTML='<h2>📦 Lotes de compra V9</h2><div class="info">Cada carrito pagado se guardará como un lote separado. Así Diana podrá distinguir una compra de otra.</div><div class="acciones"><button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Ver lotes</button><button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button></div><div id="listaLotesCompraV90" class="warn">Presiona Ver lotes.</div>';var ref=$('cardRecomendacionCompraInventario')||$('tablaInventario')?.closest('.card'); if(ref&&ref.nextSibling) inv.insertBefore(card,ref.nextSibling); else inv.appendChild(card);}return card}
+  window.crearIngredienteRapidoV90=async function(){if(!asegurarDB())return alert('No hay conexión con Supabase.');var nombre=prompt('Nombre del producto/ingrediente nuevo:'); if(!nombre)return;var minimo=prompt('Mínimo para alerta de compra:','1'); if(minimo===null)return;var r=await db.from('ingredientes').insert({nombre:nombre.trim(),cantidad:0,minimo:num(minimo)||1,costo_unitario:0,activo:true}).select('id,nombre').maybeSingle(); if(r.error){alert('No se pudo crear. Revisa columnas obligatorias en ingredientes.\n\n'+r.error.message);return;} try{if(typeof cargarIngredientes==='function')await cargarIngredientes(); if(typeof render==='function')render(); if(typeof renderCarritoFijoSurtidoV869==='function')renderCarritoFijoSurtidoV869(true)}catch(e){} alert('Producto creado. Ahora aparecerá como rojo/urgente y podrás agregarlo al carrito de surtido.')};
+  window.renderLotesCompraV90=async function(){var card=asegurarPanelLotes(); if(!card)return;var cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lotes...'; if(!asegurarDB()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;} var rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(80); if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Primero ejecuta el SQL <b>lotes_supabase_v90.sql</b> en Supabase.<br><br>'+esc(rl.error.message);return;} var lotes=rl.data||[]; if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes guardados.';return;} var ids=lotes.map(x=>x.id), det=[]; try{var rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(1000); if(!rd.error)det=rd.data||[]}catch(e){} cont.className=''; cont.innerHTML=lotes.map(function(l){var d=det.filter(x=>String(x.lote_id)===String(l.id));var inversion=num(l.inversion_total),rec=num(l.recuperado),gan=num(l.ganancia),pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0,estado=String(l.estado||'activo');return '<div class="lote-v90-card '+(estado==='cerrado'?'cerrado':'activo')+'"><div class="lote-v90-head"><div><div class="lote-v90-folio">📦 '+esc(l.folio||l.id)+'</div><small>'+esc(new Date(l.fecha_compra||l.created_at).toLocaleString('es-MX'))+' · '+esc(l.proveedor||'Sin proveedor')+'</small></div><span class="lote-v90-chip">'+esc(estado.toUpperCase())+'</span></div><div class="lote-v90-grid"><div class="lote-v90-box">Inversión<b>'+money(inversion)+'</b></div><div class="lote-v90-box">Recuperado<b>'+money(rec)+'</b></div><div class="lote-v90-box">Ganancia<b>'+money(gan)+'</b></div></div><small>Avance recuperación: <b>'+pct+'%</b>'+(l.nota?' · Nota: '+esc(l.nota):'')+'</small><div class="lote-v90-det">'+(d.length?d.map(function(x){return '• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': '+num(x.cantidad_inicial).toFixed(1)+' x '+money(x.costo_unitario)+' = <b>'+money(x.costo_total)+'</b> · '+(x.caduca_rapido?'FEFO/caduca rápido':'FIFO/dura más')}).join('<br>'):'Sin detalle leído.')+'</div></div>'}).join('')};
+  async function pagarLote(btn){if(typeof validarPermiso==='function'&&!validarPermiso('compras','Necesitas permiso de compras.'))return;var u=window.usuarioLogueado;if(!u)return alert('Entra con PIN.');if(!asegurarDB())return alert('No hay conexión con Supabase.');var c=cart();if(!c.length)return alert('El carrito está vacío.');for(const x of c){if(num(x.cantidad)<=0||num(x.costo_unitario)<=0)return alert('Revisa cantidad y costo de '+(x.nombre||'producto'))}var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();if(!tienda&&!confirm('No escribiste tienda/proveedor. ¿Continuar sin tienda?'))return;if(!confirm('¿Guardar este carrito como LOTE nuevo y agregarlo al inventario?'))return;if(btn){btn.disabled=true;btn.textContent='Creando lote...'}try{if(typeof cargarIngredientes==='function')await cargarIngredientes();var fecha=new Date().toISOString(),total=totalCart(),folio=folioLote(),ult=last();var loteIns=await db.from('lotes_compra').insert({folio:folio,usuario_id:u.id,proveedor:tienda,nota:nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();if(loteIns.error)throw new Error('No se pudo crear lote. Ejecuta lotes_supabase_v90.sql en Supabase. Detalle: '+loteIns.error.message);var lote=loteIns.data;for(const x of c){var ing=ingById(x.id||x.ingrediente_id);if(!ing)continue;var cant=num(x.cantidad),cu=num(x.costo_unitario),costo=cant*cu,nueva=num(ing.cantidad)+cant;var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id);if(up.error)throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);var per=esPerecedero(ing.nombre||x.nombre);var di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'});if(di.error)throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio})}catch(e){console.warn('compras lote',e)}try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio})}catch(e){}ult[ing.id]=cu}saveLast(ult);saveCart([]);localStorage.setItem(LS_PROV,tienda);localStorage.setItem(LS_NOTA,nota);if($('notaCompraV87'))$('notaCompraV87').value='';if(typeof cargarIngredientes==='function')await cargarIngredientes();if(typeof render==='function')render();try{if(typeof renderCarritoFijoSurtidoV869==='function')renderCarritoFijoSurtidoV869(true)}catch(e){}try{await renderLotesCompraV90()}catch(e){}if(typeof renderHistorialComprasV887==='function')renderHistorialComprasV887();if(typeof notificar==='function')notificar('📦 Lote guardado',folio+' · '+money(total),'ok');else alert('Lote guardado: '+folio+' · '+money(total))}catch(e){alert('Error guardando lote: '+(e.message||e))}finally{if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'}}}
+  window.carritoPagadoSurtidoV869=pagarLote; window.carritoPagadoSurtidoV866=pagarLote; window.carritoPagadoSurtidoV868=pagarLote;
+  var oldRender=window.renderCarritoFijoSurtidoV869;if(typeof oldRender==='function'&&!window.renderCarritoV90FinalEnvuelto){window.renderCarritoFijoSurtidoV869=function(){var r=oldRender.apply(this,arguments);setTimeout(textoBotonLote,20);return r};window.renderCarritoV90FinalEnvuelto=true}
+  var oldVer=window.verTab;if(typeof oldVer==='function'&&!window.verTabLotesV90FinalEnvuelto){window.verTab=function(id,btn){var r=oldVer.apply(this,arguments);setTimeout(function(){asegurarPanelLotes();textoBotonLote();if(id==='inventario')renderLotesCompraV90()},180);return r};window.verTabLotesV90FinalEnvuelto=true}
+  window.addEventListener('load',function(){setTimeout(function(){asegurarPanelLotes();textoBotonLote()},1500);setTimeout(textoBotonLote,3200)});
+})();
+</script>
+
+<!-- ===== V9.1 LOTES VISIBLES / SOLO MONITOREO ===== -->
+<style id="css-v91-lotes-visibles">
+.lote-v91-card{border:2px solid #e1bee7;border-radius:18px;background:#fff;padding:12px;margin:10px 0;box-shadow:0 3px 10px rgba(0,0,0,.10)}
+.lote-v91-card.activo{border-color:#fb8c00;background:#fff8e1}.lote-v91-card.cerrado{border-color:#43a047;background:#e8f5e9}
+.lote-v91-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.lote-v91-folio{font-size:20px;font-weight:900;color:#4a1249}.lote-v91-chip{display:inline-block;border-radius:999px;padding:5px 10px;background:white;font-size:12px;font-weight:bold;color:#4a1249;border:1px solid rgba(0,0,0,.08)}
+.lote-v91-info{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:9px 0}.lote-v91-info div{background:white;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:8px;font-size:13px}.lote-v91-info b{display:block;color:#4a1249;margin-bottom:2px}
+.lote-v91-numeros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:9px 0}.lote-v91-box{background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:9px;text-align:center;font-weight:bold}.lote-v91-box b{display:block;font-size:18px;color:#1b5e20;margin-top:3px}
+.lote-v91-progreso{height:12px;background:white;border-radius:999px;overflow:hidden;border:1px solid rgba(0,0,0,.10);margin:6px 0}.lote-v91-barra{height:100%;background:#43a047;width:0%}
+.lote-v91-det{background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin-top:8px;font-size:13px;line-height:1.35}.lote-v91-nota{background:#f3e5f5;color:#4a1249;border-radius:12px;padding:8px;margin:8px 0;font-size:13px}
+@media(max-width:520px){.lote-v91-info,.lote-v91-numeros{grid-template-columns:1fr}.lote-v91-top{display:block}}
+</style>
+<script id="js-v91-lotes-visibles">
+(function(){
+  var LS_CART='cecy_carrito_surtido_v866';
+  var LS_LAST='cecy_ultimo_costo_surtido_v866';
+  var LS_PROV='cecy_ultimo_proveedor_v87';
+  var LS_NOTA='cecy_ultima_nota_compra_v87';
+  function $(id){return document.getElementById(id)}
+  function num(v){var n=Number(String(v??'0').replace(',','.'));return isFinite(n)?n:0}
+  function money(v){return '$'+num(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function cart(){try{var x=JSON.parse(localStorage.getItem(LS_CART)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function saveCart(c){localStorage.setItem(LS_CART,JSON.stringify(c||[]))}
+  function last(){try{return JSON.parse(localStorage.getItem(LS_LAST)||'{}')}catch(e){return {}}}
+  function saveLast(o){localStorage.setItem(LS_LAST,JSON.stringify(o||{}))}
+  function asegurarDB(){try{if(!window.db && typeof window.iniciarSupabase==='function') window.iniciarSupabase();return !!window.db}catch(e){return false}}
+  function ingById(id){return (window.ingredientes||[]).find(function(i){return String(i.id)===String(id)})||null}
+  function totalCart(){return cart().reduce(function(s,x){return s+(num(x.cantidad)*num(x.costo_unitario))},0)}
+  function fechaMX(v){try{return new Intl.DateTimeFormat('es-MX',{dateStyle:'medium'}).format(new Date(v))}catch(e){return ''}}
+  function horaMX(v){try{return new Intl.DateTimeFormat('es-MX',{timeStyle:'short'}).format(new Date(v))}catch(e){return ''}}
+  function esPerecedero(nombre){var n=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');return /(sandia|mango|melon|pepino|limon|fresa|fruta|jugo|congelado|boli|paleta|hielo|leche|crema|queso|chamoy preparado|liquido preparado)/.test(n)}
+  function usuarioNombre(){return window.usuarioLogueado?.nombre||$('usuarioSelect')?.selectedOptions?.[0]?.textContent||'Usuario'}
+  async function siguienteFolio(){
+    try{
+      var r=await db.from('lotes_compra').select('folio').limit(200);
+      var max=0;(r.data||[]).forEach(function(x){var m=String(x.folio||'').match(/LOTE-(\d+)/i); if(m) max=Math.max(max,parseInt(m[1],10)||0)});
+      return 'LOTE-'+String(max+1).padStart(4,'0');
+    }catch(e){return 'LOTE-'+Date.now()}
+  }
+  function asegurarPanelLotesV91(){
+    var inv=$('inventario'); if(!inv) return null;
+    var card=$('lotesCompraV90Card')||$('lotesCompraV91Card');
+    if(!card){card=document.createElement('div'); card.className='card'; card.id='lotesCompraV90Card'; inv.appendChild(card);}
+    card.innerHTML='<h2>📦 Lotes de compra</h2><div class="info">Monitor de compras guardadas. Aquí el lote solo se puede <b>ver</b>: fecha, hora, lugar, nota, inversión y productos. No hay botón para editarlo.</div><div class="acciones"><button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Actualizar lotes</button><button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button></div><div id="listaLotesCompraV90" class="warn">Presiona Actualizar lotes.</div>';
+    return card;
+  }
+  window.renderLotesCompraV90=async function(){
+    var card=asegurarPanelLotesV91(); if(!card) return;
+    var cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lotes...';
+    if(!asegurarDB()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    var rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(80);
+    if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Primero ejecuta el SQL de lotes en Supabase.<br><br>'+esc(rl.error.message);return;}
+    var lotes=rl.data||[]; if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes guardados.';return;}
+    var ids=lotes.map(function(x){return x.id});
+    var det=[]; try{var rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(1000); if(!rd.error) det=rd.data||[]}catch(e){}
+    cont.className=''; cont.innerHTML=lotes.map(function(l){
+      var d=det.filter(function(x){return String(x.lote_id)===String(l.id)});
+      var inversion=num(l.inversion_total), rec=num(l.recuperado), gan=num(l.ganancia);
+      var pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0;
+      var estado=String(l.estado||'activo');
+      var fecha=l.fecha_compra||l.created_at||new Date().toISOString();
+      return '<div class="lote-v91-card '+(estado==='cerrado'?'cerrado':'activo')+'">'
+        +'<div class="lote-v91-top"><div><div class="lote-v91-folio">📦 '+esc(l.folio||l.id)+'</div><small>Solo monitoreo · no editable</small></div><span class="lote-v91-chip">'+esc(estado.toUpperCase())+'</span></div>'
+        +'<div class="lote-v91-info"><div><b>📅 Fecha</b>'+esc(fechaMX(fecha))+'</div><div><b>⏰ Hora</b>'+esc(horaMX(fecha))+'</div><div><b>📍 Lugar</b>'+esc(l.proveedor||'Sin lugar')+'</div><div><b>👤 Registró</b>'+esc(l.usuario_nombre||usuarioNombre())+'</div></div>'
+        +(l.nota?'<div class="lote-v91-nota"><b>📝 Nota extra:</b><br>'+esc(l.nota)+'</div>':'<div class="lote-v91-nota"><b>📝 Nota extra:</b><br>Sin nota.</div>')
+        +'<div class="lote-v91-numeros"><div class="lote-v91-box">Inversión<b>'+money(inversion)+'</b></div><div class="lote-v91-box">Recuperado<b>'+money(rec)+'</b></div><div class="lote-v91-box">Ganancia<b>'+money(gan)+'</b></div></div>'
+        +'<small>Avance recuperación: <b>'+pct+'%</b></small><div class="lote-v91-progreso"><div class="lote-v91-barra" style="width:'+pct+'%"></div></div>'
+        +'<div class="lote-v91-det"><b>Detalle del lote:</b><br>'+(d.length?d.map(function(x){return '• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': '+num(x.cantidad_inicial).toFixed(1)+' comprado · '+num(x.cantidad_disponible).toFixed(1)+' disponible · costo '+money(x.costo_unitario)+' · total <b>'+money(x.costo_total)+'</b> · '+(x.caduca_rapido?'FEFO / caduca rápido':'FIFO / dura más')}).join('<br>'):'Sin detalle leído.')+'</div>'
+        +'</div>';
+    }).join('');
+  };
+  window.carritoPagadoSurtidoV869=async function(btn){
+    if(typeof validarPermiso==='function' && !validarPermiso('compras','Necesitas permiso de compras.')) return;
+    var u=window.usuarioLogueado; if(!u) return alert('Entra con PIN.');
+    if(!asegurarDB()) return alert('No hay conexión con Supabase.');
+    var c=cart(); if(!c.length) return alert('El carrito está vacío.');
+    for(const x of c){ if(num(x.cantidad)<=0 || num(x.costo_unitario)<=0) return alert('Revisa cantidad y costo de '+(x.nombre||'producto')); }
+    var tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    var nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda && !confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?')) return;
+    if(!confirm('¿Guardar este carrito como lote nuevo y agregarlo al inventario?')) return;
+    if(btn){btn.disabled=true;btn.textContent='Creando lote...'}
+    try{
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      var fecha=new Date().toISOString(), total=totalCart(), folio=await siguienteFolio(), ult=last();
+      var loteIns=await db.from('lotes_compra').insert({folio:folio,usuario_id:u.id,proveedor:tienda,nota:nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();
+      if(loteIns.error) throw new Error('No se pudo crear lote. Ejecuta el SQL de lotes en Supabase. Detalle: '+loteIns.error.message);
+      var lote=loteIns.data;
+      for(const x of c){
+        var ing=ingById(x.id||x.ingrediente_id); if(!ing) continue;
+        var cant=num(x.cantidad), cu=num(x.costo_unitario), costo=cant*cu, nueva=num(ing.cantidad)+cant;
+        var up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id);
+        if(up.error) throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        var per=esPerecedero(ing.nombre||x.nombre);
+        var di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'});
+        if(di.error) throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda:tienda,nota:nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio});}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio});}catch(e){}
+        try{if(typeof auditoria==='function') await auditoria('LOTE_COMPRA',usuarioNombre()+' registró '+lote.folio+' por '+money(total),{lote_id:lote.id,folio:lote.folio,ingrediente:ing.nombre,cantidad:cant,costo_unitario:cu,costo_total:costo,estrategia:per?'FEFO':'FIFO',lugar:tienda,nota:nota});}catch(e){}
+        ult[ing.id]=cu;
+      }
+      saveLast(ult); saveCart([]); localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota); if($('notaCompraV87')) $('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function') await cargarIngredientes();
+      if(typeof render==='function') render();
+      try{if(typeof renderCarritoFijoSurtidoV869==='function') renderCarritoFijoSurtidoV869(true)}catch(e){}
+      await renderLotesCompraV90();
+      if(typeof notificar==='function') notificar('📦 Lote creado',folio+' · '+money(total),'ok'); else alert('Lote creado: '+folio+' · '+money(total));
+    }catch(e){ alert('Error guardando lote: '+(e.message||e)); }
+    finally{ if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'} }
+  };
+  window.carritoPagadoSurtidoV866=window.carritoPagadoSurtidoV869;
+  window.carritoPagadoSurtidoV868=window.carritoPagadoSurtidoV869;
+  window.addEventListener('load',function(){setTimeout(function(){asegurarPanelLotesV91(); if($('inventario')) renderLotesCompraV90();},1800)});
+  var oldVer=window.verTab;
+  if(typeof oldVer==='function' && !window.verTabLotesV91Envuelto){window.verTab=function(id,btn){var r=oldVer.apply(this,arguments);setTimeout(function(){if(id==='inventario'){asegurarPanelLotesV91();renderLotesCompraV90();}},180);return r};window.verTabLotesV91Envuelto=true;}
+})();
+</script>
+
+
+<style id="css-v9-oficial-lote0000">
+.lote-v9-oficial-toolbar{display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0}
+.lote-v9-oficial-form{background:#fff8e1;color:#5d3300;border:1px solid #ffe0b2;border-radius:14px;padding:10px;margin:10px 0}
+.lote-v9-status{font-weight:bold;border-radius:999px;padding:4px 9px;display:inline-block;font-size:12px;background:#e3f2fd;color:#0d47a1}
+.lote-v90-card.inicial{border-left-color:#555;background:#f5f5f5}
+.lote-v90-card.inicial .lote-v90-chip{background:#555;color:white}
+</style>
+
+<script id="v9-oficial-lote0000">
+/* ===== V9.0 OFICIAL: LOTE 0000 + cada compra = lote nuevo ===== */
+(function(){
+  const LS_MIG='cecy_lote0000_migracion_revisada_v90_oficial';
+  const LS_PROV='cecy_lote_lugar_v90';
+  const LS_NOTA='cecy_lote_nota_v90';
+  function $(id){return document.getElementById(id)}
+  function n(v){return Number(v||0)}
+  function money(v){return '$'+n(v).toFixed(2)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function dbOK(){try{if(!window.db&&typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db}catch(e){return false}}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+  function esPerecederoV9(nombre){let x=norm(nombre);return ['sandia','mango','melon','pina','fresa','limon','pepino','jugo','boli','paleta','hielo','fruta','naranja','tamarindo','coco','leche','crema'].some(w=>x.includes(w))}
+  function cart(){try{return typeof carritoSurtidoV863==='function'?carritoSurtidoV863():JSON.parse(localStorage.getItem('cecy_carrito_surtido_v863')||'[]')}catch(e){return []}}
+  function saveCart(a){try{if(typeof guardarCarritoSurtidoV863==='function')guardarCarritoSurtidoV863(a);else localStorage.setItem('cecy_carrito_surtido_v863',JSON.stringify(a||[]))}catch(e){}}
+  function ingById(id){return (window.ingredientes||[]).find(i=>String(i.id)===String(id))}
+  function totalCart(){return cart().reduce((s,x)=>s+n(x.costo_total||0),0)}
+
+  async function siguienteFolioOficialV9(){
+    let r=await db.from('lotes_compra').select('folio').limit(1000);
+    let max=0;
+    (r.data||[]).forEach(x=>{let m=String(x.folio||'').match(/LOTE-(\d+)/i); if(m) max=Math.max(max,parseInt(m[1],10)||0)});
+    max=Math.max(max,0);
+    return 'LOTE-'+String(max+1).padStart(4,'0');
+  }
+
+  function asegurarPanelLotesOficialV9(){
+    let inv=$('inventario'); if(!inv) return null;
+    let card=$('lotesCompraV90Card')||$('lotesCompraV91Card');
+    if(!card){card=document.createElement('div');card.className='card';card.id='lotesCompraV90Card';let ref=$('recomendacionCompra')?.closest('.card')||$('tablaInventario')?.closest('.card'); if(ref&&ref.nextSibling)inv.insertBefore(card,ref.nextSibling); else inv.appendChild(card)}
+    card.innerHTML=`<h2>📦 Lotes de compra V9 oficial</h2>
+      <div class="info"><b>Regla oficial:</b> LOTE-0000 es el inventario inicial. Después, cada compra nueva genera un lote nuevo, aunque sea un solo producto. Los lotes son visibles para monitoreo y no se editan.</div>
+      <div class="lote-v9-oficial-form">
+        <label>Lugar / proveedor de la próxima compra</label>
+        <input id="proveedorCompraV87" placeholder="Ejemplo: Smart, Central, Costco, Abarrotes" value="${esc(localStorage.getItem(LS_PROV)||'')}">
+        <label>Nota extra</label>
+        <input id="notaCompraV87" placeholder="Ejemplo: oferta Arizona, compra urgente, solo sandía" value="${esc(localStorage.getItem(LS_NOTA)||'')}">
+        <small>El número de lote se asigna automático al guardar el carrito.</small>
+      </div>
+      <div class="acciones">
+        <button class="btn-morado" onclick="renderLotesCompraV90()">🔄 Actualizar lotes</button>
+        <button class="btn-naranja" onclick="crearLote0000V9(true)">📦 Crear / revisar LOTE-0000</button>
+        <button class="btn-azul" onclick="crearIngredienteRapidoV90()">➕ Crear producto/ingrediente nuevo</button>
+      </div>
+      <div id="listaLotesCompraV90" class="warn">Cargando lotes...</div>`;
+    return card;
+  }
+
+  window.renderLotesCompraV90=async function(){
+    let card=asegurarPanelLotesOficialV9(); if(!card) return;
+    let cont=$('listaLotesCompraV90'); cont.className='warn'; cont.innerHTML='⏳ Leyendo lotes...';
+    if(!dbOK()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    let rl=await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:false}).limit(120);
+    if(rl.error){cont.className='alerta';cont.innerHTML='No pude leer lotes. Primero ejecuta el SQL oficial de lotes en Supabase.<br><br>'+esc(rl.error.message);return;}
+    let lotes=rl.data||[];
+    if(!lotes.length){cont.className='warn';cont.innerHTML='Todavía no hay lotes. Crea el <b>LOTE-0000</b> para meter el inventario actual.';return;}
+    let ids=lotes.map(x=>x.id), det=[];
+    try{let rd=await db.from('lote_detalle').select('*, ingredientes(nombre)').in('lote_id',ids).limit(2000); if(!rd.error) det=rd.data||[]}catch(e){}
+    let lote0=lotes.find(l=>String(l.folio)==='LOTE-0000');
+    let abiertos=lotes.filter(l=>String(l.estado||'activo')!=='cerrado' && String(l.folio)!=='LOTE-0000');
+    let cerrados=lotes.filter(l=>String(l.estado||'activo')==='cerrado');
+    function cardHTML(l){
+      let d=det.filter(x=>String(x.lote_id)===String(l.id));
+      let inversion=n(l.inversion_total), rec=n(l.recuperado), gan=n(l.ganancia), pct=inversion>0?Math.min(100,Math.round((rec/inversion)*100)):0;
+      let estado=String(l.estado||'activo'); let inicial=String(l.folio)==='LOTE-0000';
+      return `<div class="lote-v90-card ${inicial?'inicial':(estado==='cerrado'?'cerrado':'activo')}">
+        <div class="lote-v90-head"><div><div class="lote-v90-folio">📦 ${esc(l.folio||l.id)} ${inicial?'· Inventario inicial':''}</div><small>${esc(new Date(l.fecha_compra||l.created_at).toLocaleString('es-MX'))} · ${esc(l.proveedor||'Sin lugar')}</small></div><span class="lote-v90-chip">${inicial?'INICIAL':esc(estado.toUpperCase())}</span></div>
+        <div class="lote-v90-grid"><div class="lote-v90-box">Inversión<b>${money(inversion)}</b></div><div class="lote-v90-box">Recuperado<b>${money(rec)}</b></div><div class="lote-v90-box">Ganancia<b>${money(gan)}</b></div></div>
+        <small>Avance recuperación: <b>${pct}%</b>${l.nota?' · Nota: '+esc(l.nota):''}</small>
+        <details><summary>👁 Ver detalle (${d.length})</summary><div class="lote-v90-det">${d.length?d.map(x=>'• '+esc(x.ingredientes?.nombre||x.ingrediente_nombre||'Producto')+': inicial '+n(x.cantidad_inicial).toFixed(1)+' · disponible '+n(x.cantidad_disponible).toFixed(1)+' · costo '+money(x.costo_unitario)+' · '+(x.caduca_rapido?'FEFO/caduca rápido':'FIFO/dura más')).join('<br>'):'Sin detalle leído.'}</div></details>
+      </div>`;
+    }
+    cont.className='';
+    cont.innerHTML=`${lote0?'<h3>📦 Inventario inicial</h3>'+cardHTML(lote0):'<div class="warn">Falta crear el <b>LOTE-0000</b>.</div>'}
+      <h3>🟡 Lotes abiertos</h3>${abiertos.length?abiertos.map(cardHTML).join(''):'<div class="ok">No hay lotes abiertos nuevos todavía.</div>'}
+      <details open><summary class="inv863-section-title inv863-verde">📚 Historial / todos los lotes (${lotes.length})</summary>${lotes.map(cardHTML).join('')}</details>`;
+  };
+
+  window.crearLote0000V9=async function(manual){
+    if(!dbOK()) return alert('No hay conexión con Supabase.');
+    let existe=await db.from('lotes_compra').select('id,folio').eq('folio','LOTE-0000').maybeSingle();
+    if(existe.error && !String(existe.error.message||'').includes('multiple')){alert('No pude revisar LOTE-0000: '+existe.error.message);return;}
+    if(existe.data){ if(manual) alert('El LOTE-0000 ya existe. Solo se crea una vez.'); await renderLotesCompraV90(); return; }
+    if(typeof cargarIngredientes==='function') await cargarIngredientes();
+    let actuales=(window.ingredientes||[]).filter(i=>i&&i.activo!==false&&n(i.cantidad)>0);
+    if(!actuales.length){ if(manual) alert('No encontré inventario actual con existencia mayor a 0.'); return; }
+    if(manual && !confirm('Se creará el LOTE-0000 con TODO el inventario actual. No sube ni baja existencias, solo las etiqueta como inventario inicial. ¿Continuar?')) return;
+    let total=actuales.reduce((s,i)=>s+n(i.cantidad)*n(i.costo_unitario),0);
+    let u=window.usuarioLogueado||{};
+    let ins=await db.from('lotes_compra').insert({folio:'LOTE-0000',usuario_id:u.id||null,proveedor:'Inventario existente',nota:'Inventario inicial antes de usar lotes V9. Este lote no se edita; sirve para transición.',inversion_total:total,recuperado:0,ganancia:0,estado:'inicial',fecha_compra:new Date().toISOString()}).select('id,folio').maybeSingle();
+    if(ins.error){alert('No pude crear LOTE-0000. Ejecuta el SQL oficial y revisa permisos.\n\n'+ins.error.message);return;}
+    let lote=ins.data;
+    for(const i of actuales){
+      let cant=n(i.cantidad), cu=n(i.costo_unitario), costo=cant*cu, per=esPerecederoV9(i.nombre);
+      let di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:i.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'});
+      if(di.error){console.warn('detalle lote0000',i.nombre,di.error.message)}
+    }
+    try{if(typeof auditoria==='function') await auditoria('LOTE_0000_MIGRACION','Se creó LOTE-0000 con inventario inicial',{productos:actuales.length,total_estimado:total})}catch(e){}
+    localStorage.setItem(LS_MIG,'1');
+    await renderLotesCompraV90();
+    if(typeof notificar==='function') notificar('📦 LOTE-0000 creado','Inventario inicial etiquetado: '+actuales.length+' productos','ok'); else alert('LOTE-0000 creado con '+actuales.length+' productos.');
+  };
+
+  window.registrarCarritoSurtidoV863=async function(btn){
+    if(typeof validarPermiso==='function'&&!validarPermiso('compras','Necesitas permiso de compras.'))return;
+    let u=window.usuarioLogueado; if(!u)return alert('Entra con PIN.');
+    if(!dbOK())return alert('No hay conexión con Supabase.');
+    let c=cart(); if(!c.length)return alert('El carrito está vacío.');
+    for(const x of c){if(n(x.cantidad)<=0)return alert('Revisa cantidad en '+(x.nombre||'producto')); if(n(x.costo_total)<=0)return alert('Revisa costo total en '+(x.nombre||'producto'))}
+    let tienda=($('proveedorCompraV87')?.value||localStorage.getItem(LS_PROV)||'').trim();
+    let nota=($('notaCompraV87')?.value||localStorage.getItem(LS_NOTA)||'').trim();
+    if(!tienda&&!confirm('No escribiste lugar/proveedor. ¿Continuar sin lugar?'))return;
+    if(!confirm('¿Guardar este carrito como LOTE nuevo y agregarlo al inventario?'))return;
+    if(btn){btn.disabled=true;btn.textContent='Creando lote...'}
+    try{
+      if(typeof cargarIngredientes==='function')await cargarIngredientes();
+      let folio=await siguienteFolioOficialV9();
+      if(folio==='LOTE-0000') folio='LOTE-0001';
+      let fecha=new Date().toISOString(), total=totalCart();
+      let loteIns=await db.from('lotes_compra').insert({folio,usuario_id:u.id,proveedor:tienda,nota,inversion_total:total,recuperado:0,ganancia:0,estado:'activo',fecha_compra:fecha}).select('id,folio').maybeSingle();
+      if(loteIns.error)throw new Error('No se pudo crear lote. Ejecuta el SQL oficial. Detalle: '+loteIns.error.message);
+      let lote=loteIns.data;
+      for(const x of c){
+        let ing=ingById(x.id); if(!ing)continue;
+        let cant=n(x.cantidad), costo=n(x.costo_total), cu=cant?costo/cant:0, nueva=n(ing.cantidad)+cant;
+        let up=await db.from('ingredientes').update({cantidad:nueva,costo_unitario:cu}).eq('id',ing.id); if(up.error)throw new Error((ing.nombre||'Ingrediente')+': '+up.error.message);
+        let per=esPerecederoV9(ing.nombre||x.nombre);
+        let di=await db.from('lote_detalle').insert({lote_id:lote.id,ingrediente_id:ing.id,cantidad_inicial:cant,cantidad_disponible:cant,costo_unitario:cu,costo_total:costo,caduca_rapido:per,estrategia_salida:per?'FEFO':'FIFO',estado:'activo'}); if(di.error)throw new Error('Detalle de lote '+(ing.nombre||'')+': '+di.error.message);
+        try{await db.from('compras').insert({usuario_id:u.id,ingrediente_id:ing.id,cantidad:cant,costo_total:costo,costo_unitario:cu,tienda,nota,fecha_compra:fecha,lote_id:lote.id,folio_lote:lote.folio})}catch(e){}
+        try{await db.from('movimientos_inventario').insert({usuario_id:u.id,ingrediente_id:ing.id,tipo:'compra',cantidad:cant,motivo:'Lote '+lote.folio+(tienda?' · '+tienda:''),referencia:lote.folio})}catch(e){}
+      }
+      saveCart([]); localStorage.setItem(LS_PROV,tienda); localStorage.setItem(LS_NOTA,nota); if($('notaCompraV87'))$('notaCompraV87').value='';
+      if(typeof cargarIngredientes==='function')await cargarIngredientes(); if(typeof render==='function')render(); try{if(typeof renderInventarioSurtidoV863==='function')renderInventarioSurtidoV863()}catch(e){}
+      await renderLotesCompraV90(); if(typeof notificar==='function')notificar('📦 Lote creado',folio+' · '+money(total),'ok'); else alert('Lote creado: '+folio+' · '+money(total));
+    }catch(e){alert('Error guardando lote: '+(e.message||e))}
+    finally{if(btn){btn.disabled=false;btn.textContent='📦 Guardar como lote y agregar inventario'}}
+  };
+
+  function cambiarBoton(){document.querySelectorAll('button').forEach(b=>{let t=(b.textContent||'').trim(); if(t.includes('Compra hecha')||t.includes('Guardar como lote')){b.textContent='📦 Guardar como lote y agregar inventario';b.className='btn-verde';b.onclick=function(){registrarCarritoSurtidoV863(this)}}})}
+  let oldRender=window.renderInventarioSurtidoV863; if(typeof oldRender==='function'&&!window.renderInventarioLoteOficialEnvuelto){window.renderInventarioSurtidoV863=function(){let r=oldRender.apply(this,arguments);setTimeout(cambiarBoton,30);return r};window.renderInventarioLoteOficialEnvuelto=true}
+  let oldVer=window.verTab; if(typeof oldVer==='function'&&!window.verTabLoteOficialEnvuelto){window.verTab=function(id,btn){let r=oldVer.apply(this,arguments);setTimeout(()=>{cambiarBoton(); if(id==='inventario'){asegurarPanelLotesOficialV9();renderLotesCompraV90()}},180);return r};window.verTabLoteOficialEnvuelto=true}
+  window.addEventListener('load',()=>setTimeout(async()=>{asegurarPanelLotesOficialV9(); cambiarBoton(); try{await renderLotesCompraV90()}catch(e){} if(!localStorage.getItem(LS_MIG)){try{let r=await db.from('lotes_compra').select('id').eq('folio','LOTE-0000').maybeSingle(); if(!r.data){localStorage.setItem(LS_MIG,'preguntado'); if(confirm('V9 oficial: se detectó que aún no existe el LOTE-0000. ¿Crear ahora el inventario inicial con las existencias actuales?')){await crearLote0000V9(false)}}}catch(e){}}},2600));
 })();
 </script>
