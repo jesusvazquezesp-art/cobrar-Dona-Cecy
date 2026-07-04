@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V8.9.3</title>
+<title>Puesto Doña Cecy V10 PUSH</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V8.9.3</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V8.9.3 · Inversión mensual y acumulada</p>
+  <h1>🥤 Puesto Doña Cecy V10 PUSH</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V10 PUSH · Notificaciones Android</p>
 </header>
 
 <div class="tabs">
@@ -10819,174 +10819,212 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 @media(max-width:520px){.v893-inversion-boxes{grid-template-columns:1fr}.v893-inversion-boxes b{font-size:22px}}
 </style>
 
-<script type="module" id="push-v9-firebase">
-/* ===== V9 Push Notifications Android / Firebase + Supabase ===== */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging.js";
+<!-- ===== V10 Firebase Push Notifications Android - compat estable ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+<script id="push-v10-firebase">
+/* ===== V10 Push Notifications Android / Firebase + Supabase ===== */
+(function(){
+  const FIREBASE_CONFIG_V10 = {
+    apiKey: "AIzaSyCdKLeXKOTStj0nXy2CgcTA_K1GC7k8gBE",
+    authDomain: "punto-de-ventas-85e14.firebaseapp.com",
+    projectId: "punto-de-ventas-85e14",
+    storageBucket: "punto-de-ventas-85e14.firebasestorage.app",
+    messagingSenderId: "147922761717",
+    appId: "1:147922761717:web:71ee644f27009bef8c12bc",
+    measurementId: "G-HVK5L1S0WS"
+  };
+  const VAPID_KEY_V10 = "BLbz4xH1JGZGH7M6nx0qa_6ql22s_M1pihOrNMDqTA6xPfqhsuLteBgahxQzeoubUlKqvvJoeh7U4sVs9ehOUtc";
+  const PUSH_DEVICE_TABLE_V10 = "dispositivos_push";
+  const PUSH_FUNCTION_V10 = "enviar-push";
 
-const FIREBASE_CONFIG_V9 = {
-  apiKey: "AIzaSyCdKLeXKOTStj0nXy2CgcTA_K1GC7k8gBE",
-  authDomain: "punto-de-ventas-85e14.firebaseapp.com",
-  projectId: "punto-de-ventas-85e14",
-  storageBucket: "punto-de-ventas-85e14.firebasestorage.app",
-  messagingSenderId: "147922761717",
-  appId: "1:147922761717:web:71ee644f27009bef8c12bc",
-  measurementId: "G-HVK5L1S0WS"
-};
-const VAPID_KEY_V9 = "BLbz4xH1JGZGH7M6nx0qa_6ql22s_M1pihOrNMDqTA6xPfqhsuLteBgahxQzeoubUlKqvvJoeh7U4sVs9ehOUtc";
-const PUSH_DEVICE_TABLE_V9 = "dispositivos_push";
-const PUSH_FUNCTION_V9 = "enviar-push";
+  let messagingV10 = null;
+  let pushTokenV10 = localStorage.getItem("cecy_push_token_v10") || localStorage.getItem("cecy_push_token_v9") || "";
 
-let firebaseAppV9 = null;
-let messagingV9 = null;
-let pushTokenV9 = localStorage.getItem("cecy_push_token_v9") || "";
-
-function pushEstadoV9(msg, tipo="info"){
-  const el = document.getElementById("estadoPushV9");
-  if(el){ el.className = tipo === "ok" ? "ok" : (tipo === "error" ? "alerta" : "info"); el.innerHTML = msg; }
-}
-
-async function asegurarFirebaseV9(){
-  const ok = await isSupported().catch(()=>false);
-  if(!ok) throw new Error("Este navegador no soporta Firebase Messaging. En Android usa Chrome y la app instalada como PWA.");
-  if(!firebaseAppV9) firebaseAppV9 = initializeApp(FIREBASE_CONFIG_V9);
-  if(!messagingV9) messagingV9 = getMessaging(firebaseAppV9);
-  return messagingV9;
-}
-
-async function asegurarSupabaseV9(){
-  if(!window.db && typeof window.iniciarSupabase === "function") window.iniciarSupabase();
-  if(!window.db && window.supabase && window.SUPABASE_URL && window.SUPABASE_KEY){
-    window.db = window.supabase.createClient(window.SUPABASE_URL, String(window.SUPABASE_KEY).trim());
-  }
-  if(!window.db) throw new Error("No se pudo iniciar Supabase.");
-  return window.db;
-}
-
-function nombreDispositivoV9(nombreManual){
-  const u = window.usuarioLogueado || (typeof window.usuarioActual === "function" ? window.usuarioActual() : null);
-  return nombreManual || localStorage.getItem("cecy_push_nombre_v9") || (u?.nombre ? `${u.nombre} Android` : "Android Punto de Ventas");
-}
-
-async function guardarTokenSupabaseV9(token, nombreManual=""){
-  const db = await asegurarSupabaseV9();
-  const nombre = nombreDispositivoV9(nombreManual);
-  localStorage.setItem("cecy_push_nombre_v9", nombre);
-  localStorage.setItem("cecy_push_token_v9", token);
-
-  const existente = await db.from(PUSH_DEVICE_TABLE_V9).select("id").eq("token", token).maybeSingle();
-  if(existente.error && existente.error.code !== "PGRST116") throw existente.error;
-
-  if(existente.data?.id){
-    const {error} = await db.from(PUSH_DEVICE_TABLE_V9).update({nombre, activo:true}).eq("id", existente.data.id);
-    if(error) throw error;
-  }else{
-    const {error} = await db.from(PUSH_DEVICE_TABLE_V9).insert({nombre, token, activo:true});
-    if(error) throw error;
-  }
-  return nombre;
-}
-
-window.activarNotificacionesPushV9 = async function activarNotificacionesPushV9(){
-  try{
-    pushEstadoV9("⏳ Activando notificaciones push...", "info");
-    if(!("Notification" in window)) throw new Error("Este navegador no soporta notificaciones.");
-
-    const permiso = await Notification.requestPermission();
-    if(permiso !== "granted") throw new Error("Permiso de notificaciones no autorizado.");
-
-    const swReg = await navigator.serviceWorker.register("./firebase-messaging-sw.js", {scope:"./"});
-    const messaging = await asegurarFirebaseV9();
-    const token = await getToken(messaging, {vapidKey: VAPID_KEY_V9, serviceWorkerRegistration: swReg});
-    if(!token) throw new Error("Firebase no regresó token del dispositivo.");
-
-    pushTokenV9 = token;
-    const nombre = await guardarTokenSupabaseV9(token);
-    pushEstadoV9(`✅ Notificaciones activadas en <b>${nombre}</b>.`, "ok");
-    if(typeof window.notificar === "function") window.notificar("🔔 PUSH ACTIVADO", "Este Android ya recibirá avisos.", "ok", true);
-    await window.enviarPushV9("🔔 Prueba de notificación", `Dispositivo activado: ${nombre}`, "info", {tipo:"prueba"});
-    return token;
-  }catch(e){
-    pushEstadoV9("❌ " + (e.message || e), "error");
-    alert("No se pudo activar Push: " + (e.message || e));
-    return null;
-  }
-};
-
-window.enviarPushV9 = async function enviarPushV9(titulo, detalle="", tipo="info", data={}){
-  try{
-    const url = `${window.SUPABASE_URL}/functions/v1/${PUSH_FUNCTION_V9}`;
-    const resp = await fetch(url, {
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "apikey": window.SUPABASE_KEY,
-        "Authorization": `Bearer ${window.SUPABASE_KEY}`
-      },
-      body: JSON.stringify({titulo, detalle, tipo, data})
-    });
-    const txt = await resp.text();
-    if(!resp.ok) throw new Error(txt || `HTTP ${resp.status}`);
-    return true;
-  }catch(e){
-    console.warn("No se pudo enviar push", e);
-    return false;
-  }
-};
-
-// Envía Push cuando la app registra notificaciones importantes.
-const notificarOriginalV9 = window.notificar;
-window.notificar = function(titulo, detalle="", tipo="info", sonar=true){
-  try{ if(typeof notificarOriginalV9 === "function") notificarOriginalV9(titulo, detalle, tipo, sonar); }catch(e){}
-  try{
-    const t = String(tipo||"").toLowerCase();
-    const texto = String(titulo||"").toLowerCase();
-    const importante = ["venta","pedido","warn","error","sync"].includes(t) || texto.includes("pedido") || texto.includes("venta") || texto.includes("inventario");
-    if(importante && !window.__pushEnviandoV9){
-      window.__pushEnviandoV9 = true;
-      setTimeout(()=>{ window.__pushEnviandoV9=false; }, 800);
-      window.enviarPushV9(titulo, detalle, tipo, {url: location.href, fecha:new Date().toISOString()});
+  function pushEstadoV10(msg, tipo){
+    const el = document.getElementById("estadoPushV9") || document.getElementById("estadoPushV10");
+    if(el){
+      el.className = tipo === "ok" ? "ok" : (tipo === "error" ? "alerta" : "info");
+      el.innerHTML = msg;
     }
-  }catch(e){}
-};
+  }
 
-// Mensajes recibidos mientras la app está abierta.
-asegurarFirebaseV9().then(messaging=>{
-  onMessage(messaging, payload=>{
-    const n = payload.notification || {};
-    if(typeof window.notificar === "function") window.notificar(n.title || "🔔 Notificación", n.body || "", "info", true);
-  });
-}).catch(()=>{});
+  function pushErrorAmigableV10(e){
+    const msg = String(e && (e.message || e) || "Error desconocido");
+    if(msg.includes("token-subscribe-failed") || msg.includes("authentication credential")){
+      return "Firebase rechazó el registro del teléfono. Revisa que estés en el proyecto Punto de Ventas, que FCM Registration API esté habilitada, que el dominio jesusvazquezesp-art.github.io esté autorizado y espera 5 minutos después de habilitar las APIs.";
+    }
+    if(msg.includes("messaging/permission-blocked")) return "El navegador bloqueó las notificaciones. En Chrome entra al candado de la página y permite Notificaciones.";
+    if(msg.includes("messaging/unsupported-browser")) return "Este navegador no soporta Push. En Android usa Chrome actualizado.";
+    if(msg.includes("messaging/invalid-vapid-key")) return "La VAPID Key no coincide con Firebase. Hay que copiar la clave actual de Cloud Messaging.";
+    return msg;
+  }
 
-// Recordatorios de horario mientras la app está abierta. Para app cerrada se usa la Edge Function recordatorios-horario.
-let avisosHorarioV9 = {};
-function fechaKeyJuarezV9(){
-  const tz = window.TZ_JUAREZ || "America/Ciudad_Juarez";
-  return new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-}
-window.revisarRecordatoriosHorarioV9 = function revisarRecordatoriosHorarioV9(){
-  try{
-    if(typeof window.fechaJuarezPartesV84 !== "function" || typeof window.horarioPuestoV84 !== "function") return;
-    const {weekday,minutos} = window.fechaJuarezPartesV84();
-    const h = window.horarioPuestoV84(weekday);
-    if(!h) return;
-    const keyDia = fechaKeyJuarezV9();
-    const faltanAbrir = h.abre - minutos;
-    const faltanCerrar = h.cierra - minutos;
-    if(faltanAbrir >= 29 && faltanAbrir <= 30 && avisosHorarioV9[`abrir_${keyDia}`] !== true){
-      avisosHorarioV9[`abrir_${keyDia}`] = true;
-      window.notificar("🟡 En 30 minutos abre el negocio", "Ve preparando mesas, hielera, vasos, tapas, popotes e inventario rápido.", "warn", true);
+  async function asegurarFirebaseV10(){
+    if(!("firebase" in window)) throw new Error("No cargó Firebase. Revisa conexión a internet o bloqueador de scripts.");
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG_V10);
+    if(!firebase.messaging.isSupported || !firebase.messaging.isSupported()){
+      throw new Error("Este navegador no soporta Firebase Messaging. En Android usa Chrome actualizado.");
     }
-    if(faltanCerrar >= 29 && faltanCerrar <= 30 && avisosHorarioV9[`cerrar_${keyDia}`] !== true){
-      avisosHorarioV9[`cerrar_${keyDia}`] = true;
-      window.notificar("🔴 En 30 minutos cierra el negocio", "Ve preparando corte, pedidos pendientes e inventario sensible.", "warn", true);
+    if(!messagingV10) messagingV10 = firebase.messaging();
+    return messagingV10;
+  }
+
+  async function asegurarSupabaseV10(){
+    if(!window.db && typeof window.iniciarSupabase === "function") window.iniciarSupabase();
+    if(!window.db && window.supabase && window.SUPABASE_URL && window.SUPABASE_KEY){
+      window.db = window.supabase.createClient(window.SUPABASE_URL, String(window.SUPABASE_KEY).trim());
     }
-  }catch(e){}
-};
-window.addEventListener("load",()=>{
-  setTimeout(()=>{ try{ window.revisarRecordatoriosHorarioV9(); }catch(e){} }, 2500);
-  setInterval(()=>{ try{ window.revisarRecordatoriosHorarioV9(); }catch(e){} }, 60000);
-});
+    if(!window.db) throw new Error("No se pudo iniciar Supabase.");
+    return window.db;
+  }
+
+  function nombreDispositivoV10(nombreManual){
+    const u = window.usuarioLogueado || (typeof window.usuarioActual === "function" ? window.usuarioActual() : null);
+    return nombreManual || localStorage.getItem("cecy_push_nombre_v10") || localStorage.getItem("cecy_push_nombre_v9") || (u && u.nombre ? `${u.nombre} Android` : "Android Punto de Ventas");
+  }
+
+  async function guardarTokenSupabaseV10(token, nombreManual){
+    const db = await asegurarSupabaseV10();
+    const nombre = nombreDispositivoV10(nombreManual || "");
+    localStorage.setItem("cecy_push_nombre_v10", nombre);
+    localStorage.setItem("cecy_push_token_v10", token);
+    localStorage.setItem("cecy_push_token_v9", token);
+
+    const payload = {
+      nombre,
+      token,
+      activo:true,
+      plataforma:"web-android",
+      user_agent:navigator.userAgent,
+      ultimo_registro:new Date().toISOString()
+    };
+
+    const existente = await db.from(PUSH_DEVICE_TABLE_V10).select("id").eq("token", token).maybeSingle();
+    if(existente.error && existente.error.code !== "PGRST116") throw existente.error;
+
+    if(existente.data && existente.data.id){
+      const {error} = await db.from(PUSH_DEVICE_TABLE_V10).update(payload).eq("id", existente.data.id);
+      if(error) throw error;
+    }else{
+      const {error} = await db.from(PUSH_DEVICE_TABLE_V10).insert(payload);
+      if(error) throw error;
+    }
+    return nombre;
+  }
+
+  async function registrarServiceWorkerFirebaseV10(){
+    if(!("serviceWorker" in navigator)) throw new Error("Este navegador no soporta service workers.");
+    const reg = await navigator.serviceWorker.register("./firebase-messaging-sw.js", {scope:"./"});
+    await navigator.serviceWorker.ready;
+    return reg;
+  }
+
+  window.activarNotificacionesPushV9 = window.activarNotificacionesPushV10 = async function activarNotificacionesPushV10(){
+    try{
+      pushEstadoV10("⏳ Activando notificaciones push...", "info");
+      if(!("Notification" in window)) throw new Error("Este navegador no soporta notificaciones.");
+      if(!window.isSecureContext) throw new Error("Las notificaciones requieren HTTPS. Abre la app desde GitHub Pages, no desde archivo local.");
+
+      const permiso = await Notification.requestPermission();
+      if(permiso !== "granted") throw new Error("Permiso de notificaciones no autorizado.");
+
+      const swReg = await registrarServiceWorkerFirebaseV10();
+      const messaging = await asegurarFirebaseV10();
+      const token = await messaging.getToken({vapidKey: VAPID_KEY_V10, serviceWorkerRegistration: swReg});
+      if(!token) throw new Error("Firebase no regresó token del dispositivo.");
+
+      pushTokenV10 = token;
+      const nombre = await guardarTokenSupabaseV10(token);
+      pushEstadoV10(`✅ Notificaciones activadas en <b>${nombre}</b>.`, "ok");
+      if(typeof window.notificar === "function") window.notificar("🔔 PUSH ACTIVADO", "Este Android ya recibirá avisos.", "ok", true);
+      setTimeout(()=>window.enviarPushV10("🔔 Prueba de notificación", `Dispositivo activado: ${nombre}`, "info", {tipo:"prueba"}), 900);
+      return token;
+    }catch(e){
+      const amigable = pushErrorAmigableV10(e);
+      pushEstadoV10("❌ " + amigable, "error");
+      alert("No se pudo activar Push: " + amigable);
+      console.error("Push V10 error", e);
+      return null;
+    }
+  };
+
+  window.enviarPushV9 = window.enviarPushV10 = async function enviarPushV10(titulo, detalle, tipo, data){
+    try{
+      if(!window.SUPABASE_URL || !window.SUPABASE_KEY) return false;
+      const url = `${window.SUPABASE_URL}/functions/v1/${PUSH_FUNCTION_V10}`;
+      const resp = await fetch(url, {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "apikey": window.SUPABASE_KEY,
+          "Authorization": `Bearer ${window.SUPABASE_KEY}`
+        },
+        body: JSON.stringify({titulo, detalle: detalle||"", tipo: tipo||"info", data: data||{}})
+      });
+      const txt = await resp.text();
+      if(!resp.ok) throw new Error(txt || `HTTP ${resp.status}`);
+      return true;
+    }catch(e){
+      console.warn("No se pudo enviar push", e);
+      return false;
+    }
+  };
+
+  const notificarOriginalV10 = window.notificar;
+  window.notificar = function(titulo, detalle, tipo, sonar){
+    try{ if(typeof notificarOriginalV10 === "function") notificarOriginalV10(titulo, detalle, tipo, sonar); }catch(e){}
+    try{
+      const t = String(tipo||"").toLowerCase();
+      const texto = (String(titulo||"") + " " + String(detalle||"")).toLowerCase();
+      const importante = ["venta","pedido","warn","error","sync"].includes(t) || /pedido|venta|inventario|corte|abr(e|ir)|cierr(a|e)|agot/.test(texto);
+      if(importante && !window.__pushEnviandoV10){
+        window.__pushEnviandoV10 = true;
+        setTimeout(()=>{ window.__pushEnviandoV10=false; }, 1200);
+        window.enviarPushV10(titulo, detalle, tipo, {url: location.href, fecha:new Date().toISOString()});
+      }
+    }catch(e){}
+  };
+
+  // Mensajes recibidos mientras la app está abierta.
+  setTimeout(async ()=>{
+    try{
+      const messaging = await asegurarFirebaseV10();
+      messaging.onMessage(payload=>{
+        const n = payload.notification || {};
+        if(typeof window.notificar === "function") window.notificar(n.title || "🔔 Notificación", n.body || "", "info", true);
+      });
+    }catch(e){}
+  }, 1200);
+
+  // Recordatorios locales mientras la app está abierta. Para app cerrada se usa Edge Function recordatorios-horario.
+  let avisosHorarioV10 = {};
+  function fechaKeyJuarezV10(){
+    const tz = window.TZ_JUAREZ || "America/Ciudad_Juarez";
+    return new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  }
+  window.revisarRecordatoriosHorarioV9 = window.revisarRecordatoriosHorarioV10 = function revisarRecordatoriosHorarioV10(){
+    try{
+      if(typeof window.fechaJuarezPartesV84 !== "function" || typeof window.horarioPuestoV84 !== "function") return;
+      const p = window.fechaJuarezPartesV84();
+      const h = window.horarioPuestoV84(p.weekday);
+      if(!h) return;
+      const keyDia = fechaKeyJuarezV10();
+      const faltanAbrir = h.abre - p.minutos;
+      const faltanCerrar = h.cierra - p.minutos;
+      if(faltanAbrir >= 29 && faltanAbrir <= 30 && avisosHorarioV10[`abrir_${keyDia}`] !== true){
+        avisosHorarioV10[`abrir_${keyDia}`] = true;
+        window.notificar("🟡 En 30 minutos abre el negocio", "Ve preparando mesas, hielera, vasos, tapas, popotes e inventario rápido.", "warn", true);
+      }
+      if(faltanCerrar >= 29 && faltanCerrar <= 30 && avisosHorarioV10[`cerrar_${keyDia}`] !== true){
+        avisosHorarioV10[`cerrar_${keyDia}`] = true;
+        window.notificar("🔴 En 30 minutos cierra el negocio", "Ve preparando corte, inventario y limpieza final.", "warn", true);
+      }
+    }catch(e){}
+  };
+  setInterval(()=>{try{window.revisarRecordatoriosHorarioV10()}catch(e){}}, 60000);
+  setTimeout(()=>{try{window.revisarRecordatoriosHorarioV10()}catch(e){}}, 2500);
+})();
 </script>
 
 </body>
