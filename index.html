@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V10 PUSH</title>
+<title>Puesto Doña Cecy V11 Caja Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V10 PUSH</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V10 PUSH · Notificaciones Android</p>
+  <h1>🥤 Puesto Doña Cecy V11 Caja Pro</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V11 Caja Pro · Histórico, retiros y notificaciones</p>
 </header>
 
 <div class="tabs">
@@ -1266,6 +1266,49 @@ th{background:#fafafa}
     <h2>📊 Números generales</h2>
     <button class="btn-morado" onclick="cargarReporteHoy()">Actualizar reportes</button>
     <div id="reporteGeneral"></div>
+    <div id="reporteInicioNegocioV10"></div>
+    <div id="reporteCajaV11" class="warn">💵 Caja V11 pendiente de calcular.</div>
+  </div>
+
+  <div class="card" id="retirosCajaV10Card">
+    <h2>💵 Retiros de caja</h2>
+    <div class="info">Registra dinero que sale de caja para sueldo, surtido u otro motivo. <b>Ojo:</b> si ya registraste una compra desde el carrito de surtido, no la registres otra vez como retiro de surtido para no duplicar.</div>
+    <label>Tipo de retiro</label>
+    <select id="retiroTipoV10">
+      <option value="sueldo">Pago de sueldo</option>
+      <option value="surtido">Surtir / compra rápida</option>
+      <option value="prestamo">Préstamo / retiro personal</option>
+      <option value="gasto">Gasto del negocio</option>
+      <option value="otro">Otro</option>
+    </select>
+    <label>Monto retirado</label>
+    <input type="number" id="retiroMontoV10" placeholder="Ejemplo: 500" step="0.01" inputmode="decimal">
+    <label>Motivo / nota</label>
+    <input id="retiroMotivoV10" placeholder="Ejemplo: sueldo Diana, surtido hielo, gasolina">
+    <button class="btn-rojo" onclick="registrarRetiroCajaV10(this)">💸 Registrar retiro de caja</button>
+    <button class="btn-morado" onclick="cargarRetirosCajaV10()">🔄 Actualizar retiros</button>
+    <div id="retirosCajaResumenV10" class="warn">Sin cargar.</div>
+    <div id="retirosCajaListaV10"></div>
+  </div>
+
+  <div class="card" id="movimientosCajaV11Card">
+    <h2>🏦 Fondo inicial / ajustes de caja</h2>
+    <div class="info">Úsalo para capturar dinero que entra a caja sin ser venta, por ejemplo <b>fondo inicial</b>, cambio agregado o una corrección. Para dinero que sale usa <b>Retiros de caja</b>.</div>
+    <label>Tipo de movimiento</label>
+    <select id="movCajaTipoV11">
+      <option value="fondo_inicial">Fondo inicial</option>
+      <option value="entrada_extra">Entrada extra</option>
+      <option value="ajuste_positivo">Ajuste positivo</option>
+      <option value="ajuste_negativo">Ajuste negativo</option>
+    </select>
+    <label>Monto</label>
+    <input type="number" id="movCajaMontoV11" placeholder="Ejemplo: 1000" step="0.01" inputmode="decimal">
+    <label>Motivo / nota</label>
+    <input id="movCajaMotivoV11" placeholder="Ejemplo: fondo inicial de caja, cambio agregado, corrección">
+    <button class="btn-verde" onclick="registrarMovimientoCajaV11(this)">🏦 Registrar ajuste de caja</button>
+    <button class="btn-morado" onclick="cargarMovimientosCajaV11()">🔄 Actualizar ajustes</button>
+    <div id="movCajaResumenV11" class="warn">Sin cargar.</div>
+    <div id="movCajaListaV11"></div>
   </div>
   <div class="card">
     <h2>🧾 Corte por productos</h2>
@@ -6749,6 +6792,122 @@ function htmlTop10VendidosV9(){
 })();
 </script>
 
+
+
+<style id="css-v11-caja-pro">
+.v11-caja-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}
+.v11-caja-box{background:#fff;border:2px solid #e1bee7;border-radius:18px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);text-align:center;color:#4a1249}
+.v11-caja-box b{font-size:24px;color:#1b5e20;display:block;margin-top:4px}
+.v11-caja-box.neg b{color:#b71c1c}.v11-caja-box.azul{background:#e3f2fd;border-color:#90caf9;color:#0d47a1}.v11-caja-box.warnbox{background:#fff8e1;border-color:#ffcc80;color:#e65100}
+.v11-mov-item{border:1px solid #eee;border-left:6px solid #43a047;border-radius:14px;background:#fff;padding:10px;margin:8px 0}
+.v11-mov-item.neg{border-left-color:#e53935;background:#ffebee}.v11-mov-item b{color:#1b5e20}.v11-mov-item.neg b{color:#b71c1c}
+.v11-nota{background:#e3f2fd;color:#0d47a1;border-radius:14px;padding:10px;margin:8px 0;font-size:13px}
+@media(max-width:520px){.v11-caja-grid{grid-template-columns:1fr}.v11-caja-box b{font-size:22px}}
+</style>
+
+<script id="js-v11-caja-pro">
+/* ===== V11 Caja Pro: histórico, fondo inicial, retiros y caja disponible ===== */
+(function(){
+  const VERSION='V11 Caja Pro';
+  function mx(v){ return '$' + Number(v||0).toFixed(2); }
+  function num(v){ return Number(String(v??'0').replace(',','.')) || 0; }
+  function esc(s){ return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]}); }
+  function fkey(f){ try{return (typeof fechaJuarezKey==='function')?fechaJuarezKey(f):new Date(f).toISOString().slice(0,10);}catch(e){return String(f||'').slice(0,10);} }
+  function mkey(f){ try{return (typeof mesJuarezKey==='function')?mesJuarezKey(f):fkey(f).slice(0,7);}catch(e){return fkey(f).slice(0,7);} }
+  function skey(f){ try{return (typeof semanaJuarezKey==='function')?semanaJuarezKey(f):fkey(f);}catch(e){return fkey(f);} }
+  function user(){ try{return (typeof usuarioActual==='function'?usuarioActual():null) || window.usuarioLogueado || null;}catch(e){return window.usuarioLogueado||null;} }
+  function dbok(){ try{ if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db; }catch(e){return false;} }
+  async function all(tabla, select, opts){
+    opts=opts||{}; var out=[], from=0, size=1000;
+    while(true){
+      var q=window.db.from(tabla).select(select).range(from,from+size-1);
+      if(opts.order) q=q.order(opts.order[0], opts.order[1]||{ascending:false});
+      if(opts.in) q=q.in(opts.in[0], opts.in[1]);
+      var r=await q; if(r.error) throw r.error;
+      var d=r.data||[]; out=out.concat(d); if(d.length<size) break; from+=size; if(from>30000) break;
+    }
+    return out;
+  }
+  function ventaValida(v){ var e=String(v?.pedidos?.estado||'vendido').toLowerCase(); return e!=='anulada' && e!=='cancelado'; }
+  async function detalles(ids){
+    ids=[...new Set((ids||[]).filter(Boolean))]; var out=[];
+    for(var i=0;i<ids.length;i+=500){ var r=await window.db.from('pedido_detalle').select('pedido_id,producto_id,cantidad,subtotal').in('pedido_id',ids.slice(i,i+500)); if(r.error) throw r.error; out=out.concat(r.data||[]); }
+    return out;
+  }
+  function costosPorProducto(recetas){ var m={}; (recetas||[]).forEach(r=>{m[r.producto_id]=(m[r.producto_id]||0)+num(r.cantidad)*num(r.ingredientes?.costo_unitario)}); return m; }
+  function costoVentas(ventas,dets,costos){ var p=new Set(ventas.map(v=>String(v.pedido_id||''))); return dets.filter(d=>p.has(String(d.pedido_id||''))).reduce((s,d)=>s+num(d.cantidad)*num(costos[d.producto_id]||0),0); }
+  async function leerCompras(){ try{return await all('compras','id,costo_total,fecha_compra,fecha_creacion,tienda,nota',{order:['fecha_compra',{ascending:false}]});}catch(e){console.warn('Compras no disponibles',e);return [];} }
+  async function leerRetiros(){ try{return await all('retiros_caja','id,tipo,monto,motivo,fecha_creacion,usuarios(nombre)',{order:['fecha_creacion',{ascending:false}]});}catch(e){console.warn('Retiros no disponibles',e);return [];} }
+  async function leerMovs(){ try{return await all('caja_movimientos','id,tipo,monto,motivo,fecha_creacion,usuarios(nombre)',{order:['fecha_creacion',{ascending:false}]});}catch(e){console.warn('Movimientos de caja no disponibles',e);return [];} }
+  function netoMov(m){ var tipo=String(m.tipo||'').toLowerCase(); var val=num(m.monto); return tipo.includes('negativo')||tipo.includes('salida') ? -val : val; }
+
+  window.cargarMovimientosCajaV11 = async function(){
+    var res=document.getElementById('movCajaResumenV11'), lista=document.getElementById('movCajaListaV11');
+    if(!res||!lista) return; if(!dbok()){res.className='alerta';res.innerHTML='No hay conexión con Supabase.';return;}
+    try{
+      var movs=await leerMovs(); var hoy=fkey(new Date()), mes=mkey(new Date());
+      var neto=movs.reduce((s,m)=>s+netoMov(m),0), netoHoy=movs.filter(m=>fkey(m.fecha_creacion)===hoy).reduce((s,m)=>s+netoMov(m),0), netoMes=movs.filter(m=>mkey(m.fecha_creacion)===mes).reduce((s,m)=>s+netoMov(m),0);
+      res.className='info'; res.innerHTML='<b>Ajustes de caja:</b> Hoy '+mx(netoHoy)+' · Mes '+mx(netoMes)+' · Desde inicio '+mx(neto);
+      lista.innerHTML=movs.slice(0,80).map(m=>{var n=netoMov(m);return `<div class="v11-mov-item ${n<0?'neg':''}"><b>${n<0?'-':'+'}${mx(Math.abs(n))}</b> · ${esc(m.tipo||'ajuste')}<br><small>${esc(m.motivo||'Sin nota')}<br>${typeof formatoJuarez==='function'?formatoJuarez(m.fecha_creacion):m.fecha_creacion} · ${esc(m.usuarios?.nombre||'')}</small></div>`}).join('') || '<div class="warn">Aún no hay ajustes de caja.</div>';
+    }catch(e){res.className='alerta';res.innerHTML='No pude leer ajustes. Ejecuta el SQL V11 si aún no existe la tabla.<br><small>'+esc(e.message||e)+'</small>';}
+  };
+
+  window.registrarMovimientoCajaV11 = async function(btn){
+    if(!dbok()) return alert('No hay conexión con Supabase.');
+    var monto=num(document.getElementById('movCajaMontoV11')?.value), tipo=(document.getElementById('movCajaTipoV11')?.value||'entrada_extra').trim(), motivo=(document.getElementById('movCajaMotivoV11')?.value||'').trim();
+    if(monto<=0) return alert('Escribe el monto del movimiento.');
+    if(!motivo && !confirm('No escribiste motivo. ¿Guardar así?')) return;
+    var u=user(); if(btn){btn.disabled=true;btn.textContent='Guardando ajuste...';}
+    try{
+      var payload={usuario_id:u?.id||null,tipo,monto,motivo}; var r=await window.db.from('caja_movimientos').insert(payload).select('id').maybeSingle(); if(r.error) throw r.error;
+      try{ if(typeof auditoria==='function') await auditoria('MOVIMIENTO_CAJA_V11','Ajuste de caja '+tipo+' '+mx(monto)+(motivo?' · '+motivo:''),payload); }catch(e){}
+      document.getElementById('movCajaMontoV11').value=''; document.getElementById('movCajaMotivoV11').value='';
+      if(typeof notificar==='function') notificar('🏦 Ajuste de caja',`${tipo}: ${mx(monto)}`,'info',true);
+      await window.cargarMovimientosCajaV11(); await window.cargarCajaProV11();
+    }catch(e){ alert('No pude guardar el ajuste. Ejecuta el SQL V11 si falta la tabla.\n\n'+(e.message||e)); }
+    finally{ if(btn){btn.disabled=false;btn.textContent='🏦 Registrar ajuste de caja';} }
+  };
+
+  window.cargarCajaProV11 = async function(){
+    var cont=document.getElementById('reporteCajaV11'); if(!cont) return; if(!dbok()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    cont.className='warn'; cont.innerHTML='⏳ Calculando caja V11 desde el inicio del negocio...';
+    try{
+      var ventasRaw=await all('ventas','id,pedido_id,total,fecha_creacion,pedidos(estado)',{order:['fecha_creacion',{ascending:false}]});
+      var ventas=ventasRaw.filter(ventaValida), ids=ventas.map(v=>v.pedido_id).filter(Boolean), dets=ids.length?await detalles(ids):[];
+      var recetas=[]; try{recetas=await all('recetas','producto_id,cantidad,ingredientes(costo_unitario)',{});}catch(e){}
+      var costos=costosPorProducto(recetas);
+      var hoy=fkey(new Date()), semana=skey(new Date()), mes=mkey(new Date());
+      var ventasHoy=ventas.filter(v=>fkey(v.fecha_creacion)===hoy), ventasSemana=ventas.filter(v=>skey(v.fecha_creacion)===semana), ventasMes=ventas.filter(v=>mkey(v.fecha_creacion)===mes);
+      var totalVentas=ventas.reduce((s,v)=>s+num(v.total),0), totalHoy=ventasHoy.reduce((s,v)=>s+num(v.total),0), totalSemana=ventasSemana.reduce((s,v)=>s+num(v.total),0), totalMes=ventasMes.reduce((s,v)=>s+num(v.total),0);
+      var costoInicio=costoVentas(ventas,dets,costos), gananciaInicio=totalVentas-costoInicio;
+      var compras=await leerCompras(), totalCompras=compras.reduce((s,c)=>s+num(c.costo_total),0);
+      var retiros=await leerRetiros(), totalRetiros=retiros.reduce((s,r)=>s+num(r.monto),0);
+      var movs=await leerMovs(), netoAjustes=movs.reduce((s,m)=>s+netoMov(m),0);
+      var caja=totalVentas - totalCompras - totalRetiros + netoAjustes;
+      cont.className='info';
+      cont.innerHTML=`<h3>💵 Caja V11 desde inicio del negocio</h3><div class="v11-caja-grid">
+        <div class="v11-caja-box azul"><span>Ventas desde inicio</span><b>${mx(totalVentas)}</b><small>${ventas.length} ventas válidas</small></div>
+        <div class="v11-caja-box"><span>Ganancia por ventas</span><b>${mx(gananciaInicio)}</b><small>Ventas - materia prima usada</small></div>
+        <div class="v11-caja-box warnbox"><span>Ventas hoy / semana / mes</span><b>${mx(totalHoy)}</b><small>Semana ${mx(totalSemana)} · Mes ${mx(totalMes)}</small></div>
+        <div class="v11-caja-box neg"><span>Compras registradas</span><b>${mx(totalCompras)}</b><small>Surtido guardado en Supabase</small></div>
+        <div class="v11-caja-box neg"><span>Retiros de caja</span><b>${mx(totalRetiros)}</b><small>Sueldo, surtido, gasto u otro</small></div>
+        <div class="v11-caja-box ${caja<0?'neg':''}"><span>Caja disponible estimada</span><b>${mx(caja)}</b><small>Ventas - compras - retiros + ajustes</small></div>
+      </div><div class="v11-nota"><b>Fórmula V11:</b> caja = ventas cobradas - compras registradas - retiros + fondo inicial/ajustes. Para que el número sea real, registra los retiros de sueldo/surtido y el fondo inicial de caja.</div>`;
+    }catch(e){cont.className='alerta';cont.innerHTML='No pude calcular Caja V11.<br><small>'+esc(e.message||e)+'</small>';console.error('Caja V11',e);}
+  };
+
+  var oldReporte=window.cargarReporteHoy;
+  window.cargarReporteHoy = async function(){
+    try{ if(typeof oldReporte==='function') await oldReporte(); }catch(e){ console.warn('Reporte anterior V11',e); }
+    try{ await window.cargarCajaProV11(); }catch(e){ console.warn('Caja Pro V11',e); }
+  };
+  window.addEventListener('load',function(){
+    setTimeout(function(){try{window.cargarCajaProV11()}catch(e){}},3600);
+    setTimeout(function(){try{window.cargarMovimientosCajaV11()}catch(e){}},4200);
+  });
+})();
+</script>
+
 </body>
 </html>
 <!-- V7 PATCH - Respaldo completo, restauración y mensajes claros -->
@@ -10944,7 +11103,11 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
       const amigable = pushErrorAmigableV10(e);
       pushEstadoV10("❌ " + amigable, "error");
       alert("No se pudo activar Push: " + amigable);
-      console.error("Push V10 error", e);
+      console.error("ERROR COMPLETO FIREBASE V11:", e);
+      console.error("Código:", e && e.code);
+      console.error("Nombre:", e && e.name);
+      console.error("Mensaje:", e && e.message);
+      console.error("Push V10/V11 error", e);
       return null;
     }
   };
@@ -11024,6 +11187,122 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   };
   setInterval(()=>{try{window.revisarRecordatoriosHorarioV10()}catch(e){}}, 60000);
   setTimeout(()=>{try{window.revisarRecordatoriosHorarioV10()}catch(e){}}, 2500);
+})();
+</script>
+
+
+
+<style id="css-v11-caja-pro">
+.v11-caja-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}
+.v11-caja-box{background:#fff;border:2px solid #e1bee7;border-radius:18px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);text-align:center;color:#4a1249}
+.v11-caja-box b{font-size:24px;color:#1b5e20;display:block;margin-top:4px}
+.v11-caja-box.neg b{color:#b71c1c}.v11-caja-box.azul{background:#e3f2fd;border-color:#90caf9;color:#0d47a1}.v11-caja-box.warnbox{background:#fff8e1;border-color:#ffcc80;color:#e65100}
+.v11-mov-item{border:1px solid #eee;border-left:6px solid #43a047;border-radius:14px;background:#fff;padding:10px;margin:8px 0}
+.v11-mov-item.neg{border-left-color:#e53935;background:#ffebee}.v11-mov-item b{color:#1b5e20}.v11-mov-item.neg b{color:#b71c1c}
+.v11-nota{background:#e3f2fd;color:#0d47a1;border-radius:14px;padding:10px;margin:8px 0;font-size:13px}
+@media(max-width:520px){.v11-caja-grid{grid-template-columns:1fr}.v11-caja-box b{font-size:22px}}
+</style>
+
+<script id="js-v11-caja-pro">
+/* ===== V11 Caja Pro: histórico, fondo inicial, retiros y caja disponible ===== */
+(function(){
+  const VERSION='V11 Caja Pro';
+  function mx(v){ return '$' + Number(v||0).toFixed(2); }
+  function num(v){ return Number(String(v??'0').replace(',','.')) || 0; }
+  function esc(s){ return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]}); }
+  function fkey(f){ try{return (typeof fechaJuarezKey==='function')?fechaJuarezKey(f):new Date(f).toISOString().slice(0,10);}catch(e){return String(f||'').slice(0,10);} }
+  function mkey(f){ try{return (typeof mesJuarezKey==='function')?mesJuarezKey(f):fkey(f).slice(0,7);}catch(e){return fkey(f).slice(0,7);} }
+  function skey(f){ try{return (typeof semanaJuarezKey==='function')?semanaJuarezKey(f):fkey(f);}catch(e){return fkey(f);} }
+  function user(){ try{return (typeof usuarioActual==='function'?usuarioActual():null) || window.usuarioLogueado || null;}catch(e){return window.usuarioLogueado||null;} }
+  function dbok(){ try{ if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db; }catch(e){return false;} }
+  async function all(tabla, select, opts){
+    opts=opts||{}; var out=[], from=0, size=1000;
+    while(true){
+      var q=window.db.from(tabla).select(select).range(from,from+size-1);
+      if(opts.order) q=q.order(opts.order[0], opts.order[1]||{ascending:false});
+      if(opts.in) q=q.in(opts.in[0], opts.in[1]);
+      var r=await q; if(r.error) throw r.error;
+      var d=r.data||[]; out=out.concat(d); if(d.length<size) break; from+=size; if(from>30000) break;
+    }
+    return out;
+  }
+  function ventaValida(v){ var e=String(v?.pedidos?.estado||'vendido').toLowerCase(); return e!=='anulada' && e!=='cancelado'; }
+  async function detalles(ids){
+    ids=[...new Set((ids||[]).filter(Boolean))]; var out=[];
+    for(var i=0;i<ids.length;i+=500){ var r=await window.db.from('pedido_detalle').select('pedido_id,producto_id,cantidad,subtotal').in('pedido_id',ids.slice(i,i+500)); if(r.error) throw r.error; out=out.concat(r.data||[]); }
+    return out;
+  }
+  function costosPorProducto(recetas){ var m={}; (recetas||[]).forEach(r=>{m[r.producto_id]=(m[r.producto_id]||0)+num(r.cantidad)*num(r.ingredientes?.costo_unitario)}); return m; }
+  function costoVentas(ventas,dets,costos){ var p=new Set(ventas.map(v=>String(v.pedido_id||''))); return dets.filter(d=>p.has(String(d.pedido_id||''))).reduce((s,d)=>s+num(d.cantidad)*num(costos[d.producto_id]||0),0); }
+  async function leerCompras(){ try{return await all('compras','id,costo_total,fecha_compra,fecha_creacion,tienda,nota',{order:['fecha_compra',{ascending:false}]});}catch(e){console.warn('Compras no disponibles',e);return [];} }
+  async function leerRetiros(){ try{return await all('retiros_caja','id,tipo,monto,motivo,fecha_creacion,usuarios(nombre)',{order:['fecha_creacion',{ascending:false}]});}catch(e){console.warn('Retiros no disponibles',e);return [];} }
+  async function leerMovs(){ try{return await all('caja_movimientos','id,tipo,monto,motivo,fecha_creacion,usuarios(nombre)',{order:['fecha_creacion',{ascending:false}]});}catch(e){console.warn('Movimientos de caja no disponibles',e);return [];} }
+  function netoMov(m){ var tipo=String(m.tipo||'').toLowerCase(); var val=num(m.monto); return tipo.includes('negativo')||tipo.includes('salida') ? -val : val; }
+
+  window.cargarMovimientosCajaV11 = async function(){
+    var res=document.getElementById('movCajaResumenV11'), lista=document.getElementById('movCajaListaV11');
+    if(!res||!lista) return; if(!dbok()){res.className='alerta';res.innerHTML='No hay conexión con Supabase.';return;}
+    try{
+      var movs=await leerMovs(); var hoy=fkey(new Date()), mes=mkey(new Date());
+      var neto=movs.reduce((s,m)=>s+netoMov(m),0), netoHoy=movs.filter(m=>fkey(m.fecha_creacion)===hoy).reduce((s,m)=>s+netoMov(m),0), netoMes=movs.filter(m=>mkey(m.fecha_creacion)===mes).reduce((s,m)=>s+netoMov(m),0);
+      res.className='info'; res.innerHTML='<b>Ajustes de caja:</b> Hoy '+mx(netoHoy)+' · Mes '+mx(netoMes)+' · Desde inicio '+mx(neto);
+      lista.innerHTML=movs.slice(0,80).map(m=>{var n=netoMov(m);return `<div class="v11-mov-item ${n<0?'neg':''}"><b>${n<0?'-':'+'}${mx(Math.abs(n))}</b> · ${esc(m.tipo||'ajuste')}<br><small>${esc(m.motivo||'Sin nota')}<br>${typeof formatoJuarez==='function'?formatoJuarez(m.fecha_creacion):m.fecha_creacion} · ${esc(m.usuarios?.nombre||'')}</small></div>`}).join('') || '<div class="warn">Aún no hay ajustes de caja.</div>';
+    }catch(e){res.className='alerta';res.innerHTML='No pude leer ajustes. Ejecuta el SQL V11 si aún no existe la tabla.<br><small>'+esc(e.message||e)+'</small>';}
+  };
+
+  window.registrarMovimientoCajaV11 = async function(btn){
+    if(!dbok()) return alert('No hay conexión con Supabase.');
+    var monto=num(document.getElementById('movCajaMontoV11')?.value), tipo=(document.getElementById('movCajaTipoV11')?.value||'entrada_extra').trim(), motivo=(document.getElementById('movCajaMotivoV11')?.value||'').trim();
+    if(monto<=0) return alert('Escribe el monto del movimiento.');
+    if(!motivo && !confirm('No escribiste motivo. ¿Guardar así?')) return;
+    var u=user(); if(btn){btn.disabled=true;btn.textContent='Guardando ajuste...';}
+    try{
+      var payload={usuario_id:u?.id||null,tipo,monto,motivo}; var r=await window.db.from('caja_movimientos').insert(payload).select('id').maybeSingle(); if(r.error) throw r.error;
+      try{ if(typeof auditoria==='function') await auditoria('MOVIMIENTO_CAJA_V11','Ajuste de caja '+tipo+' '+mx(monto)+(motivo?' · '+motivo:''),payload); }catch(e){}
+      document.getElementById('movCajaMontoV11').value=''; document.getElementById('movCajaMotivoV11').value='';
+      if(typeof notificar==='function') notificar('🏦 Ajuste de caja',`${tipo}: ${mx(monto)}`,'info',true);
+      await window.cargarMovimientosCajaV11(); await window.cargarCajaProV11();
+    }catch(e){ alert('No pude guardar el ajuste. Ejecuta el SQL V11 si falta la tabla.\n\n'+(e.message||e)); }
+    finally{ if(btn){btn.disabled=false;btn.textContent='🏦 Registrar ajuste de caja';} }
+  };
+
+  window.cargarCajaProV11 = async function(){
+    var cont=document.getElementById('reporteCajaV11'); if(!cont) return; if(!dbok()){cont.className='alerta';cont.innerHTML='No hay conexión con Supabase.';return;}
+    cont.className='warn'; cont.innerHTML='⏳ Calculando caja V11 desde el inicio del negocio...';
+    try{
+      var ventasRaw=await all('ventas','id,pedido_id,total,fecha_creacion,pedidos(estado)',{order:['fecha_creacion',{ascending:false}]});
+      var ventas=ventasRaw.filter(ventaValida), ids=ventas.map(v=>v.pedido_id).filter(Boolean), dets=ids.length?await detalles(ids):[];
+      var recetas=[]; try{recetas=await all('recetas','producto_id,cantidad,ingredientes(costo_unitario)',{});}catch(e){}
+      var costos=costosPorProducto(recetas);
+      var hoy=fkey(new Date()), semana=skey(new Date()), mes=mkey(new Date());
+      var ventasHoy=ventas.filter(v=>fkey(v.fecha_creacion)===hoy), ventasSemana=ventas.filter(v=>skey(v.fecha_creacion)===semana), ventasMes=ventas.filter(v=>mkey(v.fecha_creacion)===mes);
+      var totalVentas=ventas.reduce((s,v)=>s+num(v.total),0), totalHoy=ventasHoy.reduce((s,v)=>s+num(v.total),0), totalSemana=ventasSemana.reduce((s,v)=>s+num(v.total),0), totalMes=ventasMes.reduce((s,v)=>s+num(v.total),0);
+      var costoInicio=costoVentas(ventas,dets,costos), gananciaInicio=totalVentas-costoInicio;
+      var compras=await leerCompras(), totalCompras=compras.reduce((s,c)=>s+num(c.costo_total),0);
+      var retiros=await leerRetiros(), totalRetiros=retiros.reduce((s,r)=>s+num(r.monto),0);
+      var movs=await leerMovs(), netoAjustes=movs.reduce((s,m)=>s+netoMov(m),0);
+      var caja=totalVentas - totalCompras - totalRetiros + netoAjustes;
+      cont.className='info';
+      cont.innerHTML=`<h3>💵 Caja V11 desde inicio del negocio</h3><div class="v11-caja-grid">
+        <div class="v11-caja-box azul"><span>Ventas desde inicio</span><b>${mx(totalVentas)}</b><small>${ventas.length} ventas válidas</small></div>
+        <div class="v11-caja-box"><span>Ganancia por ventas</span><b>${mx(gananciaInicio)}</b><small>Ventas - materia prima usada</small></div>
+        <div class="v11-caja-box warnbox"><span>Ventas hoy / semana / mes</span><b>${mx(totalHoy)}</b><small>Semana ${mx(totalSemana)} · Mes ${mx(totalMes)}</small></div>
+        <div class="v11-caja-box neg"><span>Compras registradas</span><b>${mx(totalCompras)}</b><small>Surtido guardado en Supabase</small></div>
+        <div class="v11-caja-box neg"><span>Retiros de caja</span><b>${mx(totalRetiros)}</b><small>Sueldo, surtido, gasto u otro</small></div>
+        <div class="v11-caja-box ${caja<0?'neg':''}"><span>Caja disponible estimada</span><b>${mx(caja)}</b><small>Ventas - compras - retiros + ajustes</small></div>
+      </div><div class="v11-nota"><b>Fórmula V11:</b> caja = ventas cobradas - compras registradas - retiros + fondo inicial/ajustes. Para que el número sea real, registra los retiros de sueldo/surtido y el fondo inicial de caja.</div>`;
+    }catch(e){cont.className='alerta';cont.innerHTML='No pude calcular Caja V11.<br><small>'+esc(e.message||e)+'</small>';console.error('Caja V11',e);}
+  };
+
+  var oldReporte=window.cargarReporteHoy;
+  window.cargarReporteHoy = async function(){
+    try{ if(typeof oldReporte==='function') await oldReporte(); }catch(e){ console.warn('Reporte anterior V11',e); }
+    try{ await window.cargarCajaProV11(); }catch(e){ console.warn('Caja Pro V11',e); }
+  };
+  window.addEventListener('load',function(){
+    setTimeout(function(){try{window.cargarCajaProV11()}catch(e){}},3600);
+    setTimeout(function(){try{window.cargarMovimientosCajaV11()}catch(e){}},4200);
+  });
 })();
 </script>
 
@@ -13045,5 +13324,198 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
   };
 
   window.addEventListener('load',()=>setTimeout(()=>{try{window.cargarReporteHoy()}catch(e){}},2600));
+})();
+</script>
+
+<style id="css-v10-inicio-negocio-y-caja">
+.v10-grid-caja{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}
+.v10-caja-box{background:#fff;border:2px solid #e1bee7;border-radius:18px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);text-align:center}
+.v10-caja-box span{display:block;font-size:13px;font-weight:bold;color:#555;margin-bottom:5px}
+.v10-caja-box b{font-size:23px;color:#1b5e20}
+.v10-caja-box.neg b{color:#b71c1c}
+.v10-caja-box.azul b{color:#0d47a1}
+.v10-caja-nota{background:#e3f2fd;color:#0d47a1;border-radius:14px;padding:10px;margin:8px 0;font-size:13px}
+.v10-retiro-item{border:1px solid #eee;border-left:6px solid #e53935;border-radius:14px;background:#fff;padding:10px;margin:8px 0}
+.v10-retiro-item b{color:#b71c1c}
+@media(max-width:520px){.v10-grid-caja{grid-template-columns:1fr}.v10-caja-box b{font-size:22px}}
+</style>
+
+<script id="js-v10-inicio-negocio-retiros-caja">
+/* ===== V10.1 Números desde inicio del negocio + retiros de caja ===== */
+(function(){
+  function mx(v){ return '$' + Number(v||0).toFixed(2); }
+  function num(v){ return Number(String(v??'0').replace(',','.')) || 0; }
+  function esc(s){ return String(s??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]}); }
+  function estadoValido(v){ var estado=String(v?.pedidos?.estado||'vendido').toLowerCase(); return estado!=='anulada' && estado!=='cancelado'; }
+  function fechaKey(f){ try{return (typeof fechaJuarezKey==='function')?fechaJuarezKey(f):new Date(f).toISOString().slice(0,10);}catch(e){return String(f||'').slice(0,10);} }
+  function semanaKey(f){ try{return (typeof semanaJuarezKey==='function')?semanaJuarezKey(f):fechaKey(f);}catch(e){return fechaKey(f);} }
+  function mesKey(f){ try{return (typeof mesJuarezKey==='function')?mesJuarezKey(f):fechaKey(f).slice(0,7);}catch(e){return fechaKey(f).slice(0,7);} }
+  function usuarioActualV10(){ try{return (typeof usuarioActual==='function'?usuarioActual():null) || window.usuarioLogueado || null;}catch(e){return window.usuarioLogueado||null;} }
+  function asegurarDBV10(){ try{ if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db; }catch(e){ return false; } }
+
+  async function fetchAllV10(tabla, select, opts){
+    opts=opts||{}; var all=[], from=0, size=1000;
+    while(true){
+      var q=window.db.from(tabla).select(select).range(from, from+size-1);
+      if(opts.gte) q=q.gte(opts.gte[0], opts.gte[1]);
+      if(opts.order) q=q.order(opts.order[0], opts.order[1]||{ascending:false});
+      var r=await q;
+      if(r.error) throw r.error;
+      var data=r.data||[]; all=all.concat(data);
+      if(data.length<size) break;
+      from+=size;
+      if(from>20000) break;
+    }
+    return all;
+  }
+
+  function costoPorProductoDesdeRecetasV10(recetasRows){
+    var mapa={};
+    (recetasRows||[]).forEach(function(r){
+      var pid=r.producto_id;
+      var cu=num(r.ingredientes?.costo_unitario);
+      mapa[pid]=(mapa[pid]||0)+(num(r.cantidad)*cu);
+    });
+    return mapa;
+  }
+  function costoVentasV10(ventas, detalles, costoProd){
+    var pedidos=new Set((ventas||[]).map(v=>String(v.pedido_id||'')));
+    return (detalles||[]).filter(d=>pedidos.has(String(d.pedido_id||''))).reduce(function(s,d){return s + num(d.cantidad)*num(costoProd[d.producto_id]||0);},0);
+  }
+  async function detallesPorPedidosV10(pedidoIds){
+    var ids=[...new Set((pedidoIds||[]).filter(Boolean))];
+    var out=[];
+    for(var i=0;i<ids.length;i+=500){
+      var parte=ids.slice(i,i+500);
+      var r=await window.db.from('pedido_detalle').select('pedido_id,producto_id,cantidad,subtotal').in('pedido_id',parte);
+      if(r.error) throw r.error;
+      out=out.concat(r.data||[]);
+    }
+    return out;
+  }
+
+  function bloqueV10(titulo, ventas, costoMateria){
+    var total=ventas.reduce((s,v)=>s+num(v.total),0);
+    if(total<=0) costoMateria=0;
+    var gan=total-costoMateria;
+    return `<div class="v10-caja-box ${gan<0?'neg':''}"><span>${titulo}</span><b>${mx(gan)}</b><small><br>Ventas ${mx(total)} · Materia ${mx(costoMateria)}<br>${ventas.length} ventas</small></div>`;
+  }
+
+  async function leerComprasV10(){
+    try{return await fetchAllV10('compras','id,costo_total,fecha_compra,fecha_creacion,tienda,nota',{order:['fecha_compra',{ascending:false}]});}
+    catch(e){ console.warn('Compras V10 no disponibles',e); return []; }
+  }
+  async function leerRetirosV10(){
+    try{return await fetchAllV10('retiros_caja','id,tipo,monto,motivo,fecha_creacion,usuarios(nombre)',{order:['fecha_creacion',{ascending:false}]});}
+    catch(e){ console.warn('Retiros V10 no disponibles',e); return []; }
+  }
+
+  window.cargarRetirosCajaV10 = async function(){
+    var resumen=document.getElementById('retirosCajaResumenV10');
+    var lista=document.getElementById('retirosCajaListaV10');
+    if(!resumen||!lista) return;
+    if(!asegurarDBV10()){ resumen.className='alerta'; resumen.innerHTML='No hay conexión con Supabase.'; return; }
+    try{
+      var retiros=await leerRetirosV10();
+      var hoy=fechaKey(new Date()), mes=mesKey(new Date());
+      var total=retiros.reduce((s,r)=>s+num(r.monto),0);
+      var totalHoy=retiros.filter(r=>fechaKey(r.fecha_creacion)===hoy).reduce((s,r)=>s+num(r.monto),0);
+      var totalMes=retiros.filter(r=>mesKey(r.fecha_creacion)===mes).reduce((s,r)=>s+num(r.monto),0);
+      resumen.className='info';
+      resumen.innerHTML=`<b>Retiros:</b> Hoy ${mx(totalHoy)} · Mes ${mx(totalMes)} · Desde inicio ${mx(total)}`;
+      lista.innerHTML=retiros.slice(0,80).map(r=>`<div class="v10-retiro-item"><b>${mx(r.monto)}</b> · ${esc(r.tipo||'retiro')}<br><small>${esc(r.motivo||'Sin nota')}<br>${typeof formatoJuarez==='function'?formatoJuarez(r.fecha_creacion):r.fecha_creacion} · ${esc(r.usuarios?.nombre||'')}</small></div>`).join('') || '<div class="warn">Aún no hay retiros registrados.</div>';
+    }catch(e){
+      resumen.className='alerta';
+      resumen.innerHTML='No pude leer retiros. Si aún no creaste la tabla, ejecuta el SQL incluido en el paquete.<br><small>'+esc(e.message||e)+'</small>';
+    }
+  };
+
+  window.registrarRetiroCajaV10 = async function(btn){
+    if(!asegurarDBV10()) return alert('No hay conexión con Supabase.');
+    var monto=num(document.getElementById('retiroMontoV10')?.value);
+    var tipo=(document.getElementById('retiroTipoV10')?.value||'otro').trim();
+    var motivo=(document.getElementById('retiroMotivoV10')?.value||'').trim();
+    if(monto<=0) return alert('Escribe el monto retirado.');
+    if(!motivo && !confirm('No escribiste motivo. ¿Guardar así?')) return;
+    var u=usuarioActualV10();
+    if(btn){btn.disabled=true;btn.textContent='Guardando retiro...';}
+    try{
+      var payload={usuario_id:u?.id||null,tipo:tipo,monto:monto,motivo:motivo};
+      var r=await window.db.from('retiros_caja').insert(payload).select('id').maybeSingle();
+      if(r.error) throw r.error;
+      try{ if(typeof auditoria==='function') await auditoria('RETIRO_CAJA','Retiro de caja '+mx(monto)+' · '+tipo+(motivo?' · '+motivo:''),payload); }catch(e){}
+      document.getElementById('retiroMontoV10').value='';
+      document.getElementById('retiroMotivoV10').value='';
+      if(typeof notificar==='function') notificar('💸 Retiro de caja',`${tipo}: ${mx(monto)}`,'warn',true);
+      await window.cargarRetirosCajaV10();
+      if(typeof window.cargarReporteHoy==='function') await window.cargarReporteHoy();
+    }catch(e){
+      alert('No pude guardar el retiro. Si falta la tabla, ejecuta el SQL incluido en el paquete.\n\n'+(e.message||e));
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='💸 Registrar retiro de caja';}
+    }
+  };
+
+  window.cargarReporteHoy = async function(){
+    if(!asegurarDBV10()) return;
+    if(window.reporteGeneral) reporteGeneral.innerHTML='<div class="warn">⏳ Calculando números desde el inicio del negocio...</div>';
+    try{
+      var ventasRaw=await fetchAllV10('ventas','id,pedido_id,total,fecha_creacion,pedidos(estado)',{order:['fecha_creacion',{ascending:false}]});
+      var ventas=ventasRaw.filter(estadoValido);
+      var pedidoIds=ventas.map(v=>v.pedido_id).filter(Boolean);
+      var detalles=pedidoIds.length ? await detallesPorPedidosV10(pedidoIds) : [];
+      var recetas=[];
+      try{ recetas=await fetchAllV10('recetas','producto_id,cantidad,ingredientes(costo_unitario)',{}); }catch(e){ console.warn('Recetas V10',e); }
+      var costoProd=costoPorProductoDesdeRecetasV10(recetas);
+      var hoy=fechaKey(new Date()), semana=semanaKey(new Date()), mes=mesKey(new Date());
+      var ventasHoy=ventas.filter(v=>fechaKey(v.fecha_creacion)===hoy);
+      var ventasSemana=ventas.filter(v=>semanaKey(v.fecha_creacion)===semana);
+      var ventasMes=ventas.filter(v=>mesKey(v.fecha_creacion)===mes);
+      var costoHoy=costoVentasV10(ventasHoy,detalles,costoProd);
+      var costoSemana=costoVentasV10(ventasSemana,detalles,costoProd);
+      var costoMes=costoVentasV10(ventasMes,detalles,costoProd);
+      var costoInicio=costoVentasV10(ventas,detalles,costoProd);
+      var totalVentasInicio=ventas.reduce((s,v)=>s+num(v.total),0);
+      var gananciaInicio=totalVentasInicio-costoInicio;
+      var compras=await leerComprasV10();
+      var totalCompras=compras.reduce((s,c)=>s+num(c.costo_total),0);
+      var retiros=await leerRetirosV10();
+      var totalRetiros=retiros.reduce((s,r)=>s+num(r.monto),0);
+      var cajaEstimada=totalVentasInicio-totalCompras-totalRetiros;
+      var anuladasHoy=ventasRaw.filter(v=>{var est=String(v.pedidos?.estado||'').toLowerCase(); return fechaKey(v.fecha_creacion)===hoy && (est==='anulada'||est==='cancelado');}).length;
+
+      var html=`<div class="resumen-v891">
+        ${bloqueV10('Hoy',ventasHoy,costoHoy)}
+        ${bloqueV10('Semana',ventasSemana,costoSemana)}
+        ${bloqueV10('Mes',ventasMes,costoMes)}
+      </div>
+      <div class="v10-grid-caja">
+        <div class="v10-caja-box azul"><span>🏁 Desde inicio del negocio: ventas</span><b>${mx(totalVentasInicio)}</b><small><br>${ventas.length} ventas válidas</small></div>
+        <div class="v10-caja-box"><span>📈 Ganancia neta desde inicio</span><b>${mx(gananciaInicio)}</b><small><br>Ventas - materia prima usada</small></div>
+        <div class="v10-caja-box neg"><span>🛒 Surtido registrado</span><b>${mx(totalCompras)}</b><small><br>Compras guardadas en Supabase</small></div>
+        <div class="v10-caja-box ${cajaEstimada<0?'neg':''}"><span>💵 Caja estimada actual</span><b>${mx(cajaEstimada)}</b><small><br>Ventas - compras - retiros</small></div>
+      </div>
+      <div class="v10-caja-nota">Horario usado para reportes: <b>Ciudad Juárez</b>. Este resumen ya no se pierde al cambiar de mes porque calcula también <b>desde el inicio del negocio</b>.<br><small>La caja estimada depende de registrar compras y retiros. Si pagas surtido desde caja con el carrito de inventario, no lo captures otra vez como retiro de surtido.</small></div>
+      <div class="warn">Ventas anuladas/canceladas hoy: <b>${anuladasHoy}</b></div>`;
+
+      if(window.resumenHoy) resumenHoy.innerHTML=html;
+      if(window.reporteGeneral) reporteGeneral.innerHTML=html;
+      var inicio=document.getElementById('reporteInicioNegocioV10');
+      if(inicio) inicio.innerHTML='';
+      try{ if(typeof cargarReporteProductos==='function') await cargarReporteProductos(ventasHoy,ventasSemana,ventasMes); }catch(e){}
+      try{ if(window.recomendacionCompra){ recomendacionCompra.innerHTML=(window.ingredientes||[]).filter(i=>num(i.cantidad)<=num(i.minimo||10)).map(i=>`<div class="alerta"><b>${esc(i.nombre)}</b><br>Quedan ${num(i.cantidad).toFixed(1)}. Mínimo: ${num(i.minimo||10).toFixed(0)}.</div>`).join('')||"<div class='ok'>Todo está arriba del mínimo.</div>"; } }catch(e){}
+      try{ await window.cargarRetirosCajaV10(); }catch(e){}
+      try{ if(typeof renderMetaDiariaV85==='function') renderMetaDiariaV85(); }catch(e){}
+      try{ if(typeof renderUltimasVentasV82==='function') renderUltimasVentasV82(); }catch(e){}
+    }catch(e){
+      if(window.reporteGeneral) reporteGeneral.innerHTML='<div class="alerta">No se pudo cargar reporte V10.1: '+esc(e.message||e)+'</div>';
+      console.error('Reporte V10.1',e);
+    }
+  };
+
+  window.addEventListener('load',function(){
+    setTimeout(function(){ try{ window.cargarRetirosCajaV10(); }catch(e){} },2200);
+    setTimeout(function(){ try{ window.cargarReporteHoy(); }catch(e){} },3000);
+  });
 })();
 </script>
