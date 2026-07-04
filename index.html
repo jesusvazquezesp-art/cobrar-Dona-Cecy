@@ -11,7 +11,7 @@
     
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puesto Doña Cecy V11 Caja Pro</title>
+<title>Puesto Doña Cecy V11.1 Caja Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function limpiarDatosLocalesPruebaReal(){
   if(!confirm("Esto borrará datos locales de ESTE celular: carrito/pedido borrador, ventas pendientes, pedidos pendientes, caché offline, sesión y usuario guardado. No borra Supabase. ¿Continuar?")) return;
@@ -1096,8 +1096,8 @@ th{background:#fafafa}
 <div id="campanaNotificaciones" onclick="togglePanelNotificaciones()">🔔<span id="campanaConteo">0</span></div>
 
 <header onclick="toqueTitulo()">
-  <h1>🥤 Puesto Doña Cecy V11 Caja Pro</h1>
-  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V11 Caja Pro · Histórico, retiros y notificaciones</p>
+  <h1>🥤 Puesto Doña Cecy V11.1 Caja Pro</h1>
+  <p>Punto de venta • Pedidos múltiples • Reportes Juárez</p><p style="font-size:12px;margin-top:4px;">V11.1 Caja Pro · Histórico, retiros y notificaciones</p>
 </header>
 
 <div class="tabs">
@@ -10979,8 +10979,8 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
 </style>
 
 <!-- ===== V10 Firebase Push Notifications Android - compat estable ===== -->
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js"></script>
 <script id="push-v10-firebase">
 /* ===== V10 Push Notifications Android / Firebase + Supabase ===== */
 (function(){
@@ -11079,6 +11079,40 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
     return reg;
   }
 
+  function esErrorVersionFirebaseV11(e){
+    const msg = String(e && (e.message || e) || "");
+    return (e && e.name === "VersionError") || msg.includes("requested version") || msg.includes("existing version");
+  }
+
+  function borrarDBV11(nombre){
+    return new Promise(resolve=>{
+      try{
+        const req = indexedDB.deleteDatabase(nombre);
+        req.onsuccess = req.onerror = req.onblocked = () => resolve();
+      }catch(e){ resolve(); }
+    });
+  }
+
+  async function limpiarFirebaseIndexedDBV11(){
+    try{ if(messagingV10 && messagingV10.deleteToken) await messagingV10.deleteToken().catch(()=>{}); }catch(e){}
+    const fijos = [
+      "firebase-messaging-database",
+      "firebase-installations-database",
+      "firebase-heartbeat-database"
+    ];
+    let nombres = [...fijos];
+    try{
+      if(indexedDB.databases){
+        const dbs = await indexedDB.databases();
+        nombres.push(...dbs.map(x=>x.name).filter(n=>n && String(n).toLowerCase().includes("firebase")));
+      }
+    }catch(e){}
+    nombres = [...new Set(nombres.filter(Boolean))];
+    for(const n of nombres){ await borrarDBV11(n); }
+    try{ localStorage.removeItem("cecy_push_token_v10"); localStorage.removeItem("cecy_push_token_v9"); }catch(e){}
+    pushTokenV10 = "";
+  }
+
   window.activarNotificacionesPushV9 = window.activarNotificacionesPushV10 = async function activarNotificacionesPushV10(){
     try{
       pushEstadoV10("⏳ Activando notificaciones push...", "info");
@@ -11088,9 +11122,24 @@ window.renderInventarioSurtidoV863=renderInventarioSurtidoV863;
       const permiso = await Notification.requestPermission();
       if(permiso !== "granted") throw new Error("Permiso de notificaciones no autorizado.");
 
-      const swReg = await registrarServiceWorkerFirebaseV10();
-      const messaging = await asegurarFirebaseV10();
-      const token = await messaging.getToken({vapidKey: VAPID_KEY_V10, serviceWorkerRegistration: swReg});
+      let swReg = await registrarServiceWorkerFirebaseV10();
+      let messaging = await asegurarFirebaseV10();
+      let token = "";
+      try{
+        token = await messaging.getToken({vapidKey: VAPID_KEY_V10, serviceWorkerRegistration: swReg});
+      }catch(errToken){
+        if(esErrorVersionFirebaseV11(errToken)){
+          console.warn("Firebase IndexedDB viejo detectado. Limpiando y reintentando Push...", errToken);
+          pushEstadoV10("🧹 Limpiando registro anterior de Firebase y reintentando...", "info");
+          await limpiarFirebaseIndexedDBV11();
+          await new Promise(r=>setTimeout(r,900));
+          swReg = await registrarServiceWorkerFirebaseV10();
+          messaging = await asegurarFirebaseV10();
+          token = await messaging.getToken({vapidKey: VAPID_KEY_V10, serviceWorkerRegistration: swReg});
+        }else{
+          throw errToken;
+        }
+      }
       if(!token) throw new Error("Firebase no regresó token del dispositivo.");
 
       pushTokenV10 = token;
