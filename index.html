@@ -7779,7 +7779,7 @@ function htmlTop10VendidosV9(){
       const h=document.querySelector('header h1');
       if(h) h.innerHTML='🥤 Punto de Venta Tia Irma';
       const ps=document.querySelectorAll('header p');
-      if(ps[1]) ps[1].innerHTML='V11.6 · lotes recuperan ventas';
+      if(ps[1]) ps[1].innerHTML='V11.6 · lotes con recuperación automática';
     }catch(e){}
   }
 
@@ -8807,228 +8807,192 @@ window.addEventListener('load',()=>setTimeout(actualizarHorarioPuestoV111,500));
 </script>
 
 
-<script id="patch-v116-lotes-recuperacion">
-/* V11.6 - Recuperación de lotes conectada a ventas
-   Problema corregido: LOTE-0000 mostraba Recuperado/Ganancia en 0 porque las ventas
-   descontaban ingredientes y registraban movimientos, pero no actualizaban lotes_compra. */
+
+<script id="parche-v116-lotes-recuperacion-real">
+/* ===== V11.6: recuperación real de lotes por ventas =====
+   Corrige que LOTE-0000 y otros lotes se quedaran en $0.00.
+   Calcula ventas -> pedido_detalle -> recetas -> ingredientes y reparte recuperación por FIFO entre lotes.
+*/
 (function(){
-  if(window.__V116_LOTES_RECUPERACION__) return;
-  window.__V116_LOTES_RECUPERACION__ = true;
-
-  const num = v => Number(v || 0);
-  const money = v => '$' + Number(v || 0).toFixed(2);
-
-  function dbOk(){
-    try{
-      if(!window.db && typeof iniciarSupabase === 'function') iniciarSupabase();
-      return !!window.db;
-    }catch(e){ return false; }
+  const moneyV116 = n => '$' + Number(n||0).toFixed(2);
+  const numV116 = v => Number(v||0);
+  function dbOkV116(){
+    try{ if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase(); return !!window.db; }catch(e){ return false; }
   }
+  function byIdV116(arr){ const m={}; (arr||[]).forEach(x=>{ if(x && x.id!=null) m[String(x.id)] = x; }); return m; }
+  function fechaV116(x){ try{return new Date(x.fecha_compra||x.created_at||0).getTime()||0}catch(e){return 0} }
 
-  function uid(){
-    return (window.usuarioLogueado && window.usuarioLogueado.id) || null;
-  }
+  async function leerVentasIngredientesV116(){
+    // 1) Lee ventas válidas y detalle vendido
+    const rv = await db.from('ventas').select('id,pedido_id,total,fecha_creacion,pedidos(estado)').order('fecha_creacion',{ascending:true}).limit(5000);
+    if(rv.error) throw new Error('ventas: '+rv.error.message);
+    const ventas = (rv.data||[]).filter(v=>{
+      const est=String(v.pedidos?.estado||'vendido').toLowerCase();
+      return est!=='anulada' && est!=='cancelado';
+    });
+    const pedidoIds=[...new Set(ventas.map(v=>v.pedido_id).filter(Boolean))];
+    if(!pedidoIds.length) return {unidades:{}, ingresos:{}, costoReceta:{}, ventasCount:ventas.length};
 
-  function normalizaEstadoVenta(v){
-    return String(v?.pedidos?.estado || v?.estado || 'vendido').toLowerCase();
-  }
+    const rd = await db.from('pedido_detalle').select('pedido_id,producto_id,cantidad,precio_unitario,subtotal').in('pedido_id',pedidoIds).limit(10000);
+    if(rd.error) throw new Error('pedido_detalle: '+rd.error.message);
+    const detalle = rd.data||[];
+    const prodIds=[...new Set(detalle.map(d=>d.producto_id).filter(Boolean))];
+    if(!prodIds.length) return {unidades:{}, ingresos:{}, costoReceta:{}, ventasCount:ventas.length};
 
-  function obtenerConsumoPedidoV116(ped){
-    const consumo = {};
-    try{
-      (ped || []).forEach(p => {
-        const rs = (window.recetas || []).filter(r => String(r.producto_id) === String(p.producto_id));
-        rs.forEach(r => {
-          consumo[String(r.ingrediente_id)] = (consumo[String(r.ingrediente_id)] || 0) + num(r.cantidad) * num(p.cantidad);
-        });
+    // 2) Lee recetas e ingredientes con costo actual para repartir cada venta
+    const rr = await db.from('recetas').select('producto_id,ingrediente_id,cantidad').in('producto_id',prodIds).limit(20000);
+    if(rr.error) throw new Error('recetas: '+rr.error.message);
+    const recetas = rr.data||[];
+    const ingIds=[...new Set(recetas.map(r=>r.ingrediente_id).filter(Boolean))];
+    const ri = ingIds.length ? await db.from('ingredientes').select('id,nombre,costo_unitario').in('id',ingIds).limit(20000) : {data:[], error:null};
+    if(ri.error) throw new Error('ingredientes: '+ri.error.message);
+    const ingMap=byIdV116(ri.data||[]);
+
+    const recetasPorProducto={};
+    recetas.forEach(r=>{
+      const pid=String(r.producto_id||'');
+      (recetasPorProducto[pid]||(recetasPorProducto[pid]=[])).push(r);
+    });
+
+    const unidades={}, ingresos={}, costoReceta={};
+    detalle.forEach(d=>{
+      const rec=recetasPorProducto[String(d.producto_id||'')]||[];
+      if(!rec.length) return;
+      const cantProd=numV116(d.cantidad);
+      const subtotal=numV116(d.subtotal || (numV116(d.precio_unitario)*cantProd));
+      let costoTotalReceta=0;
+      rec.forEach(r=>{
+        const ing=ingMap[String(r.ingrediente_id)]||{};
+        costoTotalReceta += numV116(r.cantidad)*cantProd*numV116(ing.costo_unitario);
       });
-    }catch(e){}
-    return consumo;
-  }
-
-  async function aplicarConsumoALotesV116(consumo, totalVenta){
-    if(!dbOk()) return {ok:false,msg:'Sin Supabase'};
-    const ingIds = Object.keys(consumo).filter(id => num(consumo[id]) > 0);
-    if(!ingIds.length) return {ok:false,msg:'Sin consumo'};
-
-    const detRes = await db.from('lote_detalle')
-      .select('id,lote_id,ingrediente_id,cantidad_inicial,cantidad_disponible,costo_unitario,created_at')
-      .in('ingrediente_id', ingIds)
-      .gt('cantidad_disponible', 0)
-      .order('created_at', {ascending:true});
-
-    if(detRes.error) return {ok:false,msg:detRes.error.message};
-
-    const detalles = detRes.data || [];
-    const usados = [];
-    let costoTotal = 0;
-
-    for(const ingId of ingIds){
-      let falta = num(consumo[ingId]);
-      const filas = detalles.filter(d => String(d.ingrediente_id) === String(ingId));
-      for(const d of filas){
-        if(falta <= 0) break;
-        const disp = num(d.cantidad_disponible);
-        if(disp <= 0) continue;
-        const usar = Math.min(disp, falta);
-        const costo = usar * num(d.costo_unitario);
-        usados.push({detalle:d, usar, costo});
-        costoTotal += costo;
-        falta -= usar;
-      }
-    }
-
-    if(!usados.length) return {ok:false,msg:'No hay detalle de lote disponible'};
-
-    const porLote = {};
-
-    for(const u of usados){
-      const d = u.detalle;
-      const nuevoDisponible = Math.max(0, num(d.cantidad_disponible) - u.usar);
-      await db.from('lote_detalle').update({cantidad_disponible:nuevoDisponible}).eq('id', d.id);
-
-      const parteVenta = costoTotal > 0 ? num(totalVenta) * (u.costo / costoTotal) : 0;
-      const loteId = String(d.lote_id);
-      porLote[loteId] = porLote[loteId] || {recuperado:0, ganancia:0, costo:0};
-      porLote[loteId].recuperado += parteVenta;
-      porLote[loteId].ganancia += (parteVenta - u.costo);
-      porLote[loteId].costo += u.costo;
-    }
-
-    for(const loteId of Object.keys(porLote)){
-      const loteRes = await db.from('lotes_compra').select('recuperado,ganancia,inversion_total,estado').eq('id', loteId).maybeSingle();
-      if(loteRes.error || !loteRes.data) continue;
-      const actual = loteRes.data;
-      const nuevoRec = num(actual.recuperado) + porLote[loteId].recuperado;
-      const nuevaGan = num(actual.ganancia) + porLote[loteId].ganancia;
-      const nuevoEstado = (num(actual.inversion_total) > 0 && nuevoRec >= num(actual.inversion_total)) ? 'recuperado' : (actual.estado || 'activo');
-      await db.from('lotes_compra').update({recuperado:nuevoRec, ganancia:nuevaGan, estado:nuevoEstado}).eq('id', loteId);
-    }
-
-    try{
-      if(typeof auditoria === 'function'){
-        await auditoria('LOTES_RECUPERADOS', 'Venta aplicada a recuperación de lotes', {totalVenta, costoTotal, porLote});
-      }
-    }catch(e){}
-
-    return {ok:true,costoTotal,porLote};
-  }
-
-  window.recalcularLote0000DesdeVentasV116 = async function(btn){
-    if(!dbOk()) return alert('No hay conexión con Supabase.');
-    if(btn){btn.disabled=true; btn.textContent='Recalculando...';}
-    try{
-      const loteRes = await db.from('lotes_compra').select('*').eq('folio','LOTE-0000').maybeSingle();
-      if(loteRes.error) throw new Error(loteRes.error.message);
-      if(!loteRes.data) throw new Error('No existe LOTE-0000. Primero créalo/revísalo.');
-      const lote = loteRes.data;
-
-      const detRes = await db.from('lote_detalle')
-        .select('id,lote_id,ingrediente_id,cantidad_inicial,cantidad_disponible,costo_unitario')
-        .eq('lote_id', lote.id)
-        .limit(2000);
-      if(detRes.error) throw new Error(detRes.error.message);
-      const detalles = detRes.data || [];
-      if(!detalles.length) throw new Error('LOTE-0000 no tiene detalle.');
-
-      const desde = lote.created_at || lote.fecha_compra || '2000-01-01T00:00:00Z';
-      const movRes = await db.from('movimientos_inventario')
-        .select('ingrediente_id,tipo,cantidad,fecha_creacion')
-        .eq('tipo','venta')
-        .gte('fecha_creacion', desde)
-        .limit(10000);
-      if(movRes.error) throw new Error(movRes.error.message);
-
-      const vendidoPorIng = {};
-      (movRes.data || []).forEach(m => {
-        const id = String(m.ingrediente_id || '');
-        if(!id) return;
-        vendidoPorIng[id] = (vendidoPorIng[id] || 0) + Math.abs(num(m.cantidad));
+      rec.forEach(r=>{
+        const iid=String(r.ingrediente_id||'');
+        const ing=ingMap[iid]||{};
+        const unidadesUsadas = numV116(r.cantidad)*cantProd;
+        const costoParte = unidadesUsadas*numV116(ing.costo_unitario);
+        const ingresoParte = costoTotalReceta>0 ? subtotal*(costoParte/costoTotalReceta) : 0;
+        unidades[iid]=(unidades[iid]||0)+unidadesUsadas;
+        ingresos[iid]=(ingresos[iid]||0)+ingresoParte;
+        costoReceta[iid]=(costoReceta[iid]||0)+costoParte;
       });
+    });
+    return {unidades, ingresos, costoReceta, ventasCount:ventas.length};
+  }
 
-      let costoConsumido = 0;
-      for(const d of detalles){
-        const vendido = num(vendidoPorIng[String(d.ingrediente_id)] || 0);
-        const inicial = num(d.cantidad_inicial);
-        const usado = Math.min(inicial, vendido);
-        const nuevoDisponible = Math.max(0, inicial - usado);
-        costoConsumido += usado * num(d.costo_unitario);
-        await db.from('lote_detalle').update({cantidad_disponible:nuevoDisponible}).eq('id', d.id);
+  async function recalcularLotesRecuperacionV116(silencioso=false){
+    try{
+      if(!dbOkV116()) throw new Error('No se pudo conectar a Supabase.');
+      const estado = document.getElementById('estadoRecalculoLotesV116') || document.getElementById('resultadoHerramientasV107');
+      if(estado) estado.innerHTML='⏳ Recalculando recuperación de lotes con ventas reales...';
+
+      const rl = await db.from('lotes_compra').select('*').order('fecha_compra',{ascending:true}).limit(1000);
+      if(rl.error) throw new Error('lotes_compra: '+rl.error.message);
+      const lotes=(rl.data||[]).sort((a,b)=>fechaV116(a)-fechaV116(b));
+      if(!lotes.length) throw new Error('No hay lotes registrados.');
+      const loteIds=lotes.map(l=>l.id).filter(Boolean);
+
+      const rd = await db.from('lote_detalle').select('*').in('lote_id',loteIds).limit(20000);
+      if(rd.error) throw new Error('lote_detalle: '+rd.error.message);
+      const detalles=rd.data||[];
+      const porLote={}; detalles.forEach(d=>{ (porLote[String(d.lote_id)]||(porLote[String(d.lote_id)]=[])).push(d); });
+
+      const calc=await leerVentasIngredientesV116();
+      const porIng={};
+      detalles.forEach(d=>{
+        const iid=String(d.ingrediente_id||'');
+        if(!iid) return;
+        (porIng[iid]||(porIng[iid]=[])).push(d);
+      });
+      Object.values(porIng).forEach(arr=>arr.sort((a,b)=>{
+        const la=lotes.find(x=>String(x.id)===String(a.lote_id));
+        const lb=lotes.find(x=>String(x.id)===String(b.lote_id));
+        return fechaV116(la)-fechaV116(lb);
+      }));
+
+      const sumas={};
+      for(const l of lotes) sumas[String(l.id)]={recuperado:0, ganancia:0};
+
+      for(const iid of Object.keys(porIng)){
+        let unidadesVendidas=numV116(calc.unidades[iid]);
+        if(unidadesVendidas<=0) continue;
+        const ingresoIng=numV116(calc.ingresos[iid]);
+        const ingresoPorUnidad= ingresoIng>0 ? ingresoIng/unidadesVendidas : 0;
+        for(const d of porIng[iid]){
+          if(unidadesVendidas<=0) break;
+          const inicial=numV116(d.cantidad_inicial || d.cantidad || 0);
+          if(inicial<=0) continue;
+          const usadas=Math.min(inicial, unidadesVendidas);
+          unidadesVendidas-=usadas;
+          const disponible=Math.max(0, inicial-usadas);
+          const costoUsado=usadas*numV116(d.costo_unitario);
+          const ingresoUsado=usadas*ingresoPorUnidad;
+          const lid=String(d.lote_id);
+          sumas[lid].recuperado += ingresoUsado;
+          sumas[lid].ganancia += (ingresoUsado-costoUsado);
+          try{ await db.from('lote_detalle').update({cantidad_disponible:disponible}).eq('id',d.id); }catch(e){}
+        }
       }
 
-      const ventasRes = await db.from('ventas')
-        .select('id,total,fecha_creacion,pedidos(estado)')
-        .gte('fecha_creacion', desde)
-        .limit(10000);
-      if(ventasRes.error) throw new Error(ventasRes.error.message);
-      const ventasValidas = (ventasRes.data || []).filter(v => {
-        const e = normalizaEstadoVenta(v);
-        return e !== 'anulada' && e !== 'cancelado';
-      });
-      const totalVentas = ventasValidas.reduce((s,v)=>s+num(v.total),0);
-      const ganancia = totalVentas - costoConsumido;
-      const estado = totalVentas >= num(lote.inversion_total) ? 'recuperado' : 'inicial';
-
-      const up = await db.from('lotes_compra').update({
-        recuperado: totalVentas,
-        ganancia: ganancia,
-        estado: estado,
-        nota: 'Inventario inicial oficial V11.6. Recuperación recalculada con ventas y movimientos de inventario.'
-      }).eq('id', lote.id);
-      if(up.error) throw new Error(up.error.message);
-
-      try{ if(typeof actualizarLotesV92 === 'function') await actualizarLotesV92(); }catch(e){}
-      alert('LOTE-0000 recalculado. Ventas: '+money(totalVentas)+' · Costo vendido: '+money(costoConsumido)+' · Ganancia: '+money(ganancia));
+      let actualizados=0;
+      for(const l of lotes){
+        const s=sumas[String(l.id)]||{recuperado:0,ganancia:0};
+        const estadoLote = numV116(s.recuperado)>=numV116(l.inversion_total) && numV116(l.inversion_total)>0 ? 'cerrado' : (String(l.folio)==='LOTE-0000'?'inicial':'activo');
+        const up=await db.from('lotes_compra').update({recuperado:s.recuperado, ganancia:s.ganancia, estado:estadoLote}).eq('id',l.id);
+        if(up.error) throw new Error('actualizando '+(l.folio||l.id)+': '+up.error.message);
+        actualizados++;
+      }
+      if(typeof window.actualizarLotesV92==='function') await window.actualizarLotesV92();
+      const msg=`✅ Lotes recalculados: ${actualizados}. Ventas revisadas: ${calc.ventasCount}.`;
+      if(estado) estado.innerHTML=msg;
+      if(!silencioso) alert(msg);
+      return true;
     }catch(e){
-      alert('No se pudo recalcular LOTE-0000: '+(e.message || e));
-    }finally{
-      if(btn){btn.disabled=false; btn.textContent='🔄 Recalcular recuperación LOTE-0000';}
+      const msg='No se pudo recalcular lotes: '+(e.message||e);
+      const estado = document.getElementById('estadoRecalculoLotesV116') || document.getElementById('resultadoHerramientasV107');
+      if(estado) estado.innerHTML='❌ '+msg;
+      if(!silencioso) alert(msg);
+      return false;
     }
-  };
+  }
+  window.recalcularLotesRecuperacionV116=recalcularLotesRecuperacionV116;
 
   function instalarBotonRecalculoV116(){
-    const card = document.getElementById('cardLotesV92');
-    if(!card || document.getElementById('btnRecalcularLote0000V116')) return;
-    const acciones = card.querySelector('.acciones') || card;
-    const b = document.createElement('button');
-    b.id = 'btnRecalcularLote0000V116';
-    b.className = 'btn-verde';
-    b.textContent = '🔄 Recalcular recuperación LOTE-0000';
-    b.onclick = function(){ window.recalcularLote0000DesdeVentasV116(this); };
-    acciones.appendChild(b);
+    const card=document.getElementById('cardLotesV92');
+    if(!card || document.getElementById('btnRecalcularLotesV116')) return;
+    const acciones=card.querySelector('.acciones') || card;
+    const btn=document.createElement('button');
+    btn.id='btnRecalcularLotesV116';
+    btn.className='btn-verde';
+    btn.textContent='🔄 Recalcular recuperación de lotes';
+    btn.onclick=()=>recalcularLotesRecuperacionV116(false);
+    acciones.appendChild(btn);
+    const info=document.createElement('div');
+    info.id='estadoRecalculoLotesV116';
+    info.className='info';
+    info.innerHTML='Si recuperado aparece en $0.00, presiona recalcular.';
+    acciones.parentNode.insertBefore(info, acciones.nextSibling);
   }
 
-  const oldActualizarLotes = window.actualizarLotesV92;
-  if(typeof oldActualizarLotes === 'function' && !oldActualizarLotes._v116){
-    window.actualizarLotesV92 = async function(){
+  const oldActualizar=window.actualizarLotesV92;
+  if(typeof oldActualizar==='function' && !oldActualizar._v116){
+    window.actualizarLotesV92=async function(){
       instalarBotonRecalculoV116();
-      const r = await oldActualizarLotes.apply(this, arguments);
+      const r=await oldActualizar.apply(this,arguments);
       instalarBotonRecalculoV116();
       return r;
     };
-    window.actualizarLotesV92._v116 = true;
+    window.actualizarLotesV92._v116=true;
   }
-
-  const oldRegistrarVentaServidor = window.registrarVentaServidor;
-  if(typeof oldRegistrarVentaServidor === 'function' && !oldRegistrarVentaServidor._v116){
-    window.registrarVentaServidor = async function(){
-      const copiaPedido = JSON.parse(JSON.stringify(window.pedido || []));
-      let totalVenta = 0;
-      try{ totalVenta = typeof totalPedido === 'function' ? totalPedido() : copiaPedido.reduce((s,x)=>s+num(x.precio_unitario)*num(x.cantidad),0); }catch(e){}
-      const r = await oldRegistrarVentaServidor.apply(this, arguments);
-      try{
-        if(copiaPedido.length && totalVenta > 0){
-          const consumo = obtenerConsumoPedidoV116(copiaPedido);
-          await aplicarConsumoALotesV116(consumo, totalVenta);
-          if(typeof actualizarLotesV92 === 'function') setTimeout(()=>actualizarLotesV92(), 800);
-        }
-      }catch(e){ console.warn('V11.6 lotes no aplicado:', e); }
+  const oldVerTab=window.verTab;
+  if(typeof oldVerTab==='function' && !oldVerTab._v116_lotes){
+    window.verTab=function(id,btn){
+      const r=oldVerTab.apply(this,arguments);
+      setTimeout(()=>{instalarBotonRecalculoV116(); if(id==='inventario') try{window.actualizarLotesV92&&window.actualizarLotesV92();}catch(e){}},250);
       return r;
     };
-    window.registrarVentaServidor._v116 = true;
+    window.verTab._v116_lotes=true;
   }
-
-  window.addEventListener('load',()=>setTimeout(instalarBotonRecalculoV116,1200));
+  window.addEventListener('load',()=>setTimeout(()=>{instalarBotonRecalculoV116();},1200));
 })();
 </script>
 
