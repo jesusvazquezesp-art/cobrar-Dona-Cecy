@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="es">
 <head>
     
@@ -6932,7 +6932,7 @@ function htmlTop10VendidosV9(){
       const wrapped=async function(btn){
         const cart=getCart();
         if(cart.length){
-          const prov=($('loteProveedorV92')?.value||'').trim();
+          const prov=($('proveedorCompraV87')?.value || $('loteProveedorV92')?.value || localStorage.getItem('cecy_ultimo_proveedor_v87') || '').trim();
           const nota=($('loteNotaV92')?.value||'').trim();
           if(!prov){alert('Escribe el lugar/proveedor antes de crear el lote.'); return;}
           try{await crearLoteDesdeCarritoV92(cart,prov,nota,window.usuarioLogueado);}
