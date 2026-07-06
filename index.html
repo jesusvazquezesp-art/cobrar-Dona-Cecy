@@ -8996,5 +8996,213 @@ window.addEventListener('load',()=>setTimeout(actualizarHorarioPuestoV111,500));
 })();
 </script>
 
+
+
+<!-- ===== V11.7 CORRECCIÓN HISTORIAL: HORA JUÁREZ + LUGAR AUTOMÁTICO ===== -->
+<script id="parche-v117-historial-compras-juarez-lugar">
+(function(){
+  if(window.__V117_HISTORIAL_JUAREZ_LUGAR) return;
+  window.__V117_HISTORIAL_JUAREZ_LUGAR=true;
+
+  const TZ_V117='America/Ciudad_Juarez';
+  const LS_PROV_V117='cecy_ultimo_proveedor_v87';
+  const LS_NOTA_V117='cecy_ultima_nota_compra_v87';
+  const $=id=>document.getElementById(id);
+  const money=v=>'$'+Number(v||0).toFixed(2);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+
+  function esFechaSinZonaV117(t){
+    t=String(t||'').trim();
+    if(!t) return false;
+    // Tiene fecha y hora, pero no termina con Z ni trae +00:00 / -06:00.
+    return /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(t) && !/(Z|[+-]\d{2}:?\d{2})$/.test(t);
+  }
+  function normalizarFechaV117(f){
+    if(!f) return null;
+    let t=String(f).trim();
+    // Supabase a veces entrega timestamp sin zona; en reportes eso se veía como 11:20 p.m.
+    // Lo tratamos como UTC para convertirlo correctamente a Ciudad Juárez.
+    if(esFechaSinZonaV117(t)) t=t.replace(' ','T')+'Z';
+    const d=new Date(t);
+    if(isNaN(d)) return null;
+    return d;
+  }
+  function fmtFechaJuarezV117(f){
+    const d=normalizarFechaV117(f);
+    if(!d) return esc(f||'Sin fecha');
+    return new Intl.DateTimeFormat('es-MX',{timeZone:TZ_V117,dateStyle:'medium',timeStyle:'short'}).format(d);
+  }
+  function timeCompraV117(f){
+    const d=normalizarFechaV117(f);
+    return d?d.getTime():0;
+  }
+  function dbOkV117(){try{if(!window.db && typeof iniciarSupabase==='function') iniciarSupabase();return !!window.db;}catch(e){return false;}}
+  function keyCompraV117(x){
+    // Agrupa renglones de la misma compra aunque Supabase no tenga compra_id.
+    const fecha=String(x.fecha||'').slice(0,16);
+    return [x.lote_id||x.lote_numero||x.compra_id||'',fecha,norm(x.proveedor),norm(x.usuario),norm(x.nota)].join('|');
+  }
+
+  async function repararComprasRecientesV117(proveedor, nota, idsIngredientes){
+    if(!proveedor || !dbOkV117()) return;
+    const desde=new Date(Date.now()-4*60*1000).toISOString();
+    let q=await db.from('compras').select('id,ingrediente_id,proveedor,tienda,lugar,nota,fecha_compra,fecha_creacion,created_at').gte('fecha_creacion',desde).limit(80);
+    if(q.error){
+      q=await db.from('compras').select('id,ingrediente_id,proveedor,tienda,lugar,nota,fecha_compra,fecha_creacion,created_at').limit(80);
+      if(q.error) return;
+    }
+    const setIds=new Set((idsIngredientes||[]).map(String));
+    const rows=(q.data||[]).filter(r=>!setIds.size || setIds.has(String(r.ingrediente_id)));
+    const fechaISO=new Date().toISOString();
+    for(const r of rows){
+      const payloads=[
+        {proveedor, tienda:proveedor, lugar:proveedor, nota:nota||'', fecha_compra:fechaISO},
+        {proveedor, nota:nota||'', fecha_compra:fechaISO},
+        {tienda:proveedor, nota:nota||'', fecha_compra:fechaISO},
+        {lugar:proveedor, nota:nota||'', fecha_compra:fechaISO},
+        {proveedor, nota:nota||''},
+        {tienda:proveedor, nota:nota||''},
+        {lugar:proveedor, nota:nota||''}
+      ];
+      for(const p of payloads){
+        try{
+          const up=await db.from('compras').update(p).eq('id',r.id);
+          if(!up.error) break;
+        }catch(e){}
+      }
+    }
+  }
+
+  function envolverPagoCarritoV117(nombre){
+    const old=window[nombre];
+    if(typeof old!=='function' || old._v117) return;
+    const wrap=async function(btn){
+      const proveedor=($('proveedorCompraV87')?.value || $('loteProveedorV92')?.value || localStorage.getItem(LS_PROV_V117) || '').trim();
+      const nota=($('notaCompraV87')?.value || $('loteNotaV92')?.value || localStorage.getItem(LS_NOTA_V117) || '').trim();
+      let ids=[];
+      try{
+        const raw=localStorage.getItem('cecy_carrito_surtido_v866')||'[]';
+        ids=(JSON.parse(raw)||[]).map(x=>x.id).filter(Boolean);
+      }catch(e){}
+      if(proveedor) localStorage.setItem(LS_PROV_V117,proveedor);
+      if(nota) localStorage.setItem(LS_NOTA_V117,nota);
+      const r=await old.apply(this,arguments);
+      setTimeout(()=>repararComprasRecientesV117(proveedor,nota,ids),900);
+      setTimeout(()=>{try{if(typeof window.renderHistorialComprasV887==='function') window.renderHistorialComprasV887();}catch(e){}},1400);
+      return r;
+    };
+    wrap._v117=true;
+    window[nombre]=wrap;
+  }
+
+  function asegurarCardHistorialV117(){
+    const rep=$('reportes'); if(!rep) return null;
+    let card=$('historialComprasV87Card');
+    if(!card){card=document.createElement('div');card.className='card';card.id='historialComprasV87Card';rep.appendChild(card);}
+    if(!$('historialComprasV887Contenido')){
+      card.innerHTML='<h2>📋 Historial de compras</h2><div class="info">Aquí aparecen las compras guardadas en Supabase, con hora de Ciudad Juárez y lugar/proveedor.</div><button class="btn-morado" onclick="renderHistorialComprasV887()">🔄 Actualizar historial de compras</button><div id="historialComprasV887Contenido" class="warn">Presiona actualizar historial de compras.</div>';
+    }
+    return card;
+  }
+
+  window.renderHistorialComprasV887=async function(){
+    asegurarCardHistorialV117();
+    const cont=$('historialComprasV887Contenido'); if(!cont) return;
+    const qOld=$('buscarHistorialComprasV887')?.value || '';
+    cont.className='warn'; cont.innerHTML='⏳ Leyendo historial con hora Ciudad Juárez...';
+    if(!dbOkV117()){cont.className='alerta';cont.innerHTML='No se pudo conectar a Supabase.';return;}
+
+    let r=await db.from('compras').select('*, ingredientes(nombre), usuarios(nombre)').order('fecha_compra',{ascending:false}).limit(900);
+    if(r.error) r=await db.from('compras').select('*, ingredientes(nombre), usuarios(nombre)').order('fecha_creacion',{ascending:false}).limit(900);
+    if(r.error){cont.className='alerta';cont.innerHTML='Error leyendo compras: '+esc(r.error.message);return;}
+
+    const rows=(r.data||[]).map(x=>{
+      const proveedor=(x.proveedor||x.tienda||x.lugar||'').trim();
+      return {
+        fecha:x.fecha_compra||x.fecha_creacion||x.created_at||'',
+        usuario:x.usuarios?.nombre||x.usuario_nombre||'Usuario',
+        proveedor:proveedor || 'Sin lugar',
+        nota:x.nota||x.observaciones||'',
+        nombre:x.ingredientes?.nombre||x.ingrediente_nombre||x.producto||'Producto',
+        cantidad:Number(x.cantidad||0),
+        costo_unitario:Number(x.costo_unitario||0),
+        costo_total:Number(x.costo_total||x.total||0),
+        lote_id:x.lote_id||'',
+        lote_numero:x.lote_numero||'',
+        compra_id:x.compra_id||''
+      };
+    });
+
+    const gruposMap=new Map();
+    rows.forEach(x=>{
+      const k=keyCompraV117(x);
+      if(!gruposMap.has(k)) gruposMap.set(k,{fecha:x.fecha,usuario:x.usuario,proveedor:x.proveedor,nota:x.nota,total:0,items:[]});
+      const g=gruposMap.get(k);
+      g.total+=x.costo_total; g.items.push(x);
+      if(timeCompraV117(x.fecha)>timeCompraV117(g.fecha)) g.fecha=x.fecha;
+    });
+    let grupos=[...gruposMap.values()].sort((a,b)=>timeCompraV117(b.fecha)-timeCompraV117(a.fecha));
+    const q=norm(qOld);
+    if(q) grupos=grupos.filter(g=>norm([fmtFechaJuarezV117(g.fecha),g.fecha,g.usuario,g.proveedor,g.nota,g.total,...g.items.map(i=>i.nombre+' '+i.cantidad+' '+i.costo_total)].join(' ')).includes(q));
+
+    const nowParts=new Intl.DateTimeFormat('en-CA',{timeZone:TZ_V117,year:'numeric',month:'2-digit'}).formatToParts(new Date());
+    const y=nowParts.find(p=>p.type==='year')?.value, m=nowParts.find(p=>p.type==='month')?.value;
+    function esMesActual(g){
+      const d=normalizarFechaV117(g.fecha); if(!d) return false;
+      const p=new Intl.DateTimeFormat('en-CA',{timeZone:TZ_V117,year:'numeric',month:'2-digit'}).formatToParts(d);
+      return p.find(x=>x.type==='year')?.value===y && p.find(x=>x.type==='month')?.value===m;
+    }
+    const totalMes=grupos.filter(esMesActual).reduce((s,g)=>s+g.total,0);
+    const totalMostrado=grupos.reduce((s,g)=>s+g.total,0);
+    const renglones=grupos.reduce((s,g)=>s+g.items.length,0);
+    const tiendas={};
+    grupos.forEach(g=>{const k=g.proveedor||'Sin lugar'; if(!tiendas[k]) tiendas[k]={nombre:k,total:0,compras:0,renglones:0}; tiendas[k].total+=g.total; tiendas[k].compras++; tiendas[k].renglones+=g.items.length;});
+    const tiendasOrden=Object.values(tiendas).sort((a,b)=>b.total-a.total);
+
+    cont.className='';
+    cont.innerHTML=`
+      <div class="v99-aviso">✅ Hora corregida a <b>Ciudad Juárez</b>. El lugar se toma de proveedor/tienda/lugar y se guarda automático en nuevas compras.</div>
+      <input id="buscarHistorialComprasV887" class="v99-search" placeholder="🔍 Buscar compra, producto, tienda, usuario o fecha..." value="${esc(qOld)}" oninput="renderHistorialComprasV887()">
+      <div class="v10-resumen-grid">
+        <div class="v10-total-card v10-morado"><span>Compras mostradas</span><b>${grupos.length}</b></div>
+        <div class="v10-total-card v10-azul"><span>Renglones</span><b>${renglones}</b></div>
+        <div class="v10-total-card v10-verde"><span>Este mes</span><b>${money(totalMes)}</b></div>
+        <div class="v10-total-card v10-naranja"><span>Total mostrado</span><b>${money(totalMostrado)}</b></div>
+      </div>
+      <div class="v10-tiendas"><h3>🏪 Totales por tienda</h3>${tiendasOrden.length?tiendasOrden.map(t=>`<div class="v10-tienda-row"><div><div class="nombre">${esc(t.nombre)}</div><small>${t.compras} compra(s) · ${t.renglones} renglón(es)</small></div><div class="monto">${money(t.total)}</div></div>`).join(''):'<div class="warn">Sin tiendas para mostrar.</div>'}</div>
+      <div>${grupos.length?grupos.slice(0,180).map(g=>`<div class="v99-compra"><div class="v99-compra-head"><div><b>${fmtFechaJuarezV117(g.fecha)}</b><br>📍 ${esc(g.proveedor||'Sin lugar')}<br>👤 ${esc(g.usuario)}${g.nota?`<br>📝 ${esc(g.nota)}`:''}</div><div class="v99-compra-total">${money(g.total)}</div></div><div class="v99-detalle">${g.items.map(i=>`<div class="v99-linea">• ${esc(i.nombre)}: ${i.cantidad} x ${money(i.costo_unitario)} = <b>${money(i.costo_total)}</b></div>`).join('')}</div></div>`).join(''):'<div class="warn">No hay compras guardadas.</div>'}</div>`;
+
+    const inp=$('buscarHistorialComprasV887'); if(inp && qOld){inp.focus();try{inp.setSelectionRange(qOld.length,qOld.length)}catch(e){}}
+  };
+  window.renderHistorialComprasV87=window.renderHistorialComprasV887;
+  window.renderHistorialComprasV881=window.renderHistorialComprasV887;
+
+  function instalarV117(){
+    envolverPagoCarritoV117('carritoPagadoSurtidoV869');
+    envolverPagoCarritoV117('carritoPagadoSurtidoV866');
+    envolverPagoCarritoV117('carritoPagadoSurtidoV863');
+  }
+  instalarV117();
+  setTimeout(instalarV117,800);
+  setTimeout(instalarV117,2500);
+
+  const oldTab=window.verTab;
+  if(typeof oldTab==='function' && !oldTab._v117Historial){
+    window.verTab=function(id,btn){const r=oldTab.apply(this,arguments); setTimeout(()=>{instalarV117(); if(id==='reportes') window.renderHistorialComprasV887();},300); return r;};
+    window.verTab._v117Historial=true;
+  }
+
+  // Texto de versión visible.
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{
+      const ps=document.querySelectorAll('header p');
+      if(ps[1]) ps[1].innerHTML='V11.7 · hora Juárez y lugar automático';
+    }catch(e){}
+    instalarV117();
+  },1000));
+})();
+</script>
+
 </body>
 </html>
