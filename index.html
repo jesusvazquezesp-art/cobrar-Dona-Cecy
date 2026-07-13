@@ -8369,7 +8369,11 @@ function htmlTop10VendidosV9(){
    Día: 0 Domingo, 1 Lunes, 2 Martes, 3 Miércoles, 4 Jueves, 5 Viernes, 6 Sábado.
 */
 const HORARIOS_PUESTO_V111 = {
-  5: [{inicio:'17:00', fin:'22:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
+    1: [{inicio:'14:00', fin:'20:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
+    2: [{inicio:'14:00', fin:'20:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
+    3: [{inicio:'14:00', fin:'20:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
+    4: [{inicio:'14:00', fin:'20:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
+  5: [{inicio:'14:00', fin:'22:00'}], // Viernes 5:00 p.m. a 10:00 p.m.
   6: [{inicio:'17:00', fin:'22:00'}], // Sábado 5:00 p.m. a 10:00 p.m.
   0: [{inicio:'17:00', fin:'21:00'}]  // Domingo 5:00 p.m. a 9:00 p.m.
 };
@@ -8465,7 +8469,7 @@ window.addEventListener('load',()=>setTimeout(actualizarHorarioPuestoV111,500));
 </style>
 <script id="js-v112-retiros-caja">
 (function(){
-  const $=id=>document.getElementById(id); const KEY='tiairma_retiros_caja_v112';
+  const $=id=>document.getElementById(id); const a='tiairma_retiros_caja_v112';
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const num=n=>Number(n||0)||0; const money=n=>'$'+num(n).toFixed(2);
   const zona='America/Ciudad_Juarez';
